@@ -4,13 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -27,69 +26,128 @@ public class OverseasStockService {
 
     public Map<String, Object> refresh(String requestedSymbol) {
         String symbol = normalize(requestedSymbol);
-        JsonNode response = client.get().uri(uri -> uri.pathSegment(symbol)
+        JsonNode result = fetch(symbol, uri -> uri.pathSegment(yahooSymbol(symbol))
                 .queryParam("range", "5d").queryParam("interval", "1d")
-                .queryParam("events", "div,splits").build()).retrieve().body(JsonNode.class);
-        JsonNode chart = response == null ? null : response.path("chart");
-        if (chart == null || !chart.path("error").isNull() || chart.path("result").isEmpty()) {
-            throw new IllegalStateException("Yahoo Finance 시세를 받지 못했습니다: " + (chart == null ? "빈 응답" : chart.path("error")));
-        }
-        JsonNode result = chart.path("result").get(0);
-        JsonNode meta = result.path("meta");
-        JsonNode timestamps = result.path("timestamp");
-        JsonNode quote = result.path("indicators").path("quote").get(0);
-        int index = lastValidIndex(timestamps, quote.path("close"));
-        BigDecimal price = decimal(quote.path("close").get(index));
-        BigDecimal previous = index > 0 ? decimal(quote.path("close").get(index - 1)) : decimal(meta.path("chartPreviousClose"));
-        BigDecimal change = price.subtract(previous);
-        String percent = previous.signum() == 0 ? "0%" : change.multiply(BigDecimal.valueOf(100))
-                .divide(previous, 4, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString() + "%";
-        String timezone = meta.path("exchangeTimezoneName").asText("UTC");
-        LocalDate tradingDay = Instant.ofEpochSecond(timestamps.get(index).asLong()).atZone(ZoneId.of(timezone)).toLocalDate();
-
-        jdbc.sql("""
-            INSERT INTO tb_overseas_stock_quote(symbol,company_name,exchange_name,currency,trading_day,
-              open_price,high_price,low_price,price,previous_close,change_amount,change_percent,volume,provider,payload)
-            VALUES (:symbol,:name,:exchange,:currency,:day,:open,:high,:low,:price,:previous,:change,:percent,
-              :volume,'YAHOO_FINANCE',CAST(:payload AS jsonb))
-            ON CONFLICT(symbol) DO UPDATE SET company_name=EXCLUDED.company_name,exchange_name=EXCLUDED.exchange_name,
-              currency=EXCLUDED.currency,trading_day=EXCLUDED.trading_day,open_price=EXCLUDED.open_price,
-              high_price=EXCLUDED.high_price,low_price=EXCLUDED.low_price,price=EXCLUDED.price,
-              previous_close=EXCLUDED.previous_close,change_amount=EXCLUDED.change_amount,
-              change_percent=EXCLUDED.change_percent,volume=EXCLUDED.volume,provider=EXCLUDED.provider,
-              payload=EXCLUDED.payload,updated_at=CURRENT_TIMESTAMP
-            """).param("symbol", symbol).param("name", meta.path("longName").asText(meta.path("shortName").asText(symbol)))
-            .param("exchange", meta.path("fullExchangeName").asText(meta.path("exchangeName").asText()))
-            .param("currency", meta.path("currency").asText()).param("day", tradingDay)
-            .param("open", decimal(quote.path("open").get(index))).param("high", decimal(quote.path("high").get(index)))
-            .param("low", decimal(quote.path("low").get(index))).param("price", price).param("previous", previous)
-            .param("change", change).param("percent", percent).param("volume", quote.path("volume").get(index).asLong())
-            .param("payload", result.toString()).update();
+                .queryParam("events", "div,splits").build());
+        saveMaster(symbol, result.path("meta"));
+        saveDailyPrices(symbol, result, LocalDate.MIN, LocalDate.MAX);
         return find(symbol);
+    }
+
+    public HistoryCollectionResult collectHistory(String requestedSymbol, LocalDate from, LocalDate to) {
+        if (from == null || to == null || from.isAfter(to))
+            throw new IllegalArgumentException("유효하지 않은 조회 기간입니다.");
+        String symbol = normalize(requestedSymbol);
+        long period1 = from.atStartOfDay(ZoneId.of("UTC")).toEpochSecond();
+        long period2 = to.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toEpochSecond();
+        JsonNode result = fetch(symbol, uri -> uri.pathSegment(yahooSymbol(symbol))
+                .queryParam("period1", period1).queryParam("period2", period2)
+                .queryParam("interval", "1d").queryParam("events", "div,splits").build());
+        saveMaster(symbol, result.path("meta"));
+        int saved = saveDailyPrices(symbol, result, from, to);
+        return new HistoryCollectionResult(symbol, from, to, saved);
+    }
+
+    public List<Map<String, Object>> findHistory(String requestedSymbol, LocalDate from, LocalDate to) {
+        return jdbc.sql("""
+            SELECT symbol,trading_day,open_price,high_price,low_price,close_price,adjusted_close,
+              volume,provider,updated_at FROM tb_overseas_stock_daily_price
+            WHERE symbol=:symbol AND trading_day BETWEEN :from AND :to ORDER BY trading_day
+            """).param("symbol", normalize(requestedSymbol)).param("from", from).param("to", to)
+                .query().listOfRows();
     }
 
     public Map<String, Object> find(String requestedSymbol) {
         var rows = jdbc.sql("""
-            SELECT symbol,company_name,exchange_name,currency,trading_day,open_price,high_price,low_price,
-              price,previous_close,change_amount,change_percent,volume,provider,updated_at
-            FROM tb_overseas_stock_quote WHERE symbol=:symbol
+            WITH prices AS (
+              SELECT *, row_number() OVER (ORDER BY trading_day DESC) AS rn
+              FROM tb_overseas_stock_daily_price WHERE symbol=:symbol
+            )
+            SELECT s.symbol,s.company_name,s.exchange_name,s.currency,
+              latest.trading_day,latest.open_price,latest.high_price,latest.low_price,
+              latest.close_price AS price,previous.close_price AS previous_close,
+              latest.close_price-previous.close_price AS change_amount,
+              CASE WHEN previous.close_price IS NULL OR previous.close_price=0 THEN NULL
+                ELSE round((latest.close_price-previous.close_price)*100/previous.close_price,4)::text||'%' END AS change_percent,
+              latest.volume,s.provider,latest.updated_at
+            FROM tb_overseas_stock s
+            JOIN prices latest ON latest.rn=1
+            LEFT JOIN prices previous ON previous.rn=2
+            WHERE s.symbol=:symbol
             """).param("symbol", normalize(requestedSymbol)).query().listOfRows();
         if (rows.isEmpty()) throw new IllegalArgumentException("저장된 해외주식 시세가 없습니다.");
         return rows.getFirst();
     }
 
-    private int lastValidIndex(JsonNode timestamps, JsonNode closes) {
-        for (int i = Math.min(timestamps.size(), closes.size()) - 1; i >= 0; i--) {
-            if (!closes.get(i).isNull() && closes.get(i).isNumber()) return i;
-        }
-        throw new IllegalStateException("Yahoo Finance 응답에 유효한 종가가 없습니다.");
+    private JsonNode fetch(String symbol, java.util.function.Function<org.springframework.web.util.UriBuilder, java.net.URI> uri) {
+        JsonNode response = client.get().uri(uri).retrieve().body(JsonNode.class);
+        JsonNode chart = response == null ? null : response.path("chart");
+        if (chart == null || !chart.path("error").isNull() || chart.path("result").isEmpty())
+            throw new IllegalStateException("Yahoo Finance 시세를 받지 못했습니다: " +
+                    (chart == null ? "빈 응답" : chart.path("error")));
+        return chart.path("result").get(0);
     }
+
+    private void saveMaster(String symbol, JsonNode meta) {
+        jdbc.sql("""
+            INSERT INTO tb_overseas_stock(symbol,company_name,exchange_name,currency,provider)
+            VALUES (:symbol,:name,:exchange,:currency,'YAHOO_FINANCE')
+            ON CONFLICT(symbol) DO UPDATE SET company_name=EXCLUDED.company_name,
+              exchange_name=EXCLUDED.exchange_name,currency=EXCLUDED.currency,
+              provider=EXCLUDED.provider,updated_at=CURRENT_TIMESTAMP
+            """).param("symbol", symbol)
+                .param("name", meta.path("longName").asText(meta.path("shortName").asText(symbol)))
+                .param("exchange", meta.path("fullExchangeName").asText(meta.path("exchangeName").asText()))
+                .param("currency", meta.path("currency").asText()).update();
+    }
+
+    private int saveDailyPrices(String symbol, JsonNode result, LocalDate from, LocalDate to) {
+        JsonNode meta = result.path("meta");
+        JsonNode timestamps = result.path("timestamp");
+        JsonNode quote = result.path("indicators").path("quote").get(0);
+        JsonNode adjusted = result.path("indicators").path("adjclose");
+        JsonNode adjustedValues = adjusted.isArray() && !adjusted.isEmpty() ? adjusted.get(0).path("adjclose") : null;
+        ZoneId zone = ZoneId.of(meta.path("exchangeTimezoneName").asText("UTC"));
+        int saved = 0;
+        for (int i=0; i<timestamps.size(); i++) {
+            JsonNode close = arrayValue(quote.path("close"), i);
+            if (close == null || close.isNull() || !close.isNumber()) continue;
+            LocalDate day = Instant.ofEpochSecond(timestamps.get(i).asLong()).atZone(zone).toLocalDate();
+            if (day.isBefore(from) || day.isAfter(to)) continue;
+            jdbc.sql("""
+                INSERT INTO tb_overseas_stock_daily_price(symbol,trading_day,open_price,high_price,low_price,
+                  close_price,adjusted_close,volume,provider)
+                VALUES (:symbol,:day,:open,:high,:low,:close,:adjusted,:volume,'YAHOO_FINANCE')
+                ON CONFLICT(symbol,trading_day) DO UPDATE SET open_price=EXCLUDED.open_price,
+                  high_price=EXCLUDED.high_price,low_price=EXCLUDED.low_price,close_price=EXCLUDED.close_price,
+                  adjusted_close=EXCLUDED.adjusted_close,volume=EXCLUDED.volume,provider=EXCLUDED.provider,
+                  updated_at=CURRENT_TIMESTAMP
+                """).param("symbol", symbol).param("day", day)
+                    .param("open", decimal(arrayValue(quote.path("open"),i)))
+                    .param("high", decimal(arrayValue(quote.path("high"),i)))
+                    .param("low", decimal(arrayValue(quote.path("low"),i)))
+                    .param("close", decimal(close))
+                    .param("adjusted", decimal(arrayValue(adjustedValues,i)))
+                    .param("volume", longValue(quote.path("volume"),i)).update();
+            saved++;
+        }
+        return saved;
+    }
+
+    private JsonNode arrayValue(JsonNode array, int index) {
+        return array==null || !array.isArray() || index>=array.size() ? null : array.get(index);
+    }
+    private long longValue(JsonNode array, int index) {
+        JsonNode value=arrayValue(array,index); return value==null || value.isNull() ? 0L : value.asLong();
+    }
+    private String yahooSymbol(String symbol) { return symbol.replace('.', '-'); }
     private String normalize(String symbol) {
-        String value = symbol == null ? "" : symbol.trim().toUpperCase();
+        String value=symbol==null ? "" : symbol.trim().toUpperCase();
         if (!value.matches("[A-Z0-9.^=:-]{1,30}")) throw new IllegalArgumentException("유효하지 않은 종목 심볼입니다.");
         return value;
     }
     private BigDecimal decimal(JsonNode value) {
-        return value == null || value.isNull() ? BigDecimal.ZERO : value.decimalValue();
+        return value==null || value.isNull() ? BigDecimal.ZERO : value.decimalValue();
     }
+    public record HistoryCollectionResult(String symbol, LocalDate from, LocalDate to, int savedCount) {}
 }

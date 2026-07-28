@@ -14,7 +14,17 @@ public enum KrxDataset {
 
     private final String path;
     private final List<String> keys;
-    KrxDataset(String path, List<String> keys) { this.path = path; this.keys = keys; }
-    public String path() { return path; }
-    public List<String> keys() { return keys; }
+
+    KrxDataset(String path, List<String> keys) {
+        this.path = path;
+        this.keys = keys;
+    }
+
+    public String path() {
+        return path;
+    }
+
+    public List<String> keys() {
+        return keys;
+    }
 }
