@@ -1,9 +1,35 @@
+name: investment
+
 services:
-  investment-engine-backend:
+  postgres:
+    image: postgres:16
+    container_name: investment-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: investment
+      POSTGRES_USER: investment
+      POSTGRES_PASSWORD: investment
+    ports:
+      - "5432:5432"
+    volumes:
+      - investment-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U investment -d investment"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      investment-existing:
+        aliases:
+          - postgres
+
+  backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: investment-engine-backend
+    image: investment-backend
+    container_name: investment-backend
     restart: unless-stopped
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/investment
@@ -13,20 +39,24 @@ services:
       KRX_BASE_URL: ${KRX_BASE_URL:-https://data-dbg.krx.co.kr}
       YAHOO_FINANCE_BASE_URL: ${YAHOO_FINANCE_BASE_URL:-https://query2.finance.yahoo.com/v8/finance/chart}
     ports:
-      - "8082:8080"
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - investment-existing
 
-  investment-engine-frontend:
+  frontend:
     build:
       context: frontend
       dockerfile: Dockerfile
-    container_name: investment-engine-frontend
+    image: investment-frontend
+    container_name: investment-frontend
     restart: unless-stopped
     depends_on:
-      - investment-engine-backend
+      - backend
     ports:
-      - "5174:80"
+      - "5173:80"
     networks:
       - investment-existing
 
@@ -35,4 +65,7 @@ networks:
     external: true
     name: investment_default
 
-
+volumes:
+  investment-postgres-data:
+    external: true
+    name: backend_investment-postgres-data
