@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: investment-briefing-engine
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+server:
+  port: 8080
+krx:
+  base-url: ${KRX_BASE_URL:https://data-dbg.krx.co.kr}
+  auth-key: ${KRX_AUTH_KEY:}
+overseas:
+  yahoo:
+    base-url: ${YAHOO_FINANCE_BASE_URL:https://query2.finance.yahoo.com/v8/finance/chart}
+investment:
+  rules:
+    max-regular-buy-multiplier: 3.0
+    weekly-review-day: SATURDAY
+    monthly-rebalance-day: 25
+

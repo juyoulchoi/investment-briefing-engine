@@ -1,0 +1,38 @@
+services:
+  investment-engine-backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: investment-engine-backend
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/investment
+      SPRING_DATASOURCE_USERNAME: investment
+      SPRING_DATASOURCE_PASSWORD: investment
+      KRX_AUTH_KEY: ${KRX_AUTH_KEY:-}
+      KRX_BASE_URL: ${KRX_BASE_URL:-https://data-dbg.krx.co.kr}
+      YAHOO_FINANCE_BASE_URL: ${YAHOO_FINANCE_BASE_URL:-https://query2.finance.yahoo.com/v8/finance/chart}
+    ports:
+      - "8082:8080"
+    networks:
+      - investment-existing
+
+  investment-engine-frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    container_name: investment-engine-frontend
+    restart: unless-stopped
+    depends_on:
+      - investment-engine-backend
+    ports:
+      - "5174:80"
+    networks:
+      - investment-existing
+
+networks:
+  investment-existing:
+    external: true
+    name: investment_default
+
+

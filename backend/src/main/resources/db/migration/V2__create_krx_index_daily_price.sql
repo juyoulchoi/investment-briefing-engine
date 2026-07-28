@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS TB_KRX_INDEX_DAILY_PRICE (
+ id BIGSERIAL PRIMARY KEY,
+ base_date DATE NOT NULL,
+ index_class VARCHAR(100) NOT NULL,
+ index_name VARCHAR(200) NOT NULL,
+ close_price NUMERIC(20,6), change_amount NUMERIC(20,6), change_rate NUMERIC(12,6),
+ open_price NUMERIC(20,6), high_price NUMERIC(20,6), low_price NUMERIC(20,6),
+ trading_volume NUMERIC(30,4), trading_value NUMERIC(30,4), market_cap NUMERIC(30,4),
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT UK_KRX_INDEX_DAILY_PRICE UNIQUE(base_date, index_class, index_name)
+);
+CREATE INDEX IF NOT EXISTS IX_KRX_INDEX_NAME_DATE ON TB_KRX_INDEX_DAILY_PRICE(index_name, base_date DESC);

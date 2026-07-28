@@ -1,0 +1,10 @@
+.git
+.gradle
+.vscode
+frontend
+backend/bin
+backend/.gradle
+backend/.settings
+**/build
+**/node_modules
+**/dist

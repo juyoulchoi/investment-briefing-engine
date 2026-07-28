@@ -1,0 +1,30 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+
+# Java/Gradle build output
+.gradle/
+**/.gradle/
+**/build/
+backend/bin/
+
+# IDE metadata
+.vscode/
+.idea/
+.classpath
+.factorypath
+.project
+.settings/
+**/.settings/
+
+# Local test artifacts
+decision-response.json
+
+# OS files
+.DS_Store
+Thumbs.db

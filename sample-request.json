@@ -1,0 +1,67 @@
+{
+  "decisionDate": "2026-08-01",
+  "existingReservedCash": 500000,
+  "market": {
+    "indexDrawdownPct": -18.0,
+    "volatilityIndex": 29.0,
+    "foreignNetBuy": -12000,
+    "institutionNetBuy": 3000,
+    "individualNetBuy": 9000,
+    "programNetBuy": -5000,
+    "usdKrwChangePct": 1.2,
+    "us10yChangeBp": 12.0,
+    "breadthPct": 28.0,
+    "newsFearScore": 75,
+    "aiCapexFatigueScore": 80,
+    "earningsConfidenceScore": 78,
+    "liquidityScore": 65,
+    "dominantNarrative": "AI 투자 피로와 외국인 위험 축소"
+  },
+  "positions": [
+    {
+      "account": "종합",
+      "code": "QQQ",
+      "name": "QQQ",
+      "minimumBuyAmount": 4000,
+      "maximumBuyAmount": 12000,
+      "profitLossPct": -12,
+      "stockDrawdownPct": -18,
+      "targetWeight": 0.08,
+      "currentWeight": 0.05,
+      "fundamentalScore": 85,
+      "valuationScore": 78,
+      "themeRiskScore": 45,
+      "regularBuyEnabled": true
+    },
+    {
+      "account": "종합",
+      "code": "005930",
+      "name": "삼성전자",
+      "minimumBuyAmount": 10000,
+      "maximumBuyAmount": 30000,
+      "profitLossPct": -10,
+      "stockDrawdownPct": -16,
+      "targetWeight": 0.1,
+      "currentWeight": 0.09,
+      "fundamentalScore": 82,
+      "valuationScore": 70,
+      "themeRiskScore": 40,
+      "regularBuyEnabled": true
+    },
+    {
+      "account": "종합",
+      "code": "105560",
+      "name": "KB금융",
+      "minimumBuyAmount": 7000,
+      "maximumBuyAmount": 14000,
+      "profitLossPct": 8,
+      "stockDrawdownPct": -5,
+      "targetWeight": 0.04,
+      "currentWeight": 0.06,
+      "fundamentalScore": 76,
+      "valuationScore": 65,
+      "themeRiskScore": 25,
+      "regularBuyEnabled": true
+    }
+  ]
+}
