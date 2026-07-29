@@ -46,8 +46,8 @@ type ListedStock = {
   volume: number;
   provider: string;
   updated_at: string;
-  account_type?: "GENERAL" | "DOMESTIC" | "ISA" | "PENSION";
-  market_scope?: "GENERAL" | "DOMESTIC" | "ISA" | "PENSION";
+  account_type?: "OVERSEAS" | "DOMESTIC" | "ISA" | "PENSION";
+  market_scope?: "OVERSEAS" | "DOMESTIC" | "ISA" | "PENSION";
   stock_grade?: "CORE" | "SATELLITE" | "THEME" | "CASH_LIKE" | null;
 };
 type Decision = {
@@ -120,7 +120,7 @@ const labels: Record<string, string> = {
 };
 const fmt = (n: number) => `${new Intl.NumberFormat("ko-KR").format(n)}원`;
 const accountNames: Record<string, string> = {
-  GENERAL: "종합", DOMESTIC: "국내", ISA: "ISA", PENSION: "연금",
+  OVERSEAS: "해외", DOMESTIC: "국내", ISA: "ISA", PENSION: "연금",
 };
 const stockGradeNames: Record<string, string> = {
   CORE: "핵심", SATELLITE: "위성", THEME: "테마", CASH_LIKE: "현금성",
@@ -238,7 +238,7 @@ function App() {
       "domestic",
     ),
     [accountScope, setAccountScope] = useState<
-      "ALL" | "GENERAL" | "DOMESTIC" | "ISA" | "PENSION"
+      "ALL" | "OVERSEAS" | "DOMESTIC" | "ISA" | "PENSION"
     >("ALL"),
     [stockSearch, setStockSearch] = useState(""),
     [stocksLoading, setStocksLoading] = useState(false),
@@ -474,13 +474,13 @@ function App() {
               {visibleStocks.map((s) => {
                 const up = (s.change_amount ?? 0) >= 0;
                 return (
-                  <tr key={`${s.account_type ?? "GENERAL"}-${s.symbol}`}>
+                  <tr key={`${s.account_type ?? "OVERSEAS"}-${s.symbol}`}>
                     <td>
                       <strong className="ticker">{s.symbol}</strong>
                       <small>{s.company_name}</small>
                     </td>
                     <td>
-                      {accountNames[s.market_scope ?? s.account_type ?? "GENERAL"]}</td>
+                      {accountNames[s.market_scope ?? s.account_type ?? "OVERSEAS"]}</td>
                     <td>{s.stock_grade ? stockGradeNames[s.stock_grade] : "-"}</td>
                     <td>
                       {s.exchange_name}
@@ -946,6 +946,3 @@ function Metric({ l, v }: { l: string; v: string }) {
   );
 }
 createRoot(document.getElementById("root")!).render(<App />);
-
-
-

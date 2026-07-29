@@ -11,7 +11,7 @@ class RegularBuyRuleServiceIntensityTest {
     @Test
     void capsWeeklyMultiplierWithUserSetting() {
         StockPosition position = new StockPosition(
-                "GENERAL", "QQQ", "QQQ", 10_000, 0, 1.5,
+                "OVERSEAS", "QQQ", "QQQ", 10_000, 0, 1.5,
                 -20, -20, .10, .05, 90, 90, 10, true);
         MarketAssessment market = assessment(MarketRegime.STRONG_CORRECTION);
 
@@ -27,7 +27,7 @@ class RegularBuyRuleServiceIntensityTest {
     @Test
     void explainsCashReservedWhenPurchaseIsPaused() {
         StockPosition position = new StockPosition(
-                "GENERAL", "QQQ", "QQQ", 10_000, 30_000, 3,
+                "OVERSEAS", "QQQ", "QQQ", 10_000, 30_000, 3,
                 0, 0, .10, .13, 80, 80, 10, true);
 
         StockDecision decision = service.decide(position, assessment(MarketRegime.NORMAL));
@@ -43,4 +43,3 @@ class RegularBuyRuleServiceIntensityTest {
                 java.util.List.of());
     }
 }
-

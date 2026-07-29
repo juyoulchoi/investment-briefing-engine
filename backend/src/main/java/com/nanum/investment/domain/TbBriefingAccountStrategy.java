@@ -26,8 +26,6 @@ public class TbBriefingAccountStrategy {
     private String accountTypeGroup = "ACCOUNT_TYPE";
     @Column(name = "account_type", nullable = false, length = 30)
     private String accountType;
-    @Column(name = "account_name", length = 100)
-    private String accountName;
     @Column(name = "market_signal", length = 30)
     private String marketSignal;
     @Column(name = "regular_buy_signal", length = 30)

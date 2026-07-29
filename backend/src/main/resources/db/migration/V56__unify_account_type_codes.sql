@@ -1,0 +1,113 @@
+INSERT INTO "TB_COM_CD" ("CD_GRP", "CD_KEY", "CD_NM", "DESC", "DSP_ORD", "ACTV_YN")
+VALUES
+    ('ACCOUNT_TYPE', 'OVERSEAS', '해외계좌', '해외주식 등을 보유하는 투자계좌', 1, 'Y'),
+    ('ACCOUNT_TYPE', 'ISA', 'ISA계좌', '개인종합자산관리계좌', 2, 'Y'),
+    ('ACCOUNT_TYPE', 'PENSION', '연금계좌', '연금 투자계좌', 3, 'Y'),
+    ('ACCOUNT_TYPE', 'DOMESTIC', '국내계좌', '국내 개별주식 계좌', 4, 'Y'),
+    ('ACCOUNT_TYPE', 'MIRAE', '미래에셋증권', '국내주식 금액 단위 신규 모으기 전용 계좌', 5, 'Y')
+ON CONFLICT ("CD_GRP", "CD_KEY") DO UPDATE
+SET "CD_NM" = EXCLUDED."CD_NM",
+    "DESC" = EXCLUDED."DESC",
+    "DSP_ORD" = EXCLUDED."DSP_ORD",
+    "ACTV_YN" = EXCLUDED."ACTV_YN",
+    "MOD_DT" = CURRENT_TIMESTAMP;
+
+DROP VIEW tb_acct;
+DROP VIEW tb_brf_acct_strg;
+
+ALTER TABLE "TB_ANALYSIS" DROP CONSTRAINT "FK_ANALYSIS_01";
+ALTER TABLE "TB_STK_SET" DROP CONSTRAINT "FK_STK_SET_01";
+ALTER TABLE "TB_ACCT_STK" DROP CONSTRAINT "FK_ACCT_STK_01";
+ALTER TABLE "TB_ACCT" DROP CONSTRAINT "CK_ACCT_01";
+
+UPDATE "TB_ANALYSIS" SET "ACCT_TP" = 'OVERSEAS' WHERE "ACCT_TP" = 'GENERAL';
+UPDATE "TB_STK_SET" SET "ACCT_TP" = 'OVERSEAS' WHERE "ACCT_TP" = 'GENERAL';
+UPDATE "TB_ACCT_STK" SET "ACCT_TP" = 'OVERSEAS' WHERE "ACCT_TP" = 'GENERAL';
+UPDATE "TB_ACCT" SET "ACCT_TP" = 'OVERSEAS' WHERE "ACCT_TP" = 'GENERAL';
+
+ALTER TABLE "TB_BUY_SET" DROP CONSTRAINT "ck_buy_set_01";
+UPDATE "TB_BUY_SET" SET "ACCT_TP" = 'OVERSEAS' WHERE "ACCT_TP" = 'GENERAL';
+ALTER TABLE "TB_BUY_SET"
+    ADD CONSTRAINT "CK_BUY_SET_ACCT_01"
+        CHECK ("ACCT_TP" IN ('OVERSEAS', 'DOMESTIC', 'ISA', 'PENSION', 'MIRAE'));
+
+UPDATE "TB_BRF_ACCT_STRG" SET "ACCT_TP" = 'OVERSEAS' WHERE "ACCT_TP" = 'GENERAL';
+UPDATE "TB_BRF_STK" SET "ACCT_TP" = 'OVERSEAS' WHERE "ACCT_TP" = 'GENERAL';
+UPDATE "TB_INV_EXEC" SET "ACCT_TP" = 'OVERSEAS' WHERE "ACCT_TP" = 'GENERAL';
+
+
+ALTER TABLE "TB_ACCT"
+    ADD COLUMN "ACCT_TP_GRP" VARCHAR(50) NOT NULL DEFAULT 'ACCOUNT_TYPE',
+    ADD CONSTRAINT "CK_ACCT_01"
+        CHECK ("ACCT_TP" IN ('OVERSEAS', 'DOMESTIC', 'ISA', 'PENSION', 'MIRAE')),
+    ADD CONSTRAINT "CK_ACCT_02"
+        CHECK ("ACCT_TP_GRP" = 'ACCOUNT_TYPE'),
+    ADD CONSTRAINT "FK_ACCT_01"
+        FOREIGN KEY ("ACCT_TP_GRP", "ACCT_TP")
+        REFERENCES "TB_COM_CD" ("CD_GRP", "CD_KEY");
+
+ALTER TABLE "TB_ACCT_STK"
+    ADD CONSTRAINT "FK_ACCT_STK_01"
+        FOREIGN KEY ("ACCT_TP") REFERENCES "TB_ACCT" ("ACCT_TP");
+ALTER TABLE "TB_STK_SET"
+    ADD CONSTRAINT "FK_STK_SET_01"
+        FOREIGN KEY ("ACCT_TP", "MKT_CD", "STK_CD")
+        REFERENCES "TB_ACCT_STK" ("ACCT_TP", "MKT_CD", "STK_CD") ON DELETE CASCADE;
+ALTER TABLE "TB_ANALYSIS"
+    ADD CONSTRAINT "FK_ANALYSIS_01"
+        FOREIGN KEY ("ACCT_TP", "MKT_CD", "STK_CD")
+        REFERENCES "TB_ACCT_STK" ("ACCT_TP", "MKT_CD", "STK_CD") ON DELETE CASCADE;
+
+ALTER TABLE "TB_ACCT" DROP COLUMN "ACCT_NM";
+ALTER TABLE "TB_BRF_ACCT_STRG" DROP COLUMN "ACCT_NM";
+
+DELETE FROM "TB_COM_CD"
+WHERE "CD_GRP" = 'ACCOUNT_TYPE' AND "CD_KEY" = 'GENERAL';
+DELETE FROM "TB_COM_CD"
+WHERE "CD_GRP" = 'MARKET_SCOPE';
+
+CREATE VIEW tb_acct AS
+SELECT
+    a."ACCT_TP" AS "acct_tp",
+    c."CD_NM" AS "acct_nm",
+    a."TOT_AMT" AS "total_amt",
+    a."AVAIL_CASH" AS "avail_cash",
+    a."CURR" AS "currency",
+    a."USE_YN" AS "use_yn",
+    a."REG_DT" AS "reg_dt",
+    a."MOD_DT" AS "mod_dt"
+FROM "TB_ACCT" a
+JOIN "TB_COM_CD" c
+  ON c."CD_GRP" = a."ACCT_TP_GRP"
+ AND c."CD_KEY" = a."ACCT_TP";
+
+CREATE VIEW tb_brf_acct_strg AS
+SELECT
+    a."ACCT_STRG_ID" AS "account_strategy_id",
+    a."BRF_ID" AS "briefing_id",
+    a."ACCT_TP" AS "account_type",
+    c."CD_NM" AS "account_name",
+    a."MKT_SIG" AS "market_signal",
+    a."REG_BUY_SIG" AS "regular_buy_signal",
+    a."ADD_BUY_SIG" AS "additional_buy_signal",
+    a."CASH_STRG" AS "cash_strategy",
+    a."INVEST_AMT" AS "invest_amount",
+    a."CASH_BAL" AS "cash_balance",
+    a."CASH_RT" AS "cash_ratio",
+    a."STRG_SUM" AS "strategy_summary",
+    a."CAUTION_MSG" AS "caution_message",
+    a."ACCT_TP_GRP" AS "account_type_group"
+FROM "TB_BRF_ACCT_STRG" a
+JOIN "TB_COM_CD" c
+  ON c."CD_GRP" = a."ACCT_TP_GRP"
+ AND c."CD_KEY" = a."ACCT_TP";
+
+CREATE OR REPLACE VIEW tb_stk_prc AS
+SELECT "ID" AS id, "STK_CD" AS symbol, "TRD_DT" AS trading_day,
+       "OPEN_PRC" AS open_price, "HIGH_PRC" AS high_price, "LOW_PRC" AS low_price,
+       "CLS_PRC" AS close_price, "ADJ_CLS" AS adjusted_close, "VOL" AS volume,
+       "PRVDR" AS provider, "REG_DT" AS created_at, "MOD_DT" AS updated_at,
+       CASE WHEN "MKT_CD" = 'US' THEN 'OVERSEAS' ELSE 'DOMESTIC' END AS market_scope
+FROM "TB_STK_PRC";
+
+COMMENT ON COLUMN "TB_ACCT"."ACCT_TP_GRP" IS '통합 계좌유형 공통코드 그룹. ACCOUNT_TYPE 고정';

@@ -64,8 +64,8 @@ public class OverseasStockService {
               latest.close_price-previous.close_price AS change_amount,
               CASE WHEN previous.close_price IS NULL OR previous.close_price=0 THEN NULL
                 ELSE round((latest.close_price-previous.close_price)*100/previous.close_price,4)::text||'%' END AS change_percent,
-              latest.volume,s.provider,latest.updated_at,'GENERAL' AS account_type,
-              'GENERAL' AS market_scope,NULL::varchar AS stock_grade
+              latest.volume,s.provider,latest.updated_at,'OVERSEAS' AS account_type,
+              'OVERSEAS' AS market_scope,NULL::varchar AS stock_grade
             FROM tb_hold s
             JOIN LATERAL (
               SELECT * FROM tb_stk_prc p
@@ -91,8 +91,8 @@ public class OverseasStockService {
               latest.close_price-previous.close_price AS change_amount,
               CASE WHEN previous.close_price IS NULL OR previous.close_price=0 THEN NULL
                 ELSE round((latest.close_price-previous.close_price)*100/previous.close_price,4)::text||'%' END AS change_percent,
-              latest.volume,s.provider,latest.updated_at,'GENERAL' AS account_type,
-              'GENERAL' AS market_scope,NULL::varchar AS stock_grade
+              latest.volume,s.provider,latest.updated_at,'OVERSEAS' AS account_type,
+              'OVERSEAS' AS market_scope,NULL::varchar AS stock_grade
             FROM tb_hold s
             JOIN prices latest ON latest.rn=1
             LEFT JOIN prices previous ON previous.rn=2
@@ -177,10 +177,3 @@ public class OverseasStockService {
     }
     public record HistoryCollectionResult(String symbol, LocalDate from, LocalDate to, int savedCount) {}
 }
-
-
-
-
-
-
-
