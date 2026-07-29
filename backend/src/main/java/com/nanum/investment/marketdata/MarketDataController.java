@@ -36,6 +36,15 @@ public class MarketDataController {
         return krx.find(dataset, baseDate, limit);
     }
 
+    @GetMapping("/overseas")
+    public List<Map<String, Object>> overseasStocks() {
+        return overseas.findAll();
+    }
+    @GetMapping("/domestic")
+    public List<Map<String, Object>> domesticStocks() {
+        return krx.findLatestStocks();
+    }
+
     @PostMapping("/overseas/{symbol}/history/collect")
     public OverseasStockService.HistoryCollectionResult collectHistory(@PathVariable String symbol,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -60,3 +69,5 @@ public class MarketDataController {
         return overseas.find(symbol);
     }
 }
+
+

@@ -62,6 +62,41 @@ public class KrxMarketDataService {
                 .query().listOfRows();
     }
 
+    public List<Map<String, Object>> findLatestStocks() {
+        return jdbc.sql("""
+                WITH latest AS (
+                  SELECT max(base_date) AS base_date FROM tb_krx_dataset_row
+                  WHERE dataset_code IN ('KOSPI_STOCK_DAILY', 'KOSDAQ_STOCK_DAILY', 'ETF_DAILY')
+                ), prices AS (
+                  SELECT DISTINCT ON (payload->>'ISU_CD') payload->>'ISU_CD' AS stock_code,
+                    CASE WHEN dataset_code = 'ETF_DAILY' THEN 'ETF' ELSE payload->>'MKT_NM' END AS exchange_name,
+                    r.base_date AS trading_day,
+                    NULLIF(replace(payload->>'TDD_CLSPRC', ',', ''), '')::numeric AS price,
+                    NULLIF(replace(payload->>'TDD_CLSPRC', ',', ''), '')::numeric
+                      - COALESCE(NULLIF(replace(payload->>'CMPPREVDD_PRC', ',', ''), '')::numeric, 0) AS previous_close,
+                    NULLIF(replace(payload->>'CMPPREVDD_PRC', ',', ''), '')::numeric AS change_amount,
+                    CASE WHEN NULLIF(payload->>'FLUC_RT', '') IS NULL THEN NULL ELSE (payload->>'FLUC_RT') || '%' END AS change_percent,
+                    NULLIF(replace(payload->>'ACC_TRDVOL', ',', ''), '')::bigint AS volume, r.updated_at
+                  FROM tb_krx_dataset_row r, latest
+                  WHERE dataset_code IN ('KOSPI_STOCK_DAILY', 'KOSDAQ_STOCK_DAILY', 'ETF_DAILY')
+                    AND r.base_date = latest.base_date
+                  ORDER BY payload->>'ISU_CD', CASE WHEN dataset_code = 'ETF_DAILY' THEN 0 ELSE 1 END
+                )
+                SELECT s.stock_code AS symbol, s.stock_name AS company_name,
+                  COALESCE(p.exchange_name, s.asset_type) AS exchange_name,
+                  'KRW' AS currency, p.trading_day, p.price, p.previous_close,
+                  p.change_amount, p.change_percent, p.volume, 'KRX' AS provider,
+                  COALESCE(p.updated_at, s.updated_at) AS updated_at,
+                  s.market_scope AS account_type, s.market_scope, ss.stk_grade AS stock_grade
+                FROM tb_hold s
+                LEFT JOIN tb_stk_set ss
+                  ON ss.acct_tp = s.market_scope AND ss.stk_cd = s.stock_code
+                LEFT JOIN prices p ON p.stock_code = s.stock_code
+                WHERE s.active_yn = 'Y' AND s.listing_scope = 'DOMESTIC'
+                ORDER BY s.market_scope, s.asset_type, s.stock_name
+                """).query().listOfRows();
+    }
+
     private long count(KrxDataset dataset, LocalDate date) {
         return jdbc.sql("SELECT count(*) FROM tb_krx_dataset_row WHERE dataset_code=:dataset AND base_date=:date")
                 .param("dataset", dataset.name()).param("date", date).query(Long.class).single();
@@ -83,3 +118,14 @@ public class KrxMarketDataService {
     public record CollectionResult(String dataset, LocalDate baseDate, int receivedCount, long storedCount) {
     }
 }
+
+
+
+
+
+
+
+
+
+
+

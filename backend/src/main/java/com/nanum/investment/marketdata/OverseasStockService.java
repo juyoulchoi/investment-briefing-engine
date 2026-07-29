@@ -51,29 +51,52 @@ public class OverseasStockService {
     public List<Map<String, Object>> findHistory(String requestedSymbol, LocalDate from, LocalDate to) {
         return jdbc.sql("""
             SELECT symbol,trading_day,open_price,high_price,low_price,close_price,adjusted_close,
-              volume,provider,updated_at FROM tb_overseas_stock_daily_price
+              volume,provider,updated_at FROM tb_stk_prc
             WHERE symbol=:symbol AND trading_day BETWEEN :from AND :to ORDER BY trading_day
             """).param("symbol", normalize(requestedSymbol)).param("from", from).param("to", to)
                 .query().listOfRows();
     }
 
+    public List<Map<String, Object>> findAll() {
+        return jdbc.sql("""
+            SELECT s.stock_code AS symbol,s.stock_name AS company_name,s.exchange_name,s.currency,
+              latest.trading_day,latest.close_price AS price,previous.close_price AS previous_close,
+              latest.close_price-previous.close_price AS change_amount,
+              CASE WHEN previous.close_price IS NULL OR previous.close_price=0 THEN NULL
+                ELSE round((latest.close_price-previous.close_price)*100/previous.close_price,4)::text||'%' END AS change_percent,
+              latest.volume,s.provider,latest.updated_at,'GENERAL' AS account_type,
+              'GENERAL' AS market_scope,NULL::varchar AS stock_grade
+            FROM tb_hold s
+            JOIN LATERAL (
+              SELECT * FROM tb_stk_prc p
+              WHERE p.symbol=s.stock_code ORDER BY trading_day DESC LIMIT 1
+            ) latest ON true
+            LEFT JOIN LATERAL (
+              SELECT * FROM tb_stk_prc p
+              WHERE p.symbol=s.stock_code ORDER BY trading_day DESC OFFSET 1 LIMIT 1
+            ) previous ON true
+            WHERE s.listing_scope='OVERSEAS' AND s.active_yn='Y'
+            ORDER BY s.stock_code
+            """).query().listOfRows();
+    }
     public Map<String, Object> find(String requestedSymbol) {
         var rows = jdbc.sql("""
             WITH prices AS (
               SELECT *, row_number() OVER (ORDER BY trading_day DESC) AS rn
-              FROM tb_overseas_stock_daily_price WHERE symbol=:symbol
+              FROM tb_stk_prc WHERE symbol=:symbol
             )
-            SELECT s.symbol,s.company_name,s.exchange_name,s.currency,
+            SELECT s.stock_code AS symbol,s.stock_name AS company_name,s.exchange_name,s.currency,
               latest.trading_day,latest.open_price,latest.high_price,latest.low_price,
               latest.close_price AS price,previous.close_price AS previous_close,
               latest.close_price-previous.close_price AS change_amount,
               CASE WHEN previous.close_price IS NULL OR previous.close_price=0 THEN NULL
                 ELSE round((latest.close_price-previous.close_price)*100/previous.close_price,4)::text||'%' END AS change_percent,
-              latest.volume,s.provider,latest.updated_at
-            FROM tb_overseas_stock s
+              latest.volume,s.provider,latest.updated_at,'GENERAL' AS account_type,
+              'GENERAL' AS market_scope,NULL::varchar AS stock_grade
+            FROM tb_hold s
             JOIN prices latest ON latest.rn=1
             LEFT JOIN prices previous ON previous.rn=2
-            WHERE s.symbol=:symbol
+            WHERE s.stock_code=:symbol AND s.listing_scope='OVERSEAS'
             """).param("symbol", normalize(requestedSymbol)).query().listOfRows();
         if (rows.isEmpty()) throw new IllegalArgumentException("저장된 해외주식 시세가 없습니다.");
         return rows.getFirst();
@@ -90,9 +113,9 @@ public class OverseasStockService {
 
     private void saveMaster(String symbol, JsonNode meta) {
         jdbc.sql("""
-            INSERT INTO tb_overseas_stock(symbol,company_name,exchange_name,currency,provider)
-            VALUES (:symbol,:name,:exchange,:currency,'YAHOO_FINANCE')
-            ON CONFLICT(symbol) DO UPDATE SET company_name=EXCLUDED.company_name,
+            INSERT INTO tb_hold(market_scope,stock_code,stock_name,listing_scope,asset_type,exchange_name,currency,provider)
+            VALUES ('GENERAL',:symbol,:name,'OVERSEAS','STOCK',:exchange,:currency,'YAHOO_FINANCE')
+            ON CONFLICT(market_scope,stock_code) DO UPDATE SET stock_name=EXCLUDED.stock_name,
               exchange_name=EXCLUDED.exchange_name,currency=EXCLUDED.currency,
               provider=EXCLUDED.provider,updated_at=CURRENT_TIMESTAMP
             """).param("symbol", symbol)
@@ -115,7 +138,7 @@ public class OverseasStockService {
             LocalDate day = Instant.ofEpochSecond(timestamps.get(i).asLong()).atZone(zone).toLocalDate();
             if (day.isBefore(from) || day.isAfter(to)) continue;
             jdbc.sql("""
-                INSERT INTO tb_overseas_stock_daily_price(symbol,trading_day,open_price,high_price,low_price,
+                INSERT INTO tb_stk_prc(symbol,trading_day,open_price,high_price,low_price,
                   close_price,adjusted_close,volume,provider)
                 VALUES (:symbol,:day,:open,:high,:low,:close,:adjusted,:volume,'YAHOO_FINANCE')
                 ON CONFLICT(symbol,trading_day) DO UPDATE SET open_price=EXCLUDED.open_price,
@@ -151,3 +174,10 @@ public class OverseasStockService {
     }
     public record HistoryCollectionResult(String symbol, LocalDate from, LocalDate to, int savedCount) {}
 }
+
+
+
+
+
+
+

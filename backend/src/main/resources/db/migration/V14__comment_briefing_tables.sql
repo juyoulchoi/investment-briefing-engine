@@ -1,0 +1,26 @@
+COMMENT ON TABLE tb_investment_briefing IS '일자별 투자 시장 분석 및 행동 지침 브리핑';
+COMMENT ON COLUMN tb_investment_briefing.briefing_id IS '투자 브리핑 고유 식별자';
+COMMENT ON COLUMN tb_investment_briefing.briefing_date IS '브리핑 기준일';
+COMMENT ON COLUMN tb_investment_briefing.market_phase IS '시장 국면: 정상, 과열, 조정, 강한조정, 폭락';
+COMMENT ON COLUMN tb_investment_briefing.risk_level IS '시장 위험 수준: LOW, MEDIUM, HIGH, VERY_HIGH';
+COMMENT ON COLUMN tb_investment_briefing.headline IS '브리핑 핵심 제목';
+COMMENT ON COLUMN tb_investment_briefing.summary IS '브리핑 요약';
+COMMENT ON COLUMN tb_investment_briefing.market_analysis IS '시장 상황 상세 분석';
+COMMENT ON COLUMN tb_investment_briefing.action_summary IS '투자 행동 지침 요약';
+COMMENT ON COLUMN tb_investment_briefing.caution_message IS '투자 시 주의사항';
+COMMENT ON COLUMN tb_investment_briefing.created_at IS '레코드 생성 일시';
+COMMENT ON COLUMN tb_investment_briefing.updated_at IS '레코드 최종 수정 일시';
+
+COMMENT ON TABLE tb_briefing_market_indicator IS '투자 브리핑별 국내외 시장 지표';
+COMMENT ON COLUMN tb_briefing_market_indicator.indicator_id IS '시장 지표 고유 식별자';
+COMMENT ON COLUMN tb_briefing_market_indicator.briefing_id IS '투자 브리핑 식별자';
+COMMENT ON COLUMN tb_briefing_market_indicator.market_code IS '시장 구분 코드';
+COMMENT ON COLUMN tb_briefing_market_indicator.close_price IS '시장 지수 또는 자산의 종가';
+COMMENT ON COLUMN tb_briefing_market_indicator.change_rate IS '전일 대비 등락률';
+COMMENT ON COLUMN tb_briefing_market_indicator.foreign_net_amount IS '외국인 순매수 금액';
+COMMENT ON COLUMN tb_briefing_market_indicator.institution_net_amount IS '기관 순매수 금액';
+COMMENT ON COLUMN tb_briefing_market_indicator.individual_net_amount IS '개인 순매수 금액';
+COMMENT ON COLUMN tb_briefing_market_indicator.program_net_amount IS '프로그램 순매수 금액';
+COMMENT ON COLUMN tb_briefing_market_indicator.foreign_futures_amount IS '외국인 선물 순매수 금액';
+COMMENT ON COLUMN tb_briefing_market_indicator.exchange_rate IS '적용 환율';
+COMMENT ON COLUMN tb_briefing_market_indicator.trading_value IS '시장 거래대금';
