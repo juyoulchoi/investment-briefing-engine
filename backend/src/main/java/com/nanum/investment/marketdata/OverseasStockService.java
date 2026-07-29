@@ -113,11 +113,12 @@ public class OverseasStockService {
 
     private void saveMaster(String symbol, JsonNode meta) {
         jdbc.sql("""
-            INSERT INTO tb_hold(market_scope,stock_code,stock_name,listing_scope,asset_type,exchange_name,currency,provider)
-            VALUES ('GENERAL',:symbol,:name,'OVERSEAS','STOCK',:exchange,:currency,'YAHOO_FINANCE')
-            ON CONFLICT(market_scope,stock_code) DO UPDATE SET stock_name=EXCLUDED.stock_name,
-              exchange_name=EXCLUDED.exchange_name,currency=EXCLUDED.currency,
-              provider=EXCLUDED.provider,updated_at=CURRENT_TIMESTAMP
+            INSERT INTO "TB_STK"
+              ("MKT_CD","STK_CD","STK_NM","LIST_SCOPE","ASSET_TP","EXCH_NM","CURR","PRVDR")
+            VALUES ('US',:symbol,:name,'OVERSEAS','STOCK',:exchange,:currency,'YAHOO_FINANCE')
+            ON CONFLICT("MKT_CD","STK_CD") DO UPDATE SET "STK_NM"=EXCLUDED."STK_NM",
+              "EXCH_NM"=EXCLUDED."EXCH_NM","CURR"=EXCLUDED."CURR",
+              "PRVDR"=EXCLUDED."PRVDR","MOD_DT"=CURRENT_TIMESTAMP
             """).param("symbol", symbol)
                 .param("name", meta.path("longName").asText(meta.path("shortName").asText(symbol)))
                 .param("exchange", meta.path("fullExchangeName").asText(meta.path("exchangeName").asText()))
@@ -138,13 +139,15 @@ public class OverseasStockService {
             LocalDate day = Instant.ofEpochSecond(timestamps.get(i).asLong()).atZone(zone).toLocalDate();
             if (day.isBefore(from) || day.isAfter(to)) continue;
             jdbc.sql("""
-                INSERT INTO tb_stk_prc(symbol,trading_day,open_price,high_price,low_price,
-                  close_price,adjusted_close,volume,provider)
-                VALUES (:symbol,:day,:open,:high,:low,:close,:adjusted,:volume,'YAHOO_FINANCE')
-                ON CONFLICT(symbol,trading_day) DO UPDATE SET open_price=EXCLUDED.open_price,
-                  high_price=EXCLUDED.high_price,low_price=EXCLUDED.low_price,close_price=EXCLUDED.close_price,
-                  adjusted_close=EXCLUDED.adjusted_close,volume=EXCLUDED.volume,provider=EXCLUDED.provider,
-                  updated_at=CURRENT_TIMESTAMP
+                INSERT INTO "TB_STK_PRC"
+                  ("MKT_CD","STK_CD","TRD_DT","OPEN_PRC","HIGH_PRC","LOW_PRC",
+                   "CLS_PRC","ADJ_CLS","VOL","PRVDR")
+                VALUES ('US',:symbol,:day,:open,:high,:low,:close,:adjusted,:volume,'YAHOO_FINANCE')
+                ON CONFLICT("MKT_CD","STK_CD","TRD_DT") DO UPDATE SET
+                  "OPEN_PRC"=EXCLUDED."OPEN_PRC","HIGH_PRC"=EXCLUDED."HIGH_PRC",
+                  "LOW_PRC"=EXCLUDED."LOW_PRC","CLS_PRC"=EXCLUDED."CLS_PRC",
+                  "ADJ_CLS"=EXCLUDED."ADJ_CLS","VOL"=EXCLUDED."VOL",
+                  "PRVDR"=EXCLUDED."PRVDR","MOD_DT"=CURRENT_TIMESTAMP
                 """).param("symbol", symbol).param("day", day)
                     .param("open", decimal(arrayValue(quote.path("open"),i)))
                     .param("high", decimal(arrayValue(quote.path("high"),i)))
