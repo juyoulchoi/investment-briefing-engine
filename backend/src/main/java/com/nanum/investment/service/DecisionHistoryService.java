@@ -47,15 +47,20 @@ public class DecisionHistoryService {
             jdbc.sql("""
                     INSERT INTO tb_inv_stk_dec (
                       investment_decision_id, account, stock_code, stock_name, action_signal,
-                      multiplier, minimum_buy_amount, recommended_buy_amount, reserved_cash, reasons
+                      multiplier, minimum_buy_amount, maximum_buy_amount, maximum_increase_multiplier,
+                      recommended_buy_amount, reserved_cash, adjustment_reason, cash_plan, reasons
                     ) VALUES (:decisionId, :account, :code, :name, :action, :multiplier,
-                              :minimum, :recommended, :reserved, CAST(:reasons AS jsonb))
+                              :minimum, :maximum, :maximumMultiplier, :recommended, :reserved,
+                              :adjustmentReason, :cashPlan, CAST(:reasons AS jsonb))
                     """)
                     .param("decisionId", id).param("account", stock.account())
                     .param("code", stock.code()).param("name", stock.name())
                     .param("action", stock.action().name()).param("multiplier", stock.multiplier())
-                    .param("minimum", stock.minimumBuyAmount()).param("recommended", stock.recommendedBuyAmount())
-                    .param("reserved", stock.reservedCash()).param("reasons", toJson(stock.reasons()))
+                    .param("minimum", stock.minimumBuyAmount()).param("maximum", stock.maximumBuyAmount())
+                    .param("maximumMultiplier", stock.maximumIncreaseMultiplier())
+                    .param("recommended", stock.recommendedBuyAmount()).param("reserved", stock.reservedCash())
+                    .param("adjustmentReason", stock.adjustmentReason()).param("cashPlan", stock.cashPlan())
+                    .param("reasons", toJson(stock.reasons()))
                     .update();
         }
     }
