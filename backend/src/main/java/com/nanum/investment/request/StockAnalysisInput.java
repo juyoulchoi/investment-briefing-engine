@@ -8,6 +8,7 @@ public record StockAnalysisInput(
         BigDecimal targetWeight, BigDecimal accountTotalAmount, BigDecimal availableCash,
         BigDecimal stockReturnRate, BigDecimal marketReturnRate,
         String stockGrade, String benchmarkCode, String accumulationCycle,
+        String accumulationWeekDays, Integer accumulationMonthDay,
         boolean accumulationPaused, BigDecimal currentMarketIndex, BigDecimal recentPeakIndex,
         boolean individualStock, boolean leveragedProduct, boolean thematicEtf,
         String marketCode, boolean fundamentalDamaged,

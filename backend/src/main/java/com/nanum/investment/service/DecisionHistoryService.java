@@ -22,7 +22,7 @@ public class DecisionHistoryService {
     @Transactional
     public void save(InvestmentDecisionRequest request, PortfolioDecision decision) {
         Long id = jdbc.sql("""
-                INSERT INTO tb_investment_decision (
+                INSERT INTO tb_inv_dec (
                   decision_date, market_regime, market_score, sentiment_phase, sentiment_risk_score,
                   total_minimum_buy_amount, total_recommended_buy_amount, newly_reserved_cash,
                   available_additional_buy_cash, request_payload, result_payload
@@ -45,7 +45,7 @@ public class DecisionHistoryService {
 
         for (StockDecision stock : decision.stockDecisions()) {
             jdbc.sql("""
-                    INSERT INTO tb_investment_stock_decision (
+                    INSERT INTO tb_inv_stk_dec (
                       investment_decision_id, account, stock_code, stock_name, action_signal,
                       multiplier, minimum_buy_amount, recommended_buy_amount, reserved_cash, reasons
                     ) VALUES (:decisionId, :account, :code, :name, :action, :multiplier,

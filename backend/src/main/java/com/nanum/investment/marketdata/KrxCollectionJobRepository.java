@@ -21,21 +21,21 @@ public class KrxCollectionJobRepository {
 
     public void create(UUID id, LocalDate baseDate, int totalCount) {
         jdbc.update("""
-                INSERT INTO tb_krx_collection_job(id, base_date, status, total_count)
+                INSERT INTO tb_krx_clct_job(id, base_date, status, total_count)
                 VALUES (:id, :baseDate, 'QUEUED', :totalCount)
                 """, new MapSqlParameterSource().addValue("id", id)
                 .addValue("baseDate", Date.valueOf(baseDate)).addValue("totalCount", totalCount));
     }
 
     public void markRunning(UUID id) {
-        jdbc.update("UPDATE tb_krx_collection_job SET status='RUNNING', started_at=CURRENT_TIMESTAMP WHERE id=:id",
+        jdbc.update("UPDATE tb_krx_clct_job SET status='RUNNING', started_at=CURRENT_TIMESTAMP WHERE id=:id",
                 Map.of("id", id));
     }
 
     public void saveItem(UUID jobId, String dataset, String status, int receivedCount,
             long storedCount, String errorMessage, LocalDateTime startedAt) {
         jdbc.update("""
-                INSERT INTO tb_krx_collection_job_item(job_id,dataset_code,status,received_count,stored_count,
+                INSERT INTO tb_krx_clct_job_item(job_id,dataset_code,status,received_count,stored_count,
                   error_message,started_at,completed_at)
                 VALUES (:jobId,:dataset,:status,:receivedCount,:storedCount,:errorMessage,:startedAt,CURRENT_TIMESTAMP)
                 ON CONFLICT (job_id,dataset_code) DO UPDATE SET status=EXCLUDED.status,
@@ -50,10 +50,10 @@ public class KrxCollectionJobRepository {
     public void markCompleted(UUID id) {
         jdbc.update(
                 """
-                        UPDATE tb_krx_collection_job job SET
-                          success_count=(SELECT count(*) FROM tb_krx_collection_job_item WHERE job_id=job.id AND status='SUCCESS'),
-                          failed_count=(SELECT count(*) FROM tb_krx_collection_job_item WHERE job_id=job.id AND status<>'SUCCESS'),
-                          status=CASE WHEN EXISTS (SELECT 1 FROM tb_krx_collection_job_item WHERE job_id=job.id AND status<>'SUCCESS')
+                        UPDATE tb_krx_clct_job job SET
+                          success_count=(SELECT count(*) FROM tb_krx_clct_job_item WHERE job_id=job.id AND status='SUCCESS'),
+                          failed_count=(SELECT count(*) FROM tb_krx_clct_job_item WHERE job_id=job.id AND status<>'SUCCESS'),
+                          status=CASE WHEN EXISTS (SELECT 1 FROM tb_krx_clct_job_item WHERE job_id=job.id AND status<>'SUCCESS')
                             THEN 'COMPLETED_WITH_ERRORS' ELSE 'COMPLETED' END,
                           completed_at=CURRENT_TIMESTAMP WHERE id=:id
                         """,
@@ -61,13 +61,13 @@ public class KrxCollectionJobRepository {
     }
 
     public JobView find(UUID id) {
-        JobView job = jdbc.queryForObject("SELECT * FROM tb_krx_collection_job WHERE id=:id", Map.of("id", id),
+        JobView job = jdbc.queryForObject("SELECT * FROM tb_krx_clct_job WHERE id=:id", Map.of("id", id),
                 (rs, row) -> new JobView(rs.getObject("id", UUID.class), rs.getDate("base_date").toLocalDate(),
                         rs.getString("status"), rs.getInt("total_count"), rs.getInt("success_count"),
                         rs.getInt("failed_count"), time(rs.getTimestamp("created_at")),
                         time(rs.getTimestamp("started_at")),
                         time(rs.getTimestamp("completed_at")), List.of()));
-        List<ItemView> items = jdbc.query("SELECT * FROM tb_krx_collection_job_item WHERE job_id=:id ORDER BY id",
+        List<ItemView> items = jdbc.query("SELECT * FROM tb_krx_clct_job_item WHERE job_id=:id ORDER BY id",
                 Map.of("id", id), (rs, row) -> new ItemView(rs.getString("dataset_code"), rs.getString("status"),
                         rs.getInt("received_count"), rs.getLong("stored_count"), rs.getString("error_message"),
                         time(rs.getTimestamp("started_at")), time(rs.getTimestamp("completed_at"))));

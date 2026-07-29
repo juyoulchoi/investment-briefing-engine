@@ -13,12 +13,24 @@ class InvestmentSignalCalculatorTest {
     private final FinalActionCalculator action = new FinalActionCalculator();
 
     @Test void regularBuyChecksMarketCalendar() {
-        assertThat(regular.calculate(LocalDate.of(2026,7,27), false, "DAILY", false,
+        assertThat(regular.calculate(LocalDate.of(2026,7,27), false, "DAILY", null, null, false,
                 WeightStatus.UNDER, RiskLevel.LOW, BigDecimal.TEN, BigDecimal.TEN))
                 .isEqualTo(RegularBuySignal.NOT_SCHEDULED);
-        assertThat(regular.calculate(LocalDate.of(2026,7,27), true, "DAILY", false,
+        assertThat(regular.calculate(LocalDate.of(2026,7,27), true, "DAILY", null, null, false,
                 WeightStatus.UNDER, RiskLevel.LOW, BigDecimal.TEN, BigDecimal.TEN))
                 .isEqualTo(RegularBuySignal.EXECUTE);
+    }
+
+    @Test void regularBuyUsesStandardScheduleCodes() {
+        assertThat(regular.calculate(LocalDate.of(2026, 7, 27), true, "WEEKLY",
+                "MON,WED,FRI", null, false, WeightStatus.UNDER, RiskLevel.LOW,
+                BigDecimal.TEN, BigDecimal.TEN)).isEqualTo(RegularBuySignal.EXECUTE);
+        assertThat(regular.calculate(LocalDate.of(2026, 7, 28), true, "WEEKLY",
+                "MON,WED,FRI", null, false, WeightStatus.UNDER, RiskLevel.LOW,
+                BigDecimal.TEN, BigDecimal.TEN)).isEqualTo(RegularBuySignal.NOT_SCHEDULED);
+        assertThat(regular.calculate(LocalDate.of(2026, 7, 15), true, "MONTHLY",
+                null, 15, false, WeightStatus.UNDER, RiskLevel.LOW,
+                BigDecimal.TEN, BigDecimal.TEN)).isEqualTo(RegularBuySignal.EXECUTE);
     }
 
     @Test void additionalBuyUsesMinimumAllocationAndRequiresUnderWeight() {

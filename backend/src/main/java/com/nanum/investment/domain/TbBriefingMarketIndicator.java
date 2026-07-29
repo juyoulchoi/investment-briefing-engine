@@ -8,7 +8,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "tb_briefing_market_indicator")
+@Table(name = "tb_brf_mkt_ind")
 @Getter
 @Setter
 @NoArgsConstructor

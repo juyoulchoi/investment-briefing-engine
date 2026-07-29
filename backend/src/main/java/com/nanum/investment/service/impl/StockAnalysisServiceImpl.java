@@ -64,7 +64,8 @@ public class StockAnalysisServiceImpl implements StockAnalysisService {
 
         RegularBuySignal regularBuy = regularBuyCalculator.calculate(
                 LocalDate.now(), marketCalendarService.isMarketOpen(LocalDate.now(), input.marketCode()),
-                input.accumulationCycle(), input.accumulationPaused(),
+                input.accumulationCycle(), input.accumulationWeekDays(), input.accumulationMonthDay(),
+                input.accumulationPaused(),
                 weight.status(), risk.level(), input.availableCash(), new BigDecimal("10000"));
 
         BigDecimal additionalBuyAmount = additionalBuyCalculator.calculate(

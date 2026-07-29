@@ -42,7 +42,7 @@ public class KrxMarketDataService {
         for (JsonNode row : rows) {
             LocalDate rowDate = parseDate(row.path("BAS_DD").asText(), date);
             jdbc.sql("""
-                    INSERT INTO tb_krx_dataset_row(dataset_code, base_date, row_key, payload)
+                    INSERT INTO tb_krx_data_row(dataset_code, base_date, row_key, payload)
                     VALUES (:dataset, :date, :key, CAST(:payload AS jsonb))
                     ON CONFLICT (dataset_code, base_date, row_key)
                     DO UPDATE SET payload=EXCLUDED.payload, updated_at=CURRENT_TIMESTAMP
@@ -56,7 +56,7 @@ public class KrxMarketDataService {
     public List<Map<String, Object>> find(KrxDataset dataset, LocalDate date, int limit) {
         return jdbc.sql("""
                 SELECT dataset_code, base_date, row_key, payload, updated_at
-                FROM tb_krx_dataset_row WHERE dataset_code=:dataset AND base_date=:date
+                FROM tb_krx_data_row WHERE dataset_code=:dataset AND base_date=:date
                 ORDER BY row_key LIMIT :limit
                 """).param("dataset", dataset.name()).param("date", date).param("limit", Math.min(limit, 1000))
                 .query().listOfRows();
@@ -65,7 +65,7 @@ public class KrxMarketDataService {
     public List<Map<String, Object>> findLatestStocks() {
         return jdbc.sql("""
                 WITH latest AS (
-                  SELECT max(base_date) AS base_date FROM tb_krx_dataset_row
+                  SELECT max(base_date) AS base_date FROM tb_krx_data_row
                   WHERE dataset_code IN ('KOSPI_STOCK_DAILY', 'KOSDAQ_STOCK_DAILY', 'ETF_DAILY')
                 ), prices AS (
                   SELECT DISTINCT ON (payload->>'ISU_CD') payload->>'ISU_CD' AS stock_code,
@@ -77,7 +77,7 @@ public class KrxMarketDataService {
                     NULLIF(replace(payload->>'CMPPREVDD_PRC', ',', ''), '')::numeric AS change_amount,
                     CASE WHEN NULLIF(payload->>'FLUC_RT', '') IS NULL THEN NULL ELSE (payload->>'FLUC_RT') || '%' END AS change_percent,
                     NULLIF(replace(payload->>'ACC_TRDVOL', ',', ''), '')::bigint AS volume, r.updated_at
-                  FROM tb_krx_dataset_row r, latest
+                  FROM tb_krx_data_row r, latest
                   WHERE dataset_code IN ('KOSPI_STOCK_DAILY', 'KOSDAQ_STOCK_DAILY', 'ETF_DAILY')
                     AND r.base_date = latest.base_date
                   ORDER BY payload->>'ISU_CD', CASE WHEN dataset_code = 'ETF_DAILY' THEN 0 ELSE 1 END
@@ -98,7 +98,7 @@ public class KrxMarketDataService {
     }
 
     private long count(KrxDataset dataset, LocalDate date) {
-        return jdbc.sql("SELECT count(*) FROM tb_krx_dataset_row WHERE dataset_code=:dataset AND base_date=:date")
+        return jdbc.sql("SELECT count(*) FROM tb_krx_data_row WHERE dataset_code=:dataset AND base_date=:date")
                 .param("dataset", dataset.name()).param("date", date).query(Long.class).single();
     }
 
