@@ -12,10 +12,12 @@ import java.util.Map;
 public class MarketDataController {
     private final KrxMarketDataService krx;
     private final OverseasStockService overseas;
+    private final YahooIndexService yahooIndices;
 
-    public MarketDataController(KrxMarketDataService krx, OverseasStockService overseas) {
+    public MarketDataController(KrxMarketDataService krx, OverseasStockService overseas, YahooIndexService yahooIndices) {
         this.krx = krx;
         this.overseas = overseas;
+        this.yahooIndices = yahooIndices;
     }
 
     @GetMapping("/krx/datasets")
@@ -36,6 +38,29 @@ public class MarketDataController {
         return krx.find(dataset, baseDate, limit);
     }
 
+    @GetMapping("/indices")
+    public List<Map<String,Object>> indices(){return yahooIndices.indices();}
+
+    @PostMapping("/indices/collect")
+    public List<YahooIndexService.CollectionResult> collectIndices(
+            @RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to){return yahooIndices.collectAll(from,to);}
+
+    @PostMapping("/indices/{indexCode}/history/collect")
+    public YahooIndexService.CollectionResult collectIndexHistory(@PathVariable String indexCode,
+            @RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to){return yahooIndices.collect(indexCode,from,to);}
+
+    @PostMapping("/indices/{indexCode}/refresh")
+    public YahooIndexService.CollectionResult refreshIndex(@PathVariable String indexCode){return yahooIndices.refresh(indexCode);}
+
+    @GetMapping("/indices/{indexCode}/history")
+    public List<Map<String,Object>> indexHistory(@PathVariable String indexCode,
+            @RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to){return yahooIndices.history(indexCode,from,to);}
+
+    @GetMapping("/indices/{indexCode}")
+    public Map<String,Object> latestIndex(@PathVariable String indexCode){return yahooIndices.latest(indexCode);}
     @GetMapping("/overseas")
     public List<Map<String, Object>> overseasStocks() {
         return overseas.findAll();

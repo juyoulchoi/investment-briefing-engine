@@ -5,12 +5,10 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
-@Entity @Table(name="\"TB_ACCT\"", uniqueConstraints=@UniqueConstraint(name="UK_TB_ACCT_01", columnNames="ACCT_CD"))
+@Entity @Table(name="\"TB_ACCT\"", uniqueConstraints=@UniqueConstraint(name="UK_TB_ACCT_01", columnNames="ACCT_TP"))
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class TbAcct {
  @Id @GeneratedValue(strategy=GenerationType.IDENTITY) @Column(name="ACCT_ID") private Long accountId;
- @Column(name="ACCT_CD",nullable=false,length=30) private String accountCode;
- @Column(name="ACCT_NM",nullable=false,length=100) private String accountName;
  @Enumerated(EnumType.STRING) @Column(name="ACCT_TP",nullable=false,length=20) private AccountType accountType;
  @Column(name="BRKR_CD",length=30) private String brokerCode; @Column(name="BRKR_NM",length=100) private String brokerName;
  @Column(name="ACCT_NO_MASK",length=50) private String maskedAccountNumber;
@@ -23,4 +21,3 @@ public class TbAcct {
  @Column(name="CRT_DTTM",nullable=false,insertable=false,updatable=false) private OffsetDateTime createdDateTime; @Column(name="CRT_USR_ID",length=50) private String createdUserId;
  @Column(name="UPD_DTTM",nullable=false,insertable=false) private OffsetDateTime updatedDateTime; @Column(name="UPD_USR_ID",length=50) private String updatedUserId;
 }
-

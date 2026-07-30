@@ -43,7 +43,7 @@ public class DecisionHistoryService {
               SELECT :decisionId,:account,:code,:name,:action,:multiplier,:minimum,:recommended,:reserved,CAST(:reasons AS jsonb),
                 :maximum,:maximumMultiplier,:adjustmentReason,:cashPlan,a."ACCT_ID",s."STK_ID",h."HOLD_ID",:date,
                 d."RISK_SCR",d."RISK_GRADE",:multiplier,'N',d."CONF_RT",:adjustmentReason
-              FROM "TB_STK" s JOIN "TB_ACCT" a ON a."ACCT_CD"=CASE WHEN s."MKT_CD"='US' THEN 'OVERSEAS_MAIN' ELSE 'DOMESTIC_MAIN' END
+              FROM "TB_STK" s JOIN "TB_ACCT" a ON a."ACCT_TP"=CASE WHEN s."MKT_CD"='US' THEN 'OVERSEAS' ELSE 'DOMESTIC' END
               LEFT JOIN "TB_HOLD" h ON h."ACCT_ID"=a."ACCT_ID" AND h."STK_ID"=s."STK_ID"
               JOIN "TB_INV_DEC" d ON d."INV_DEC_ID"=:decisionId WHERE s."STK_CD"=:code
               """).param("decisionId",id).param("date",decision.decisionDate()).param("account",stock.account()).param("code",stock.code()).param("name",stock.name())

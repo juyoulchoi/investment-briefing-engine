@@ -18,7 +18,8 @@ public class InvestmentDecisionController {
     private final BriefingPromptService prompts;
     private final DecisionHistoryService history;
 
-    public InvestmentDecisionController(PortfolioDecisionService decisions, BriefingPromptService prompts, DecisionHistoryService history) {
+    public InvestmentDecisionController(PortfolioDecisionService decisions, BriefingPromptService prompts,
+            DecisionHistoryService history) {
         this.decisions = decisions;
         this.prompts = prompts;
         this.history = history;
