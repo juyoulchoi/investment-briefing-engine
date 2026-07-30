@@ -1,0 +1,3 @@
+package com.nanum.investment.request;
+import com.nanum.investment.domain.AccountType; import jakarta.validation.constraints.*; import java.math.BigDecimal;
+public record AccountSaveRequest(@NotBlank @Size(max=30) String accountCode,@NotBlank @Size(max=100) String accountName,@NotNull AccountType accountType,@Size(max=30) String brokerCode,@Size(max=100) String brokerName,@Size(max=50) String maskedAccountNumber,@NotBlank @Size(max=10) String baseCurrencyCode,@NotNull @DecimalMin("0") BigDecimal cashAmount,@NotNull @DecimalMin("0") BigDecimal reservedCashAmount,@DecimalMin("0") @DecimalMax("100") BigDecimal targetCashWeight,@NotNull @Min(0) Integer displaySequence){}

@@ -1,0 +1,2 @@
+package com.nanum.investment.repository; import com.nanum.investment.domain.TbPrcDay; import org.springframework.data.jpa.repository.JpaRepository; import java.time.LocalDate; import java.util.*;
+public interface TbPrcDayRepository extends JpaRepository<TbPrcDay,Long>{Optional<TbPrcDay> findTopByStock_StockIdOrderByTradeDateDesc(Long stockId); List<TbPrcDay> findAllByStock_StockIdAndTradeDateBetweenOrderByTradeDateAsc(Long stockId,LocalDate start,LocalDate end);}

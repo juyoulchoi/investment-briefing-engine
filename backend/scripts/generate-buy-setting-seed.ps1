@@ -92,7 +92,7 @@ foreach ($row in $rows) {
     ) -join ', '
 
     $sql.Add(@"
-INSERT INTO "TB_BUY_SET" (
+INSERT INTO "TB_REG_BUY" (
     "ACCT_TP", "MKT_CD", "STK_CD", "STK_NM",
     "BASE_CYCLE_TP", "BASE_WEEK_DAY", "BASE_MONTH_DAY", "BASE_AMT", "BASE_QTY",
     "BASE_PAUSE_RSN", "PRIORITY",
@@ -126,3 +126,4 @@ ON CONFLICT ("ACCT_TP", "STK_CD") DO UPDATE SET
 
 Set-Content -LiteralPath $target -Value $sql -Encoding utf8
 Write-Host "Generated $($rows.Count) rows in $target"
+

@@ -1,0 +1,28 @@
+-- PART 01 명명 규칙에 맞춰 동일 기능의 기존 테이블 이름만 변경한다.
+-- 데이터와 제약조건을 보존하기 위해 신규 테이블 생성 없이 RENAME만 사용한다.
+
+ALTER TABLE "TB_ACCT_STK" RENAME TO "TB_HOLD";
+ALTER TABLE "TB_BUY_SET" RENAME TO "TB_REG_BUY";
+ALTER TABLE "TB_STK_PRC" RENAME TO "TB_PRC_DAY";
+ALTER TABLE "TB_IDX_PRC" RENAME TO "TB_IDX_DAY";
+ALTER TABLE "TB_RISK_RULE" RENAME TO "TB_INV_RULE";
+ALTER TABLE "TB_COM_CD" RENAME TO "TB_CD_DTL";
+ALTER TABLE "TB_INV_STK_DEC" RENAME TO "TB_STK_DEC";
+ALTER TABLE "TB_INV_BRF" RENAME TO "TB_BRF";
+
+ALTER VIEW tb_buy_set RENAME TO tb_reg_buy;
+ALTER VIEW tb_stk_prc RENAME TO tb_prc_day;
+ALTER VIEW tb_idx_prc RENAME TO tb_idx_day;
+ALTER VIEW tb_risk_rule RENAME TO tb_inv_rule;
+ALTER VIEW tb_com_cd RENAME TO tb_cd_dtl;
+ALTER VIEW tb_inv_stk_dec RENAME TO tb_stk_dec;
+ALTER VIEW tb_inv_brf RENAME TO tb_brf;
+
+COMMENT ON TABLE "TB_HOLD" IS '계좌별 보유종목';
+COMMENT ON TABLE "TB_REG_BUY" IS '종목별 정기매수 설정';
+COMMENT ON TABLE "TB_PRC_DAY" IS '종목별 일별 시세';
+COMMENT ON TABLE "TB_IDX_DAY" IS '기준지수별 일별 지수시세';
+COMMENT ON TABLE "TB_INV_RULE" IS '투자 계산 규칙';
+COMMENT ON TABLE "TB_CD_DTL" IS '공통코드 상세';
+COMMENT ON TABLE "TB_STK_DEC" IS '종목별 투자판단';
+COMMENT ON TABLE "TB_BRF" IS '투자 브리핑';

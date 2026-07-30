@@ -7,5 +7,6 @@ import java.time.LocalDate;
 import java.util.Optional;
 
 public interface TbInvBrfRepository extends JpaRepository<TbInvBrf, Long> {
-    Optional<TbInvBrf> findByBrfDt(LocalDate brfDt);
+    Optional<TbInvBrf> findTopByBaseDateAndLatestYnOrderByCalculationSequenceDesc(LocalDate baseDate, String latestYn);
 }
+

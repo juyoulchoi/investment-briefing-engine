@@ -9,7 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "tb_inv_brf")
+@Table(name = "tb_brf")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -38,5 +38,6 @@ public class TbInvestmentBriefing {
         updatedAt = LocalDateTime.now();
     }
 }
+
 
 

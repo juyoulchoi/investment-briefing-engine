@@ -4,5 +4,9 @@ public enum RebuySignal {
     WAIT,
     WATCH,
     PARTIAL,
-    ALLOWED
+    ALLOWED,
+    PARTIAL_REBUY,
+    REBUY,
+    BLOCKED
 }
+

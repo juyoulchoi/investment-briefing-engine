@@ -51,7 +51,7 @@ public class OverseasStockService {
     public List<Map<String, Object>> findHistory(String requestedSymbol, LocalDate from, LocalDate to) {
         return jdbc.sql("""
             SELECT symbol,trading_day,open_price,high_price,low_price,close_price,adjusted_close,
-              volume,provider,updated_at FROM tb_stk_prc
+              volume,provider,updated_at FROM tb_prc_day
             WHERE symbol=:symbol AND trading_day BETWEEN :from AND :to ORDER BY trading_day
             """).param("symbol", normalize(requestedSymbol)).param("from", from).param("to", to)
                 .query().listOfRows();
@@ -68,11 +68,11 @@ public class OverseasStockService {
               'OVERSEAS' AS market_scope,NULL::varchar AS stock_grade
             FROM tb_hold s
             JOIN LATERAL (
-              SELECT * FROM tb_stk_prc p
+              SELECT * FROM tb_prc_day p
               WHERE p.symbol=s.stock_code ORDER BY trading_day DESC LIMIT 1
             ) latest ON true
             LEFT JOIN LATERAL (
-              SELECT * FROM tb_stk_prc p
+              SELECT * FROM tb_prc_day p
               WHERE p.symbol=s.stock_code ORDER BY trading_day DESC OFFSET 1 LIMIT 1
             ) previous ON true
             WHERE s.listing_scope='OVERSEAS' AND s.active_yn='Y'
@@ -83,7 +83,7 @@ public class OverseasStockService {
         var rows = jdbc.sql("""
             WITH prices AS (
               SELECT *, row_number() OVER (ORDER BY trading_day DESC) AS rn
-              FROM tb_stk_prc WHERE symbol=:symbol
+              FROM tb_prc_day WHERE symbol=:symbol
             )
             SELECT s.stock_code AS symbol,s.stock_name AS company_name,s.exchange_name,s.currency,
               latest.trading_day,latest.open_price,latest.high_price,latest.low_price,
@@ -114,11 +114,11 @@ public class OverseasStockService {
     private void saveMaster(String symbol, JsonNode meta) {
         jdbc.sql("""
             INSERT INTO "TB_STK"
-              ("MKT_CD","STK_CD","STK_NM","LIST_SCOPE","ASSET_TP","EXCH_NM","CURR","PRVDR")
-            VALUES ('US',:symbol,:name,'OVERSEAS','STOCK',:exchange,:currency,'YAHOO_FINANCE')
-            ON CONFLICT("MKT_CD","STK_CD") DO UPDATE SET "STK_NM"=EXCLUDED."STK_NM",
+              ("MKT_CD","STK_CD","TICKER","STK_NM","LIST_SCOPE","ASSET_TP","AST_TP","CNTRY_CD","CURR","CURR_CD","STK_GRADE","EXCH_NM","PRVDR")
+            VALUES ('US',:symbol,:symbol,:name,'OVERSEAS','STOCK','STOCK','US',:currency,:currency,'CORE',:exchange,'YAHOO_FINANCE')
+            ON CONFLICT("MKT_CD","STK_CD") DO UPDATE SET "STK_NM"=EXCLUDED."STK_NM","TICKER"=EXCLUDED."TICKER",
               "EXCH_NM"=EXCLUDED."EXCH_NM","CURR"=EXCLUDED."CURR",
-              "PRVDR"=EXCLUDED."PRVDR","MOD_DT"=CURRENT_TIMESTAMP
+              "PRVDR"=EXCLUDED."PRVDR","MOD_DT"=CURRENT_TIMESTAMP,"UPD_DTTM"=CURRENT_TIMESTAMP
             """).param("symbol", symbol)
                 .param("name", meta.path("longName").asText(meta.path("shortName").asText(symbol)))
                 .param("exchange", meta.path("fullExchangeName").asText(meta.path("exchangeName").asText()))
@@ -139,15 +139,15 @@ public class OverseasStockService {
             LocalDate day = Instant.ofEpochSecond(timestamps.get(i).asLong()).atZone(zone).toLocalDate();
             if (day.isBefore(from) || day.isAfter(to)) continue;
             jdbc.sql("""
-                INSERT INTO "TB_STK_PRC"
-                  ("MKT_CD","STK_CD","TRD_DT","OPEN_PRC","HIGH_PRC","LOW_PRC",
-                   "CLS_PRC","ADJ_CLS","VOL","PRVDR")
-                VALUES ('US',:symbol,:day,:open,:high,:low,:close,:adjusted,:volume,'YAHOO_FINANCE')
-                ON CONFLICT("MKT_CD","STK_CD","TRD_DT") DO UPDATE SET
+                INSERT INTO "TB_PRC_DAY"
+                  ("STK_ID","MKT_CD","STK_CD","TRADE_DT","OPEN_PRC","HIGH_PRC","LOW_PRC",
+                   "CLS_PRC","ADJ_CLS_PRC","VOL","PRVDR","DATA_SRC_CD")
+                VALUES ((SELECT "STK_ID" FROM "TB_STK" WHERE "MKT_CD"='US' AND "STK_CD"=:symbol),'US',:symbol,:day,:open,:high,:low,:close,:adjusted,:volume,'YAHOO_FINANCE','YAHOO')
+                ON CONFLICT("MKT_CD","STK_CD","TRADE_DT") DO UPDATE SET
                   "OPEN_PRC"=EXCLUDED."OPEN_PRC","HIGH_PRC"=EXCLUDED."HIGH_PRC",
                   "LOW_PRC"=EXCLUDED."LOW_PRC","CLS_PRC"=EXCLUDED."CLS_PRC",
-                  "ADJ_CLS"=EXCLUDED."ADJ_CLS","VOL"=EXCLUDED."VOL",
-                  "PRVDR"=EXCLUDED."PRVDR","MOD_DT"=CURRENT_TIMESTAMP
+                  "ADJ_CLS_PRC"=EXCLUDED."ADJ_CLS_PRC","VOL"=EXCLUDED."VOL",
+                  "PRVDR"=EXCLUDED."PRVDR","MOD_DT"=CURRENT_TIMESTAMP,"UPD_DTTM"=CURRENT_TIMESTAMP
                 """).param("symbol", symbol).param("day", day)
                     .param("open", decimal(arrayValue(quote.path("open"),i)))
                     .param("high", decimal(arrayValue(quote.path("high"),i)))
@@ -177,3 +177,8 @@ public class OverseasStockService {
     }
     public record HistoryCollectionResult(String symbol, LocalDate from, LocalDate to, int savedCount) {}
 }
+
+
+
+
+

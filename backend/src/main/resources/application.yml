@@ -3,8 +3,13 @@ spring:
     name: investment-briefing-engine
   jpa:
     open-in-view: false
+    properties:
+      hibernate:
+        globally_quoted_identifiers: true
     hibernate:
       ddl-auto: none
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
   flyway:
     enabled: true
     baseline-on-migrate: true
@@ -21,4 +26,5 @@ investment:
     max-regular-buy-multiplier: 3.0
     weekly-review-day: SATURDAY
     monthly-rebalance-day: 25
+
 

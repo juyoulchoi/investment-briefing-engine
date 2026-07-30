@@ -10,7 +10,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "tb_buy_set")
+@Table(name = "tb_reg_buy")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -58,4 +58,5 @@ public class TbRegularInvestmentSetting {
         updatedAt = LocalDateTime.now();
     }
 }
+
 

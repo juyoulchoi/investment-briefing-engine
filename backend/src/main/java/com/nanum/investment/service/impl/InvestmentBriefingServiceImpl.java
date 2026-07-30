@@ -52,9 +52,9 @@ public class InvestmentBriefingServiceImpl implements InvestmentBriefingService 
         }
 
         TbInvBrf briefing = TbInvBrf.builder()
-                .brfDt(response.briefingDate())
-                .brfTtl(response.title())
-                .brfSt(BriefingStatus.COMPLETE.name())
+                .baseDate(response.briefingDate())
+                .title(response.title())
+                .briefingStatus(BriefingStatus.GENERATED)
                 .build();
         briefingRepository.save(briefing);
 
@@ -94,3 +94,4 @@ public class InvestmentBriefingServiceImpl implements InvestmentBriefingService 
         repository.deleteById(briefingId);
     }
 }
+
