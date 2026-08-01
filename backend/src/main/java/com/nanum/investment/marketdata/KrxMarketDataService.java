@@ -10,11 +10,18 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class KrxMarketDataService {
+    private static final Set<KrxDataset> STOCK_DAILY_DATASETS = Set.of(
+            KrxDataset.KOSPI_STOCK_DAILY,
+            KrxDataset.KOSDAQ_STOCK_DAILY,
+            KrxDataset.ETF_DAILY);
+
     private final JdbcClient jdbc;
     private final ObjectMapper json;
     private final RestClient client;
@@ -39,8 +46,10 @@ public class KrxMarketDataService {
         if (rows == null || !rows.isArray())
             throw new IllegalStateException("KRX 응답에 OutBlock_1 배열이 없습니다.");
         int received = 0;
+        Set<LocalDate> collectedDates = new HashSet<>();
         for (JsonNode row : rows) {
             LocalDate rowDate = parseDate(row.path("BAS_DD").asText(), date);
+            collectedDates.add(rowDate);
             jdbc.sql("""
                     INSERT INTO tb_krx_data_row(dataset_code, base_date, row_key, payload)
                     VALUES (:dataset, :date, :key, CAST(:payload AS jsonb))
@@ -49,6 +58,9 @@ public class KrxMarketDataService {
                     """).param("dataset", dataset.name()).param("date", rowDate)
                     .param("key", rowKey(dataset, row)).param("payload", row.toString()).update();
             received++;
+        }
+        if (STOCK_DAILY_DATASETS.contains(dataset)) {
+            collectedDates.forEach(collectedDate -> syncStockPrices(dataset, collectedDate));
         }
         return new CollectionResult(dataset.name(), date, received, count(dataset, date));
     }
@@ -102,6 +114,42 @@ public class KrxMarketDataService {
                 .param("dataset", dataset.name()).param("date", date).query(Long.class).single();
     }
 
+    private int syncStockPrices(KrxDataset dataset, LocalDate date) {
+        return jdbc.sql("""
+                INSERT INTO "TB_PRC_DAY"
+                    ("STK_ID", "MKT_CD", "STK_CD", "TRADE_DT", "OPEN_PRC", "HIGH_PRC", "LOW_PRC",
+                     "CLS_PRC", "ADJ_CLS_PRC", "VOL", "PRVDR", "DATA_SRC_CD")
+                SELECT DISTINCT ON (r."BASE_DT", r."PAYLOAD"->>'ISU_CD')
+                    s."STK_ID", 'KO', r."PAYLOAD"->>'ISU_CD', r."BASE_DT",
+                    NULLIF(replace(r."PAYLOAD"->>'TDD_OPNPRC', ',', ''), '')::numeric,
+                    NULLIF(replace(r."PAYLOAD"->>'TDD_HGPRC', ',', ''), '')::numeric,
+                    NULLIF(replace(r."PAYLOAD"->>'TDD_LWPRC', ',', ''), '')::numeric,
+                    NULLIF(replace(r."PAYLOAD"->>'TDD_CLSPRC', ',', ''), '')::numeric,
+                    NULLIF(replace(r."PAYLOAD"->>'TDD_CLSPRC', ',', ''), '')::numeric,
+                    COALESCE(NULLIF(replace(r."PAYLOAD"->>'ACC_TRDVOL', ',', ''), '')::bigint, 0),
+                    'KRX', 'KRX'
+                FROM "TB_KRX_DATA_ROW" r
+                JOIN "TB_STK" s
+                  ON s."MKT_CD" = 'KO'
+                 AND s."STK_CD" = r."PAYLOAD"->>'ISU_CD'
+                WHERE r."DATA_CD" = :dataset
+                  AND r."BASE_DT" = :date
+                  AND NULLIF(r."PAYLOAD"->>'TDD_CLSPRC', '') IS NOT NULL
+                ORDER BY r."BASE_DT", r."PAYLOAD"->>'ISU_CD'
+                ON CONFLICT ("MKT_CD", "STK_CD", "TRADE_DT") DO UPDATE
+                SET "OPEN_PRC" = EXCLUDED."OPEN_PRC",
+                    "HIGH_PRC" = EXCLUDED."HIGH_PRC",
+                    "LOW_PRC" = EXCLUDED."LOW_PRC",
+                    "CLS_PRC" = EXCLUDED."CLS_PRC",
+                    "ADJ_CLS_PRC" = EXCLUDED."ADJ_CLS_PRC",
+                    "VOL" = EXCLUDED."VOL",
+                    "PRVDR" = EXCLUDED."PRVDR",
+                    "DATA_SRC_CD" = EXCLUDED."DATA_SRC_CD",
+                    "DATA_STS" = 'FRESH',
+                    "COLLECT_DTTM" = CURRENT_TIMESTAMP,
+                    "MOD_DT" = CURRENT_TIMESTAMP
+                """).param("dataset", dataset.name()).param("date", date).update();
+    }
     private LocalDate parseDate(String value, LocalDate fallback) {
         return StringUtils.hasText(value) ? LocalDate.parse(value, DateTimeFormatter.BASIC_ISO_DATE) : fallback;
     }
