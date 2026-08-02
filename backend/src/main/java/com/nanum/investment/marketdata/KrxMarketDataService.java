@@ -3,6 +3,7 @@ package com.nanum.investment.marketdata;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nanum.investment.service.HoldingPriceSyncService;
+import com.nanum.investment.external.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -28,24 +29,26 @@ public class KrxMarketDataService {
     private final RestClient client;
     private final String authKey;
     private final HoldingPriceSyncService holdingPriceSync;
+    private final ExternalApiRetryExecutor retry;
 
     public KrxMarketDataService(JdbcClient jdbc, ObjectMapper json,
             @Value("${krx.base-url}") String baseUrl, @Value("${krx.auth-key:}") String authKey,
-            HoldingPriceSyncService holdingPriceSync) {
+            HoldingPriceSyncService holdingPriceSync, ExternalRestClientFactory clients, ExternalApiRetryExecutor retry) {
         this.jdbc = jdbc;
         this.json = json;
         this.authKey = authKey;
         this.holdingPriceSync = holdingPriceSync;
-        this.client = RestClient.builder().baseUrl(baseUrl).build();
+        this.client = clients.builder(baseUrl).build();
+        this.retry = retry;
     }
 
     @Transactional
     public CollectionResult collect(KrxDataset dataset, LocalDate date) {
         if (!StringUtils.hasText(authKey))
             throw new IllegalStateException("KRX_AUTH_KEY가 필요합니다.");
-        JsonNode response = client.get().uri(uri -> uri.path(dataset.path())
+        JsonNode response = retry.execute(() -> client.get().uri(uri -> uri.path(dataset.path())
                 .queryParam("basDd", date.format(DateTimeFormatter.BASIC_ISO_DATE)).build())
-                .header("AUTH_KEY", authKey).retrieve().body(JsonNode.class);
+                .header("AUTH_KEY", authKey).retrieve().body(JsonNode.class));
         JsonNode rows = response == null ? null : response.path("OutBlock_1");
         if (rows == null || !rows.isArray())
             throw new IllegalStateException("KRX 응답에 OutBlock_1 배열이 없습니다.");

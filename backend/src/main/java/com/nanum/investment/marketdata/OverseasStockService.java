@@ -2,6 +2,7 @@ package com.nanum.investment.marketdata;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nanum.investment.service.HoldingPriceSyncService;
+import com.nanum.investment.external.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -19,14 +20,16 @@ public class OverseasStockService {
     private final JdbcClient jdbc;
     private final RestClient client;
     private final HoldingPriceSyncService holdingPriceSync;
+    private final ExternalApiRetryExecutor retry;
 
     public OverseasStockService(JdbcClient jdbc, @Value("${overseas.yahoo.base-url}") String baseUrl,
-            HoldingPriceSyncService holdingPriceSync) {
+            HoldingPriceSyncService holdingPriceSync, ExternalRestClientFactory clients, ExternalApiRetryExecutor retry) {
         this.jdbc = jdbc;
-        this.client = RestClient.builder().baseUrl(baseUrl)
+        this.client = clients.builder(baseUrl)
                 .defaultHeader("User-Agent", "Mozilla/5.0 investment-briefing-engine/1.0")
                 .defaultHeader("Accept", "application/json").build();
         this.holdingPriceSync = holdingPriceSync;
+        this.retry = retry;
     }
 
     @Transactional
@@ -112,7 +115,7 @@ public class OverseasStockService {
     }
 
     private JsonNode fetch(String symbol, java.util.function.Function<org.springframework.web.util.UriBuilder, java.net.URI> uri) {
-        JsonNode response = client.get().uri(uri).retrieve().body(JsonNode.class);
+        JsonNode response = retry.execute(() -> client.get().uri(uri).retrieve().body(JsonNode.class));
         JsonNode chart = response == null ? null : response.path("chart");
         if (chart == null || !chart.path("error").isNull() || chart.path("result").isEmpty())
             throw new IllegalStateException("Yahoo Finance 시세를 받지 못했습니다: " +

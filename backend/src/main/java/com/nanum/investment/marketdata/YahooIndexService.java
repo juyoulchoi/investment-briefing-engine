@@ -1,6 +1,7 @@
 package com.nanum.investment.marketdata;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.nanum.investment.external.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -13,8 +14,9 @@ import java.util.*;
 public class YahooIndexService {
  private final JdbcClient jdbc;
  private final RestClient client;
- public YahooIndexService(JdbcClient jdbc,@Value("${overseas.yahoo.base-url}") String baseUrl){
-  this.jdbc=jdbc;this.client=RestClient.builder().baseUrl(baseUrl).defaultHeader("User-Agent","Mozilla/5.0 investment-briefing-engine/1.0").defaultHeader("Accept","application/json").build();
+ private final ExternalApiRetryExecutor retry;
+ public YahooIndexService(JdbcClient jdbc,@Value("${overseas.yahoo.base-url}") String baseUrl,ExternalRestClientFactory clients,ExternalApiRetryExecutor retry){
+  this.jdbc=jdbc;this.retry=retry;this.client=clients.builder(baseUrl).defaultHeader("User-Agent","Mozilla/5.0 investment-briefing-engine/1.0").defaultHeader("Accept","application/json").build();
  }
 
  public CollectionResult refresh(String indexCode){return collect(indexCode,LocalDate.now().minusDays(10),LocalDate.now());}
@@ -60,7 +62,7 @@ public class YahooIndexService {
    """).param("code",code).query((rs,n)->new IndexInfo(rs.getLong(1),rs.getString(2),rs.getString(3),rs.getString(4))).optional().orElseThrow(()->new IllegalArgumentException("등록된 Yahoo 지수가 아닙니다: "+code));
  }
  private JsonNode fetch(String symbol,long period1,long period2){
-  JsonNode response=client.get().uri(uri->uri.pathSegment(symbol).queryParam("period1",period1).queryParam("period2",period2).queryParam("interval","1d").queryParam("events","div,splits").build()).retrieve().body(JsonNode.class);
+  JsonNode response=retry.execute(()->client.get().uri(uri->uri.pathSegment(symbol).queryParam("period1",period1).queryParam("period2",period2).queryParam("interval","1d").queryParam("events","div,splits").build()).retrieve().body(JsonNode.class));
   JsonNode chart=response==null?null:response.path("chart");
   if(chart==null||!chart.path("error").isNull()||chart.path("result").isEmpty())throw new IllegalStateException("Yahoo Finance 지수 시세를 받지 못했습니다: "+(chart==null?"빈 응답":chart.path("error")));
   return chart.path("result").get(0);
