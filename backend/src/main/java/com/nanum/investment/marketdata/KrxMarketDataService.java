@@ -2,6 +2,7 @@ package com.nanum.investment.marketdata;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nanum.investment.service.HoldingPriceSyncService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -26,12 +27,15 @@ public class KrxMarketDataService {
     private final ObjectMapper json;
     private final RestClient client;
     private final String authKey;
+    private final HoldingPriceSyncService holdingPriceSync;
 
     public KrxMarketDataService(JdbcClient jdbc, ObjectMapper json,
-            @Value("${krx.base-url}") String baseUrl, @Value("${krx.auth-key:}") String authKey) {
+            @Value("${krx.base-url}") String baseUrl, @Value("${krx.auth-key:}") String authKey,
+            HoldingPriceSyncService holdingPriceSync) {
         this.jdbc = jdbc;
         this.json = json;
         this.authKey = authKey;
+        this.holdingPriceSync = holdingPriceSync;
         this.client = RestClient.builder().baseUrl(baseUrl).build();
     }
 
@@ -61,6 +65,7 @@ public class KrxMarketDataService {
         }
         if (STOCK_DAILY_DATASETS.contains(dataset)) {
             collectedDates.forEach(collectedDate -> syncStockPrices(dataset, collectedDate));
+            holdingPriceSync.refreshMarket("KO");
         }
         return new CollectionResult(dataset.name(), date, received, count(dataset, date));
     }

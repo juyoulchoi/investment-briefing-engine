@@ -1,9 +1,11 @@
 package com.nanum.investment.marketdata;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.nanum.investment.service.HoldingPriceSyncService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -16,14 +18,18 @@ import java.util.Map;
 public class OverseasStockService {
     private final JdbcClient jdbc;
     private final RestClient client;
+    private final HoldingPriceSyncService holdingPriceSync;
 
-    public OverseasStockService(JdbcClient jdbc, @Value("${overseas.yahoo.base-url}") String baseUrl) {
+    public OverseasStockService(JdbcClient jdbc, @Value("${overseas.yahoo.base-url}") String baseUrl,
+            HoldingPriceSyncService holdingPriceSync) {
         this.jdbc = jdbc;
         this.client = RestClient.builder().baseUrl(baseUrl)
                 .defaultHeader("User-Agent", "Mozilla/5.0 investment-briefing-engine/1.0")
                 .defaultHeader("Accept", "application/json").build();
+        this.holdingPriceSync = holdingPriceSync;
     }
 
+    @Transactional
     public Map<String, Object> refresh(String requestedSymbol) {
         String symbol = normalize(requestedSymbol);
         JsonNode result = fetch(symbol, uri -> uri.pathSegment(yahooSymbol(symbol))
@@ -31,9 +37,11 @@ public class OverseasStockService {
                 .queryParam("events", "div,splits").build());
         saveMaster(symbol, result.path("meta"));
         saveDailyPrices(symbol, result, LocalDate.MIN, LocalDate.MAX);
+        holdingPriceSync.refreshStock("US", symbol);
         return find(symbol);
     }
 
+    @Transactional
     public HistoryCollectionResult collectHistory(String requestedSymbol, LocalDate from, LocalDate to) {
         if (from == null || to == null || from.isAfter(to))
             throw new IllegalArgumentException("유효하지 않은 조회 기간입니다.");
@@ -45,6 +53,7 @@ public class OverseasStockService {
                 .queryParam("interval", "1d").queryParam("events", "div,splits").build());
         saveMaster(symbol, result.path("meta"));
         int saved = saveDailyPrices(symbol, result, from, to);
+        holdingPriceSync.refreshStock("US", symbol);
         return new HistoryCollectionResult(symbol, from, to, saved);
     }
 
@@ -147,7 +156,7 @@ public class OverseasStockService {
                   "OPEN_PRC"=EXCLUDED."OPEN_PRC","HIGH_PRC"=EXCLUDED."HIGH_PRC",
                   "LOW_PRC"=EXCLUDED."LOW_PRC","CLS_PRC"=EXCLUDED."CLS_PRC",
                   "ADJ_CLS_PRC"=EXCLUDED."ADJ_CLS_PRC","VOL"=EXCLUDED."VOL",
-                  "PRVDR"=EXCLUDED."PRVDR","MOD_DT"=CURRENT_TIMESTAMP,"UPD_DTTM"=CURRENT_TIMESTAMP
+                  "PRVDR"=EXCLUDED."PRVDR","MOD_DT"=CURRENT_TIMESTAMP
                 """).param("symbol", symbol).param("day", day)
                     .param("open", decimal(arrayValue(quote.path("open"),i)))
                     .param("high", decimal(arrayValue(quote.path("high"),i)))
