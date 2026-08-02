@@ -13,11 +13,13 @@ public class MarketDataController {
     private final KrxMarketDataService krx;
     private final OverseasStockService overseas;
     private final YahooIndexService yahooIndices;
+    private final FredBondYieldService fredBonds;
 
-    public MarketDataController(KrxMarketDataService krx, OverseasStockService overseas, YahooIndexService yahooIndices) {
+    public MarketDataController(KrxMarketDataService krx, OverseasStockService overseas, YahooIndexService yahooIndices, FredBondYieldService fredBonds) {
         this.krx = krx;
         this.overseas = overseas;
         this.yahooIndices = yahooIndices;
+        this.fredBonds = fredBonds;
     }
 
     @GetMapping("/krx/datasets")
@@ -61,6 +63,12 @@ public class MarketDataController {
 
     @GetMapping("/indices/{indexCode}")
     public Map<String,Object> latestIndex(@PathVariable String indexCode){return yahooIndices.latest(indexCode);}
+    @PostMapping("/bonds/collect")
+    public FredBondYieldService.CollectionResult collectBonds(@RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate from,@RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to){return fredBonds.collect(from,to);}
+
+    @GetMapping("/bonds")
+    public List<Map<String,Object>> bonds(@RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate from,@RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to){return fredBonds.history(from,to);}
+
     @GetMapping("/overseas")
     public List<Map<String, Object>> overseasStocks() {
         return overseas.findAll();
@@ -94,5 +102,3 @@ public class MarketDataController {
         return overseas.find(symbol);
     }
 }
-
-

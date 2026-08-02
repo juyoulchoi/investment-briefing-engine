@@ -26,5 +26,6 @@ investment:
     max-regular-buy-multiplier: 3.0
     weekly-review-day: SATURDAY
     monthly-rebalance-day: 25
-
-
+fred:
+  base-url: ${FRED_BASE_URL:https://api.stlouisfed.org/fred}
+  api-key: ${FRED_API_KEY:}

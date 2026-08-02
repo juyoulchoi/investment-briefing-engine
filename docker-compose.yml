@@ -38,6 +38,8 @@ services:
       KRX_AUTH_KEY: ${KRX_AUTH_KEY:-}
       KRX_BASE_URL: ${KRX_BASE_URL:-https://data-dbg.krx.co.kr}
       YAHOO_FINANCE_BASE_URL: ${YAHOO_FINANCE_BASE_URL:-https://query2.finance.yahoo.com/v8/finance/chart}
+      FRED_API_KEY: ${FRED_API_KEY:-}
+      FRED_BASE_URL: ${FRED_BASE_URL:-https://api.stlouisfed.org/fred}
     ports:
       - "8081:8080"
     depends_on:
