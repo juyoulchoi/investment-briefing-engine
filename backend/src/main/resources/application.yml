@@ -29,3 +29,5 @@ investment:
 fred:
   base-url: ${FRED_BASE_URL:https://api.stlouisfed.org/fred}
   api-key: ${FRED_API_KEY:}
+  connect-timeout: ${FRED_CONNECT_TIMEOUT:3s}
+  read-timeout: ${FRED_READ_TIMEOUT:10s}
