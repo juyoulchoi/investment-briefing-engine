@@ -35,7 +35,7 @@ public class DecisionHistoryService {
             .param("minimum",decision.totalMinimumBuyAmount()).param("recommended",decision.totalRecommendedBuyAmount()).param("reserved",decision.newlyReservedCash())
             .param("available",decision.availableAdditionalBuyCash()).param("request",toJson(request)).param("result",toJson(decision)).query(Long.class).single();
         for(StockDecision stock:decision.stockDecisions()){
-            jdbc.sql("""
+            int inserted=jdbc.sql("""
               INSERT INTO "TB_STK_DEC"(
                 "INV_DEC_ID","ACCT","STK_CD","STK_NM","ACT_SIG","FINAL_MULT","BASE_BUY_AMT","REG_BUY_AMT","SAVED_AMT","RSNS",
                 "MAX_BUY_AMT","MAX_INC_MULT","ADJ_RSN","CASH_PLAN","ACCT_ID","STK_ID","HOLD_ID","BASE_DT","RISK_SCR","RISK_GRADE",
@@ -43,13 +43,15 @@ public class DecisionHistoryService {
               SELECT :decisionId,:account,:code,:name,:action,:multiplier,:minimum,:recommended,:reserved,CAST(:reasons AS jsonb),
                 :maximum,:maximumMultiplier,:adjustmentReason,:cashPlan,a."ACCT_ID",s."STK_ID",h."HOLD_ID",:date,
                 d."RISK_SCR",d."RISK_GRADE",:multiplier,'N',d."CONF_RT",:adjustmentReason
-              FROM "TB_STK" s JOIN "TB_ACCT" a ON a."ACCT_TP"=CASE WHEN s."MKT_CD"='US' THEN 'OVERSEAS' ELSE 'DOMESTIC' END
-              LEFT JOIN "TB_HOLD" h ON h."ACCT_ID"=a."ACCT_ID" AND h."STK_ID"=s."STK_ID"
-              JOIN "TB_INV_DEC" d ON d."INV_DEC_ID"=:decisionId WHERE s."STK_CD"=:code
+              FROM "TB_STK" s JOIN "TB_ACCT" a ON a."ACCT_TP"=:account AND a."USE_YN"='Y' AND a."DEL_YN"='N'
+              LEFT JOIN "TB_HOLD" h ON h."ACCT_ID"=a."ACCT_ID" AND h."STK_ID"=s."STK_ID" AND h."USE_YN"='Y' AND h."DEL_YN"='N'
+              JOIN "TB_INV_DEC" d ON d."INV_DEC_ID"=:decisionId
+              WHERE s."STK_CD"=:code AND s."USE_YN"='Y' AND s."DEL_YN"='N'
               """).param("decisionId",id).param("date",decision.decisionDate()).param("account",stock.account()).param("code",stock.code()).param("name",stock.name())
               .param("action",stock.action().name()).param("multiplier",stock.multiplier()).param("minimum",stock.minimumBuyAmount()).param("maximum",stock.maximumBuyAmount())
               .param("maximumMultiplier",stock.maximumIncreaseMultiplier()).param("recommended",stock.recommendedBuyAmount()).param("reserved",stock.reservedCash())
               .param("adjustmentReason",stock.adjustmentReason()).param("cashPlan",stock.cashPlan()).param("reasons",toJson(stock.reasons())).update();
+            if(inserted!=1)throw new IllegalStateException("종목판단 저장 대상 계좌·종목을 정확히 찾을 수 없습니다: "+stock.account()+"/"+stock.code());
         }
     }
     private String toJson(Object value){try{return json.writeValueAsString(value);}catch(JsonProcessingException e){throw new IllegalStateException("의사결정 이력 JSON 변환에 실패했습니다.",e);}}
