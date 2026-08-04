@@ -9,10 +9,10 @@ import java.util.*;
 public class BriefingRefreshService {
  private final HoldingMarketDataRefreshService holdings;private final ExchangeRateService exchange;private final FredBondYieldService bonds;
  private final MarketDataConsistencyService validation;private final MarketSnapshotGenerationService snapshots;private final MarketSentimentGenerationService sentiments;
- private final AutomaticInvestmentDecisionService decisions;private final DailyBuyPlanService plans;private final BriefingRawDataService rawData;
+ private final AutomaticInvestmentDecisionService decisions;private final DailyBuyPlanService plans;private final AutomaticRebalanceService rebalancing;private final BriefingRawDataService rawData;
  public BriefingRefreshService(HoldingMarketDataRefreshService holdings,ExchangeRateService exchange,FredBondYieldService bonds,
   MarketDataConsistencyService validation,MarketSnapshotGenerationService snapshots,MarketSentimentGenerationService sentiments,
-  AutomaticInvestmentDecisionService decisions,DailyBuyPlanService plans,BriefingRawDataService rawData){this.holdings=holdings;this.exchange=exchange;this.bonds=bonds;this.validation=validation;this.snapshots=snapshots;this.sentiments=sentiments;this.decisions=decisions;this.plans=plans;this.rawData=rawData;}
+  AutomaticInvestmentDecisionService decisions,DailyBuyPlanService plans,AutomaticRebalanceService rebalancing,BriefingRawDataService rawData){this.holdings=holdings;this.exchange=exchange;this.bonds=bonds;this.validation=validation;this.snapshots=snapshots;this.sentiments=sentiments;this.decisions=decisions;this.plans=plans;this.rebalancing=rebalancing;this.rawData=rawData;}
 
  public BriefingRefreshResult refresh(){
   LocalDate day=LocalDate.now(ZoneId.of("Asia/Seoul"));List<String> completed=new ArrayList<>(),failures=new ArrayList<>();Map<String,Object> results=new LinkedHashMap<>();
