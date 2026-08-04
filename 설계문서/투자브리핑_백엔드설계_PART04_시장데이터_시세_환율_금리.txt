@@ -1,0 +1,1853 @@
+﻿투자 브리핑 Spring Boot 백엔드 설계
+PART 04. 시장데이터·시세·환율·금리 상세설계
+대상 테이블:
+TB_MKT_SNAP, TB_MKT_SENT, TB_PRC_DAY,
+TB_IDX_DAY, TB_EXCH_DAY, TB_BOND_DAY
+============================================================
+
+문서 목적
+------------------------------------------------------------
+이 문서는 투자 브리핑 시스템에서 사용하는 시장 데이터,
+시장심리, 종목시세, 지수시세, 환율, 채권금리의 저장 구조를 설계한다.
+
+대상 테이블
+1. TB_MKT_SNAP : 일별 시장 스냅샷
+2. TB_MKT_SENT : 일별 시장심리 분석
+3. TB_PRC_DAY  : 종목별 일별 시세
+4. TB_IDX_DAY  : 기준지수별 일별 시세
+5. TB_EXCH_DAY : 일별 환율
+6. TB_BOND_DAY : 일별 채권금리
+
+이번 문서에서 연결하는 주요 데이터
+- 코스피·코스닥 등락
+- 외국인·기관·개인 수급
+- 외국인 선물 수급
+- 프로그램 매매
+- 원/달러 환율
+- 미국 채권금리
+- 시장 변동성
+- 상승·하락 종목 수
+- 시장 확산도
+- 종목 및 기준지수 고점 대비 하락률
+- 뉴스 공포 점수
+- AI 투자 피로 점수
+- 실적 신뢰도
+- 유동성 점수
+- 시장심리 단계
+- 구조적 훼손 가능성
+- 데이터 신뢰도 및 최신성
+
+※ 데이터 수집과 투자판단 계산은 분리한다.
+※ 외부 API 실패 시 마지막 정상 데이터 사용 여부를 명확히 기록한다.
+※ 모든 데이터에는 기준일, 수집일시, 출처, 최신성 상태를 저장한다.
+
+
+============================================================
+1. 시장 데이터 처리 원칙
+============================================================
+
+1.1 기준일
+------------------------------------------------------------
+
+BASE_DT
+- 시장 데이터가 실제로 발생한 거래일
+- 예: 2026-07-29
+
+COLLECT_DTTM
+- 시스템이 외부 데이터를 수집한 시각
+
+# 주석
+# BASE_DT와 COLLECT_DTTM은 다르다.
+# 오전 브리핑에서는 전일 또는 최근 영업일 데이터를 사용할 수 있다.
+# 휴일에는 마지막 거래일의 BASE_DT가 유지될 수 있다.
+
+
+1.2 데이터 최신성
+------------------------------------------------------------
+
+데이터 최신성 상태 값
+
+FRESH
+- 정상 최신 데이터
+
+STALE
+- 오래된 데이터
+- 마지막 정상 데이터를 재사용한 경우
+
+MISSING
+- 데이터 없음
+
+PARTIAL
+- 일부 항목만 수집됨
+
+ERROR
+- 수집 오류
+
+저장 컬럼
+- DATA_STS
+- DATA_AGE_MIN
+- LAST_OK_DTTM
+
+# 주석
+# 투자판단 서비스는 DATA_STS가 ERROR 또는 MISSING이면
+# 해당 항목을 점수 계산에서 제외하거나 신뢰도를 낮춘다.
+# STALE 데이터를 사용한 경우 브리핑에 기준일을 표시한다.
+
+
+1.3 데이터 출처 우선순위
+------------------------------------------------------------
+
+국내 지수 및 수급
+1. KRX
+2. 증권사 API
+3. 수동 입력
+
+해외 종목 및 지수
+1. 공식 거래소 또는 공식 데이터
+2. Yahoo Finance
+3. 수동 입력
+
+환율
+1. 한국은행 또는 공공기관
+2. 금융 데이터 API
+3. 수동 입력
+
+채권금리
+1. FRED 또는 미국 재무부
+2. 금융 데이터 API
+3. 수동 입력
+
+# 주석
+# DATA_SRC_CD에 출처를 저장한다.
+# 동일 데이터가 여러 출처에 존재하면 우선순위를 설정파일로 관리한다.
+
+
+1.4 결측값 처리
+------------------------------------------------------------
+
+필수 원칙
+- 0과 NULL을 구분한다.
+- 데이터가 없으면 0을 저장하지 않는다.
+- 수급이 실제 0인 경우에만 0을 저장한다.
+- 전일 값 사용 시 STALE 상태를 기록한다.
+
+결측 처리 방식
+- IGNORE: 계산에서 제외
+- LAST_VALUE: 마지막 정상값 사용
+- DEFAULT_VALUE: 설정 기본값 사용
+- FAIL: 계산 중단
+
+권장 적용
+- 지수 종가: LAST_VALUE
+- 환율: LAST_VALUE
+- 채권금리: LAST_VALUE
+- 수급 데이터: IGNORE
+- 뉴스심리: IGNORE 또는 중립값
+- 변동성: LAST_VALUE 또는 IGNORE
+
+
+============================================================
+2. TB_MKT_SNAP 일별 시장 스냅샷
+============================================================
+
+2.1 테이블 목적
+------------------------------------------------------------
+TB_MKT_SNAP은 한국시장 또는 해외시장의 일별 종합 상태를 저장한다.
+
+주요 저장 내용
+- 시장별 대표지수 등락률
+- 투자자별 수급
+- 외국인 선물
+- 프로그램 매매
+- 환율
+- 변동성
+- 상승·하락 종목 수
+- 시장 확산도
+- 시장점수 계산용 원천값
+
+# 주석
+# 하나의 BASE_DT에 한국시장과 미국시장을 각각 저장할 수 있다.
+# MKT_SNAP_CD를 사용해 시장 단위를 구분한다.
+
+
+2.2 컬럼 정의
+------------------------------------------------------------
+
+MKT_SNAP_ID
+- 시장 스냅샷 ID
+- BIGINT
+- PK
+- IDENTITY
+
+BASE_DT
+- 기준일
+- DATE
+- NOT NULL
+
+MKT_SNAP_CD
+- 시장 스냅샷 코드
+- VARCHAR(30)
+- NOT NULL
+- 예시: KR_MARKET, US_MARKET
+
+MKT_NM
+- 시장명
+- VARCHAR(100)
+- NOT NULL
+
+MAIN_IDX_ID
+- 대표 기준지수 ID
+- BIGINT
+- NULL 허용
+- FK: TB_IDX.IDX_ID
+
+MAIN_IDX_VAL
+- 대표지수 값
+- NUMERIC(20,6)
+- NULL 허용
+
+MAIN_IDX_CHG_RT
+- 대표지수 등락률
+- NUMERIC(10,4)
+- NULL 허용
+
+SUB_IDX_ID
+- 보조 기준지수 ID
+- BIGINT
+- NULL 허용
+- FK: TB_IDX.IDX_ID
+
+SUB_IDX_VAL
+- 보조지수 값
+- NUMERIC(20,6)
+- NULL 허용
+
+SUB_IDX_CHG_RT
+- 보조지수 등락률
+- NUMERIC(10,4)
+- NULL 허용
+
+FRGN_NET_AMT
+- 외국인 순매수금액
+- NUMERIC(20,4)
+- NULL 허용
+
+INST_NET_AMT
+- 기관 순매수금액
+- NUMERIC(20,4)
+- NULL 허용
+
+INDV_NET_AMT
+- 개인 순매수금액
+- NUMERIC(20,4)
+- NULL 허용
+
+FRGN_FUT_NET_QTY
+- 외국인 선물 순매수수량
+- NUMERIC(20,4)
+- NULL 허용
+
+PGM_NET_AMT
+- 프로그램 순매수금액
+- NUMERIC(20,4)
+- NULL 허용
+
+PGM_ARB_AMT
+- 프로그램 차익 순매수금액
+- NUMERIC(20,4)
+- NULL 허용
+
+PGM_NON_ARB_AMT
+- 프로그램 비차익 순매수금액
+- NUMERIC(20,4)
+- NULL 허용
+
+EXCH_RT
+- 대표 환율
+- NUMERIC(20,6)
+- NULL 허용
+
+EXCH_CHG_RT
+- 환율 등락률
+- NUMERIC(10,4)
+- NULL 허용
+
+VOL_IDX_VAL
+- 변동성지수 값
+- NUMERIC(20,6)
+- NULL 허용
+
+VOL_IDX_CHG_RT
+- 변동성지수 등락률
+- NUMERIC(10,4)
+- NULL 허용
+
+ADV_STK_CNT
+- 상승 종목 수
+- INTEGER
+- NULL 허용
+
+DECL_STK_CNT
+- 하락 종목 수
+- INTEGER
+- NULL 허용
+
+UNCH_STK_CNT
+- 보합 종목 수
+- INTEGER
+- NULL 허용
+
+MKT_BREADTH_RT
+- 시장 확산도
+- NUMERIC(10,4)
+- NULL 허용
+
+NEW_HIGH_CNT
+- 신고가 종목 수
+- INTEGER
+- NULL 허용
+
+NEW_LOW_CNT
+- 신저가 종목 수
+- INTEGER
+- NULL 허용
+
+TURNOVER_AMT
+- 거래대금
+- NUMERIC(24,4)
+- NULL 허용
+
+LIQD_SCR
+- 유동성 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+DATA_SRC_CD
+- 데이터 출처 코드
+- VARCHAR(30)
+- NOT NULL
+
+DATA_STS
+- 데이터 상태
+- VARCHAR(20)
+- NOT NULL
+- 기본값: FRESH
+
+DATA_AGE_MIN
+- 데이터 경과시간(분)
+- INTEGER
+- NULL 허용
+
+LAST_OK_DTTM
+- 마지막 정상수집일시
+- TIMESTAMP WITH TIME ZONE
+- NULL 허용
+
+COLLECT_DTTM
+- 수집일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+RAW_REF
+- 원천 데이터 참조정보
+- VARCHAR(500)
+- NULL 허용
+
+CRT_DTTM
+- 생성일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+UPD_DTTM
+- 수정일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+
+2.3 주요 계산식
+------------------------------------------------------------
+
+시장 확산도 예시
+
+MKT_BREADTH_RT
+= ADV_STK_CNT
+  / NULLIF(ADV_STK_CNT + DECL_STK_CNT, 0)
+  × 100
+
+상승·하락 비율 예시
+
+상승하락비
+= ADV_STK_CNT / NULLIF(DECL_STK_CNT, 0)
+
+# 주석
+# 시장 확산도 계산 방식은 기존 Java 계산식과 동일하게 유지한다.
+# 0으로 나누는 경우 NULL로 처리한다.
+
+
+2.4 PostgreSQL DDL
+------------------------------------------------------------
+
+CREATE TABLE TB_MKT_SNAP (
+    MKT_SNAP_ID       BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    BASE_DT           DATE                    NOT NULL,
+    MKT_SNAP_CD       VARCHAR(30)             NOT NULL,
+    MKT_NM            VARCHAR(100)            NOT NULL,
+    MAIN_IDX_ID       BIGINT,
+    MAIN_IDX_VAL      NUMERIC(20,6),
+    MAIN_IDX_CHG_RT   NUMERIC(10,4),
+    SUB_IDX_ID        BIGINT,
+    SUB_IDX_VAL       NUMERIC(20,6),
+    SUB_IDX_CHG_RT    NUMERIC(10,4),
+    FRGN_NET_AMT      NUMERIC(20,4),
+    INST_NET_AMT      NUMERIC(20,4),
+    INDV_NET_AMT      NUMERIC(20,4),
+    FRGN_FUT_NET_QTY  NUMERIC(20,4),
+    PGM_NET_AMT       NUMERIC(20,4),
+    PGM_ARB_AMT       NUMERIC(20,4),
+    PGM_NON_ARB_AMT   NUMERIC(20,4),
+    EXCH_RT           NUMERIC(20,6),
+    EXCH_CHG_RT       NUMERIC(10,4),
+    VOL_IDX_VAL       NUMERIC(20,6),
+    VOL_IDX_CHG_RT    NUMERIC(10,4),
+    ADV_STK_CNT       INTEGER,
+    DECL_STK_CNT      INTEGER,
+    UNCH_STK_CNT      INTEGER,
+    MKT_BREADTH_RT    NUMERIC(10,4),
+    NEW_HIGH_CNT      INTEGER,
+    NEW_LOW_CNT       INTEGER,
+    TURNOVER_AMT      NUMERIC(24,4),
+    LIQD_SCR          NUMERIC(10,4),
+    DATA_SRC_CD       VARCHAR(30)             NOT NULL,
+    DATA_STS          VARCHAR(20)             NOT NULL DEFAULT 'FRESH',
+    DATA_AGE_MIN      INTEGER,
+    LAST_OK_DTTM      TIMESTAMP WITH TIME ZONE,
+    COLLECT_DTTM      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    RAW_REF           VARCHAR(500),
+    CRT_DTTM          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UPD_DTTM          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT PK_TB_MKT_SNAP PRIMARY KEY (MKT_SNAP_ID),
+    CONSTRAINT UK_TB_MKT_SNAP_01 UNIQUE (BASE_DT, MKT_SNAP_CD),
+    CONSTRAINT FK_TB_MKT_SNAP_01 FOREIGN KEY (MAIN_IDX_ID)
+        REFERENCES TB_IDX (IDX_ID),
+    CONSTRAINT FK_TB_MKT_SNAP_02 FOREIGN KEY (SUB_IDX_ID)
+        REFERENCES TB_IDX (IDX_ID),
+    CONSTRAINT CK_TB_MKT_SNAP_01 CHECK (
+        DATA_STS IN ('FRESH', 'STALE', 'MISSING', 'PARTIAL', 'ERROR')
+    ),
+    CONSTRAINT CK_TB_MKT_SNAP_02 CHECK (
+        DATA_AGE_MIN IS NULL OR DATA_AGE_MIN >= 0
+    ),
+    CONSTRAINT CK_TB_MKT_SNAP_03 CHECK (
+        ADV_STK_CNT IS NULL OR ADV_STK_CNT >= 0
+    ),
+    CONSTRAINT CK_TB_MKT_SNAP_04 CHECK (
+        DECL_STK_CNT IS NULL OR DECL_STK_CNT >= 0
+    ),
+    CONSTRAINT CK_TB_MKT_SNAP_05 CHECK (
+        UNCH_STK_CNT IS NULL OR UNCH_STK_CNT >= 0
+    )
+);
+
+CREATE INDEX IDX_TB_MKT_SNAP_01
+    ON TB_MKT_SNAP (BASE_DT DESC);
+
+CREATE INDEX IDX_TB_MKT_SNAP_02
+    ON TB_MKT_SNAP (MKT_SNAP_CD, BASE_DT DESC);
+
+CREATE INDEX IDX_TB_MKT_SNAP_03
+    ON TB_MKT_SNAP (DATA_STS);
+
+
+2.5 PostgreSQL COMMENT
+------------------------------------------------------------
+
+COMMENT ON TABLE TB_MKT_SNAP IS '일별 시장 종합 스냅샷';
+COMMENT ON COLUMN TB_MKT_SNAP.MKT_SNAP_ID IS '시장 스냅샷 ID';
+COMMENT ON COLUMN TB_MKT_SNAP.BASE_DT IS '시장 데이터 기준일';
+COMMENT ON COLUMN TB_MKT_SNAP.MKT_SNAP_CD IS '시장 스냅샷 코드(KR_MARKET, US_MARKET 등)';
+COMMENT ON COLUMN TB_MKT_SNAP.MKT_NM IS '시장명';
+COMMENT ON COLUMN TB_MKT_SNAP.MAIN_IDX_ID IS '대표 기준지수 ID';
+COMMENT ON COLUMN TB_MKT_SNAP.MAIN_IDX_VAL IS '대표지수 값';
+COMMENT ON COLUMN TB_MKT_SNAP.MAIN_IDX_CHG_RT IS '대표지수 등락률';
+COMMENT ON COLUMN TB_MKT_SNAP.SUB_IDX_ID IS '보조 기준지수 ID';
+COMMENT ON COLUMN TB_MKT_SNAP.SUB_IDX_VAL IS '보조지수 값';
+COMMENT ON COLUMN TB_MKT_SNAP.SUB_IDX_CHG_RT IS '보조지수 등락률';
+COMMENT ON COLUMN TB_MKT_SNAP.FRGN_NET_AMT IS '외국인 순매수금액';
+COMMENT ON COLUMN TB_MKT_SNAP.INST_NET_AMT IS '기관 순매수금액';
+COMMENT ON COLUMN TB_MKT_SNAP.INDV_NET_AMT IS '개인 순매수금액';
+COMMENT ON COLUMN TB_MKT_SNAP.FRGN_FUT_NET_QTY IS '외국인 선물 순매수수량';
+COMMENT ON COLUMN TB_MKT_SNAP.PGM_NET_AMT IS '프로그램 전체 순매수금액';
+COMMENT ON COLUMN TB_MKT_SNAP.PGM_ARB_AMT IS '프로그램 차익 순매수금액';
+COMMENT ON COLUMN TB_MKT_SNAP.PGM_NON_ARB_AMT IS '프로그램 비차익 순매수금액';
+COMMENT ON COLUMN TB_MKT_SNAP.EXCH_RT IS '대표 환율';
+COMMENT ON COLUMN TB_MKT_SNAP.EXCH_CHG_RT IS '대표 환율 등락률';
+COMMENT ON COLUMN TB_MKT_SNAP.VOL_IDX_VAL IS '변동성지수 값';
+COMMENT ON COLUMN TB_MKT_SNAP.VOL_IDX_CHG_RT IS '변동성지수 등락률';
+COMMENT ON COLUMN TB_MKT_SNAP.ADV_STK_CNT IS '상승 종목 수';
+COMMENT ON COLUMN TB_MKT_SNAP.DECL_STK_CNT IS '하락 종목 수';
+COMMENT ON COLUMN TB_MKT_SNAP.UNCH_STK_CNT IS '보합 종목 수';
+COMMENT ON COLUMN TB_MKT_SNAP.MKT_BREADTH_RT IS '시장 확산도';
+COMMENT ON COLUMN TB_MKT_SNAP.NEW_HIGH_CNT IS '신고가 종목 수';
+COMMENT ON COLUMN TB_MKT_SNAP.NEW_LOW_CNT IS '신저가 종목 수';
+COMMENT ON COLUMN TB_MKT_SNAP.TURNOVER_AMT IS '시장 거래대금';
+COMMENT ON COLUMN TB_MKT_SNAP.LIQD_SCR IS '시장 유동성 점수';
+COMMENT ON COLUMN TB_MKT_SNAP.DATA_SRC_CD IS '데이터 출처 코드';
+COMMENT ON COLUMN TB_MKT_SNAP.DATA_STS IS '데이터 상태(FRESH, STALE, MISSING, PARTIAL, ERROR)';
+COMMENT ON COLUMN TB_MKT_SNAP.DATA_AGE_MIN IS '수집시점 기준 데이터 경과시간(분)';
+COMMENT ON COLUMN TB_MKT_SNAP.LAST_OK_DTTM IS '마지막 정상 수집일시';
+COMMENT ON COLUMN TB_MKT_SNAP.COLLECT_DTTM IS '데이터 수집일시';
+COMMENT ON COLUMN TB_MKT_SNAP.RAW_REF IS '원천 데이터 참조정보';
+COMMENT ON COLUMN TB_MKT_SNAP.CRT_DTTM IS '생성일시';
+COMMENT ON COLUMN TB_MKT_SNAP.UPD_DTTM IS '수정일시';
+
+
+============================================================
+3. TB_MKT_SENT 일별 시장심리 분석
+============================================================
+
+3.1 테이블 목적
+------------------------------------------------------------
+TB_MKT_SENT는 뉴스, 수급, 실적, 유동성, 환율, 금리 등의 정보를
+종합하여 산출한 시장심리 점수와 단계를 저장한다.
+
+# 주석
+# OpenAI가 점수를 계산하지 않는다.
+# Java 계산엔진이 점수와 단계를 결정한다.
+# OpenAI는 저장된 결과를 설명하는 역할만 담당한다.
+
+
+3.2 컬럼 정의
+------------------------------------------------------------
+
+MKT_SENT_ID
+- 시장심리 ID
+- BIGINT
+- PK
+- IDENTITY
+
+BASE_DT
+- 기준일
+- DATE
+- NOT NULL
+
+MKT_SNAP_CD
+- 시장 스냅샷 코드
+- VARCHAR(30)
+- NOT NULL
+
+NEWS_FEAR_SCR
+- 뉴스 공포 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+AI_FATIGUE_SCR
+- AI 투자 피로 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+EARN_CONF_SCR
+- 실적 신뢰도 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+LIQD_SCR
+- 유동성 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+FLOW_SCR
+- 수급 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+EXCH_PRESS_SCR
+- 환율 압력 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+RATE_PRESS_SCR
+- 금리 압력 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+VOL_PRESS_SCR
+- 변동성 압력 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+SENT_SCR
+- 종합 시장심리 점수
+- NUMERIC(10,4)
+- NOT NULL
+
+SENT_PHASE
+- 시장심리 단계
+- VARCHAR(20)
+- NOT NULL
+- 값: GREED, OPTIMISM, NEUTRAL, FATIGUE, FEAR, PANIC
+
+CONF_RT
+- 판단 신뢰도
+- NUMERIC(10,4)
+- NOT NULL
+
+STRUCT_DMG_YN
+- 구조적 훼손 여부
+- CHAR(1)
+- NOT NULL
+- 기본값: N
+
+STRUCT_DMG_RT
+- 구조적 훼손 가능성
+- NUMERIC(10,4)
+- NULL 허용
+
+REV_SIG
+- 심리 반전 확인 신호
+- VARCHAR(1000)
+- NULL 허용
+
+KEY_RSN
+- 핵심 판단근거
+- VARCHAR(2000)
+- NULL 허용
+
+RULE_VER_NO
+- 계산규칙 버전
+- INTEGER
+- NOT NULL
+- 기본값: 1
+
+DATA_STS
+- 데이터 상태
+- VARCHAR(20)
+- NOT NULL
+- 기본값: FRESH
+
+CALC_DTTM
+- 계산일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+CRT_DTTM
+- 생성일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+UPD_DTTM
+- 수정일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+
+3.3 PostgreSQL DDL
+------------------------------------------------------------
+
+CREATE TABLE TB_MKT_SENT (
+    MKT_SENT_ID       BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    BASE_DT           DATE                    NOT NULL,
+    MKT_SNAP_CD       VARCHAR(30)             NOT NULL,
+    NEWS_FEAR_SCR     NUMERIC(10,4),
+    AI_FATIGUE_SCR    NUMERIC(10,4),
+    EARN_CONF_SCR     NUMERIC(10,4),
+    LIQD_SCR          NUMERIC(10,4),
+    FLOW_SCR          NUMERIC(10,4),
+    EXCH_PRESS_SCR    NUMERIC(10,4),
+    RATE_PRESS_SCR    NUMERIC(10,4),
+    VOL_PRESS_SCR     NUMERIC(10,4),
+    SENT_SCR          NUMERIC(10,4)           NOT NULL,
+    SENT_PHASE        VARCHAR(20)             NOT NULL,
+    CONF_RT           NUMERIC(10,4)           NOT NULL,
+    STRUCT_DMG_YN     CHAR(1)                 NOT NULL DEFAULT 'N',
+    STRUCT_DMG_RT     NUMERIC(10,4),
+    REV_SIG           VARCHAR(1000),
+    KEY_RSN           VARCHAR(2000),
+    RULE_VER_NO       INTEGER                 NOT NULL DEFAULT 1,
+    DATA_STS          VARCHAR(20)             NOT NULL DEFAULT 'FRESH',
+    CALC_DTTM         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CRT_DTTM          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UPD_DTTM          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT PK_TB_MKT_SENT PRIMARY KEY (MKT_SENT_ID),
+    CONSTRAINT UK_TB_MKT_SENT_01 UNIQUE (BASE_DT, MKT_SNAP_CD),
+    CONSTRAINT CK_TB_MKT_SENT_01 CHECK (
+        SENT_PHASE IN ('GREED', 'OPTIMISM', 'NEUTRAL', 'FATIGUE', 'FEAR', 'PANIC')
+    ),
+    CONSTRAINT CK_TB_MKT_SENT_02 CHECK (
+        CONF_RT BETWEEN 0 AND 100
+    ),
+    CONSTRAINT CK_TB_MKT_SENT_03 CHECK (
+        STRUCT_DMG_YN IN ('Y', 'N')
+    ),
+    CONSTRAINT CK_TB_MKT_SENT_04 CHECK (
+        STRUCT_DMG_RT IS NULL OR STRUCT_DMG_RT BETWEEN 0 AND 100
+    ),
+    CONSTRAINT CK_TB_MKT_SENT_05 CHECK (
+        DATA_STS IN ('FRESH', 'STALE', 'MISSING', 'PARTIAL', 'ERROR')
+    )
+);
+
+CREATE INDEX IDX_TB_MKT_SENT_01
+    ON TB_MKT_SENT (BASE_DT DESC);
+
+CREATE INDEX IDX_TB_MKT_SENT_02
+    ON TB_MKT_SENT (SENT_PHASE, BASE_DT DESC);
+
+
+3.4 PostgreSQL COMMENT
+------------------------------------------------------------
+
+COMMENT ON TABLE TB_MKT_SENT IS '일별 시장심리 분석 결과';
+COMMENT ON COLUMN TB_MKT_SENT.MKT_SENT_ID IS '시장심리 ID';
+COMMENT ON COLUMN TB_MKT_SENT.BASE_DT IS '시장심리 기준일';
+COMMENT ON COLUMN TB_MKT_SENT.MKT_SNAP_CD IS '대상 시장 스냅샷 코드';
+COMMENT ON COLUMN TB_MKT_SENT.NEWS_FEAR_SCR IS '뉴스 공포 점수';
+COMMENT ON COLUMN TB_MKT_SENT.AI_FATIGUE_SCR IS 'AI 투자 피로 점수';
+COMMENT ON COLUMN TB_MKT_SENT.EARN_CONF_SCR IS '기업실적 신뢰도 점수';
+COMMENT ON COLUMN TB_MKT_SENT.LIQD_SCR IS '시장 유동성 점수';
+COMMENT ON COLUMN TB_MKT_SENT.FLOW_SCR IS '외국인·기관 등 수급 점수';
+COMMENT ON COLUMN TB_MKT_SENT.EXCH_PRESS_SCR IS '환율 압력 점수';
+COMMENT ON COLUMN TB_MKT_SENT.RATE_PRESS_SCR IS '금리 압력 점수';
+COMMENT ON COLUMN TB_MKT_SENT.VOL_PRESS_SCR IS '변동성 압력 점수';
+COMMENT ON COLUMN TB_MKT_SENT.SENT_SCR IS '종합 시장심리 점수';
+COMMENT ON COLUMN TB_MKT_SENT.SENT_PHASE IS '시장심리 단계';
+COMMENT ON COLUMN TB_MKT_SENT.CONF_RT IS '시장심리 판단 신뢰도(0~100)';
+COMMENT ON COLUMN TB_MKT_SENT.STRUCT_DMG_YN IS '시장 구조적 훼손 여부';
+COMMENT ON COLUMN TB_MKT_SENT.STRUCT_DMG_RT IS '시장 구조적 훼손 가능성(0~100)';
+COMMENT ON COLUMN TB_MKT_SENT.REV_SIG IS '시장심리 반전 확인 신호';
+COMMENT ON COLUMN TB_MKT_SENT.KEY_RSN IS '시장심리 핵심 판단근거';
+COMMENT ON COLUMN TB_MKT_SENT.RULE_VER_NO IS '시장심리 계산규칙 버전';
+COMMENT ON COLUMN TB_MKT_SENT.DATA_STS IS '입력 데이터 상태';
+COMMENT ON COLUMN TB_MKT_SENT.CALC_DTTM IS '시장심리 계산일시';
+COMMENT ON COLUMN TB_MKT_SENT.CRT_DTTM IS '생성일시';
+COMMENT ON COLUMN TB_MKT_SENT.UPD_DTTM IS '수정일시';
+
+
+============================================================
+4. TB_PRC_DAY 종목별 일별 시세
+============================================================
+
+4.1 테이블 목적
+------------------------------------------------------------
+TB_PRC_DAY는 국내외 종목과 ETF의 일별 시가, 고가, 저가, 종가,
+거래량, 수정종가, 고점 대비 하락률 등을 저장한다.
+
+
+4.2 컬럼 정의
+------------------------------------------------------------
+
+PRC_DAY_ID
+- 일별시세 ID
+- BIGINT
+- PK
+- IDENTITY
+
+STK_ID
+- 종목 ID
+- BIGINT
+- NOT NULL
+- FK: TB_STK.STK_ID
+
+TRADE_DT
+- 거래일
+- DATE
+- NOT NULL
+
+OPEN_PRC
+- 시가
+- NUMERIC(20,6)
+- NULL 허용
+
+HIGH_PRC
+- 고가
+- NUMERIC(20,6)
+- NULL 허용
+
+LOW_PRC
+- 저가
+- NUMERIC(20,6)
+- NULL 허용
+
+CLS_PRC
+- 종가
+- NUMERIC(20,6)
+- NOT NULL
+
+ADJ_CLS_PRC
+- 수정종가
+- NUMERIC(20,6)
+- NULL 허용
+
+PREV_CLS_PRC
+- 전일 종가
+- NUMERIC(20,6)
+- NULL 허용
+
+CHG_AMT
+- 전일 대비 금액
+- NUMERIC(20,6)
+- NULL 허용
+
+CHG_RT
+- 전일 대비 등락률
+- NUMERIC(10,4)
+- NULL 허용
+
+VOL
+- 거래량
+- NUMERIC(24,4)
+- NULL 허용
+
+TURNOVER_AMT
+- 거래대금
+- NUMERIC(24,4)
+- NULL 허용
+
+HIGH_52W_PRC
+- 52주 최고가
+- NUMERIC(20,6)
+- NULL 허용
+
+LOW_52W_PRC
+- 52주 최저가
+- NUMERIC(20,6)
+- NULL 허용
+
+DD_52W_RT
+- 52주 최고가 대비 하락률
+- NUMERIC(10,4)
+- NULL 허용
+
+ALL_HIGH_PRC
+- 기준기간 최고가
+- NUMERIC(20,6)
+- NULL 허용
+
+DD_HIGH_RT
+- 기준기간 최고가 대비 하락률
+- NUMERIC(10,4)
+- NULL 허용
+
+DATA_SRC_CD
+- 데이터 출처 코드
+- VARCHAR(30)
+- NOT NULL
+
+DATA_STS
+- 데이터 상태
+- VARCHAR(20)
+- NOT NULL
+- 기본값: FRESH
+
+COLLECT_DTTM
+- 수집일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+
+4.3 주요 계산식
+------------------------------------------------------------
+
+등락률
+
+CHG_RT
+= ((CLS_PRC - PREV_CLS_PRC) / PREV_CLS_PRC) × 100
+
+52주 고점 대비 하락률
+
+DD_52W_RT
+= ((CLS_PRC - HIGH_52W_PRC) / HIGH_52W_PRC) × 100
+
+기준기간 고점 대비 하락률
+
+DD_HIGH_RT
+= ((CLS_PRC - ALL_HIGH_PRC) / ALL_HIGH_PRC) × 100
+
+# 주석
+# 하락률은 음수로 저장한다.
+# 예: 고점 대비 30% 하락이면 -30.0000
+
+
+4.4 PostgreSQL DDL
+------------------------------------------------------------
+
+CREATE TABLE TB_PRC_DAY (
+    PRC_DAY_ID       BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    STK_ID           BIGINT                  NOT NULL,
+    TRADE_DT         DATE                    NOT NULL,
+    OPEN_PRC         NUMERIC(20,6),
+    HIGH_PRC         NUMERIC(20,6),
+    LOW_PRC          NUMERIC(20,6),
+    CLS_PRC          NUMERIC(20,6)           NOT NULL,
+    ADJ_CLS_PRC      NUMERIC(20,6),
+    PREV_CLS_PRC     NUMERIC(20,6),
+    CHG_AMT          NUMERIC(20,6),
+    CHG_RT           NUMERIC(10,4),
+    VOL              NUMERIC(24,4),
+    TURNOVER_AMT     NUMERIC(24,4),
+    HIGH_52W_PRC     NUMERIC(20,6),
+    LOW_52W_PRC      NUMERIC(20,6),
+    DD_52W_RT        NUMERIC(10,4),
+    ALL_HIGH_PRC     NUMERIC(20,6),
+    DD_HIGH_RT       NUMERIC(10,4),
+    DATA_SRC_CD      VARCHAR(30)             NOT NULL,
+    DATA_STS         VARCHAR(20)             NOT NULL DEFAULT 'FRESH',
+    COLLECT_DTTM     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT PK_TB_PRC_DAY PRIMARY KEY (PRC_DAY_ID),
+    CONSTRAINT UK_TB_PRC_DAY_01 UNIQUE (STK_ID, TRADE_DT),
+    CONSTRAINT FK_TB_PRC_DAY_01 FOREIGN KEY (STK_ID)
+        REFERENCES TB_STK (STK_ID),
+    CONSTRAINT CK_TB_PRC_DAY_01 CHECK (CLS_PRC >= 0),
+    CONSTRAINT CK_TB_PRC_DAY_02 CHECK (
+        DATA_STS IN ('FRESH', 'STALE', 'MISSING', 'PARTIAL', 'ERROR')
+    )
+);
+
+CREATE INDEX IDX_TB_PRC_DAY_01
+    ON TB_PRC_DAY (STK_ID, TRADE_DT DESC);
+
+CREATE INDEX IDX_TB_PRC_DAY_02
+    ON TB_PRC_DAY (TRADE_DT DESC);
+
+CREATE INDEX IDX_TB_PRC_DAY_03
+    ON TB_PRC_DAY (DD_HIGH_RT);
+
+
+4.5 PostgreSQL COMMENT
+------------------------------------------------------------
+
+COMMENT ON TABLE TB_PRC_DAY IS '종목별 일별 시세';
+COMMENT ON COLUMN TB_PRC_DAY.PRC_DAY_ID IS '일별 종목시세 ID';
+COMMENT ON COLUMN TB_PRC_DAY.STK_ID IS '종목 ID';
+COMMENT ON COLUMN TB_PRC_DAY.TRADE_DT IS '거래일';
+COMMENT ON COLUMN TB_PRC_DAY.OPEN_PRC IS '시가';
+COMMENT ON COLUMN TB_PRC_DAY.HIGH_PRC IS '고가';
+COMMENT ON COLUMN TB_PRC_DAY.LOW_PRC IS '저가';
+COMMENT ON COLUMN TB_PRC_DAY.CLS_PRC IS '종가';
+COMMENT ON COLUMN TB_PRC_DAY.ADJ_CLS_PRC IS '수정종가';
+COMMENT ON COLUMN TB_PRC_DAY.PREV_CLS_PRC IS '전일 종가';
+COMMENT ON COLUMN TB_PRC_DAY.CHG_AMT IS '전일 대비 가격 변동금액';
+COMMENT ON COLUMN TB_PRC_DAY.CHG_RT IS '전일 대비 등락률';
+COMMENT ON COLUMN TB_PRC_DAY.VOL IS '거래량';
+COMMENT ON COLUMN TB_PRC_DAY.TURNOVER_AMT IS '거래대금';
+COMMENT ON COLUMN TB_PRC_DAY.HIGH_52W_PRC IS '52주 최고가';
+COMMENT ON COLUMN TB_PRC_DAY.LOW_52W_PRC IS '52주 최저가';
+COMMENT ON COLUMN TB_PRC_DAY.DD_52W_RT IS '52주 최고가 대비 하락률';
+COMMENT ON COLUMN TB_PRC_DAY.ALL_HIGH_PRC IS '설정 기준기간 최고가';
+COMMENT ON COLUMN TB_PRC_DAY.DD_HIGH_RT IS '설정 기준기간 최고가 대비 하락률';
+COMMENT ON COLUMN TB_PRC_DAY.DATA_SRC_CD IS '데이터 출처 코드';
+COMMENT ON COLUMN TB_PRC_DAY.DATA_STS IS '데이터 상태';
+COMMENT ON COLUMN TB_PRC_DAY.COLLECT_DTTM IS '수집일시';
+
+
+============================================================
+5. TB_IDX_DAY 기준지수별 일별 시세
+============================================================
+
+5.1 테이블 목적
+------------------------------------------------------------
+TB_IDX_DAY는 TB_IDX에 등록된 기준지수의 일별 값을 저장한다.
+
+활용
+- 시장 하락률 계산
+- 종목별 기준지수 대비 상대성과 계산
+- 시장국면 계산
+- 재매수 조건 확인
+
+
+5.2 컬럼 정의
+------------------------------------------------------------
+
+IDX_DAY_ID
+- 지수일별시세 ID
+- BIGINT
+- PK
+- IDENTITY
+
+IDX_ID
+- 기준지수 ID
+- BIGINT
+- NOT NULL
+- FK: TB_IDX.IDX_ID
+
+TRADE_DT
+- 거래일
+- DATE
+- NOT NULL
+
+OPEN_VAL
+- 시가
+- NUMERIC(20,6)
+- NULL 허용
+
+HIGH_VAL
+- 고가
+- NUMERIC(20,6)
+- NULL 허용
+
+LOW_VAL
+- 저가
+- NUMERIC(20,6)
+- NULL 허용
+
+CLS_VAL
+- 종가
+- NUMERIC(20,6)
+- NOT NULL
+
+PREV_CLS_VAL
+- 전일 종가
+- NUMERIC(20,6)
+- NULL 허용
+
+CHG_VAL
+- 전일 대비 변동값
+- NUMERIC(20,6)
+- NULL 허용
+
+CHG_RT
+- 등락률
+- NUMERIC(10,4)
+- NULL 허용
+
+HIGH_52W_VAL
+- 52주 최고값
+- NUMERIC(20,6)
+- NULL 허용
+
+DD_52W_RT
+- 52주 최고값 대비 하락률
+- NUMERIC(10,4)
+- NULL 허용
+
+ALL_HIGH_VAL
+- 기준기간 최고값
+- NUMERIC(20,6)
+- NULL 허용
+
+DD_HIGH_RT
+- 기준기간 최고값 대비 하락률
+- NUMERIC(10,4)
+- NULL 허용
+
+DATA_SRC_CD
+- 데이터 출처 코드
+- VARCHAR(30)
+- NOT NULL
+
+DATA_STS
+- 데이터 상태
+- VARCHAR(20)
+- NOT NULL
+- 기본값: FRESH
+
+COLLECT_DTTM
+- 수집일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+
+5.3 PostgreSQL DDL
+------------------------------------------------------------
+
+CREATE TABLE TB_IDX_DAY (
+    IDX_DAY_ID       BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    IDX_ID           BIGINT                  NOT NULL,
+    TRADE_DT         DATE                    NOT NULL,
+    OPEN_VAL         NUMERIC(20,6),
+    HIGH_VAL         NUMERIC(20,6),
+    LOW_VAL          NUMERIC(20,6),
+    CLS_VAL          NUMERIC(20,6)           NOT NULL,
+    PREV_CLS_VAL     NUMERIC(20,6),
+    CHG_VAL          NUMERIC(20,6),
+    CHG_RT           NUMERIC(10,4),
+    HIGH_52W_VAL     NUMERIC(20,6),
+    DD_52W_RT        NUMERIC(10,4),
+    ALL_HIGH_VAL     NUMERIC(20,6),
+    DD_HIGH_RT       NUMERIC(10,4),
+    DATA_SRC_CD      VARCHAR(30)             NOT NULL,
+    DATA_STS         VARCHAR(20)             NOT NULL DEFAULT 'FRESH',
+    COLLECT_DTTM     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT PK_TB_IDX_DAY PRIMARY KEY (IDX_DAY_ID),
+    CONSTRAINT UK_TB_IDX_DAY_01 UNIQUE (IDX_ID, TRADE_DT),
+    CONSTRAINT FK_TB_IDX_DAY_01 FOREIGN KEY (IDX_ID)
+        REFERENCES TB_IDX (IDX_ID),
+    CONSTRAINT CK_TB_IDX_DAY_01 CHECK (
+        DATA_STS IN ('FRESH', 'STALE', 'MISSING', 'PARTIAL', 'ERROR')
+    )
+);
+
+CREATE INDEX IDX_TB_IDX_DAY_01
+    ON TB_IDX_DAY (IDX_ID, TRADE_DT DESC);
+
+CREATE INDEX IDX_TB_IDX_DAY_02
+    ON TB_IDX_DAY (TRADE_DT DESC);
+
+CREATE INDEX IDX_TB_IDX_DAY_03
+    ON TB_IDX_DAY (DD_HIGH_RT);
+
+
+5.4 PostgreSQL COMMENT
+------------------------------------------------------------
+
+COMMENT ON TABLE TB_IDX_DAY IS '기준지수별 일별 시세';
+COMMENT ON COLUMN TB_IDX_DAY.IDX_DAY_ID IS '일별 기준지수 시세 ID';
+COMMENT ON COLUMN TB_IDX_DAY.IDX_ID IS '기준지수 ID';
+COMMENT ON COLUMN TB_IDX_DAY.TRADE_DT IS '거래일';
+COMMENT ON COLUMN TB_IDX_DAY.OPEN_VAL IS '시가 또는 시작 지수값';
+COMMENT ON COLUMN TB_IDX_DAY.HIGH_VAL IS '고가 또는 최고 지수값';
+COMMENT ON COLUMN TB_IDX_DAY.LOW_VAL IS '저가 또는 최저 지수값';
+COMMENT ON COLUMN TB_IDX_DAY.CLS_VAL IS '종가 또는 마감 지수값';
+COMMENT ON COLUMN TB_IDX_DAY.PREV_CLS_VAL IS '전일 마감 지수값';
+COMMENT ON COLUMN TB_IDX_DAY.CHG_VAL IS '전일 대비 지수 변동값';
+COMMENT ON COLUMN TB_IDX_DAY.CHG_RT IS '전일 대비 지수 등락률';
+COMMENT ON COLUMN TB_IDX_DAY.HIGH_52W_VAL IS '52주 최고 지수값';
+COMMENT ON COLUMN TB_IDX_DAY.DD_52W_RT IS '52주 최고값 대비 하락률';
+COMMENT ON COLUMN TB_IDX_DAY.ALL_HIGH_VAL IS '설정 기준기간 최고 지수값';
+COMMENT ON COLUMN TB_IDX_DAY.DD_HIGH_RT IS '설정 기준기간 최고값 대비 하락률';
+COMMENT ON COLUMN TB_IDX_DAY.DATA_SRC_CD IS '데이터 출처 코드';
+COMMENT ON COLUMN TB_IDX_DAY.DATA_STS IS '데이터 상태';
+COMMENT ON COLUMN TB_IDX_DAY.COLLECT_DTTM IS '수집일시';
+
+
+============================================================
+6. TB_EXCH_DAY 일별 환율
+============================================================
+
+6.1 테이블 목적
+------------------------------------------------------------
+TB_EXCH_DAY는 원/달러 등 통화쌍의 일별 환율을 저장한다.
+
+활용
+- 해외주식 원화 평가금액
+- 환율 압력 점수
+- 외국인 수급 해석
+- 계좌별 손익 원화환산
+
+
+6.2 컬럼 정의
+------------------------------------------------------------
+
+EXCH_DAY_ID
+- 환율일별 ID
+- BIGINT
+- PK
+- IDENTITY
+
+BASE_DT
+- 기준일
+- DATE
+- NOT NULL
+
+BASE_CURR_CD
+- 기준통화
+- VARCHAR(10)
+- NOT NULL
+- 예시: USD
+
+QUOTE_CURR_CD
+- 표시통화
+- VARCHAR(10)
+- NOT NULL
+- 예시: KRW
+
+EXCH_RT
+- 환율
+- NUMERIC(20,6)
+- NOT NULL
+
+PREV_EXCH_RT
+- 전일 환율
+- NUMERIC(20,6)
+- NULL 허용
+
+CHG_AMT
+- 전일 대비 환율 변동값
+- NUMERIC(20,6)
+- NULL 허용
+
+CHG_RT
+- 환율 등락률
+- NUMERIC(10,4)
+- NULL 허용
+
+HIGH_52W_RT
+- 52주 최고 환율
+- NUMERIC(20,6)
+- NULL 허용
+
+LOW_52W_RT
+- 52주 최저 환율
+- NUMERIC(20,6)
+- NULL 허용
+
+PRESS_SCR
+- 환율 압력 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+DATA_SRC_CD
+- 데이터 출처 코드
+- VARCHAR(30)
+- NOT NULL
+
+DATA_STS
+- 데이터 상태
+- VARCHAR(20)
+- NOT NULL
+- 기본값: FRESH
+
+COLLECT_DTTM
+- 수집일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+
+6.3 PostgreSQL DDL
+------------------------------------------------------------
+
+CREATE TABLE TB_EXCH_DAY (
+    EXCH_DAY_ID      BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    BASE_DT          DATE                    NOT NULL,
+    BASE_CURR_CD     VARCHAR(10)             NOT NULL,
+    QUOTE_CURR_CD    VARCHAR(10)             NOT NULL,
+    EXCH_RT          NUMERIC(20,6)           NOT NULL,
+    PREV_EXCH_RT     NUMERIC(20,6),
+    CHG_AMT          NUMERIC(20,6),
+    CHG_RT           NUMERIC(10,4),
+    HIGH_52W_RT      NUMERIC(20,6),
+    LOW_52W_RT       NUMERIC(20,6),
+    PRESS_SCR        NUMERIC(10,4),
+    DATA_SRC_CD      VARCHAR(30)             NOT NULL,
+    DATA_STS         VARCHAR(20)             NOT NULL DEFAULT 'FRESH',
+    COLLECT_DTTM     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT PK_TB_EXCH_DAY PRIMARY KEY (EXCH_DAY_ID),
+    CONSTRAINT UK_TB_EXCH_DAY_01 UNIQUE (
+        BASE_DT, BASE_CURR_CD, QUOTE_CURR_CD
+    ),
+    CONSTRAINT CK_TB_EXCH_DAY_01 CHECK (EXCH_RT > 0),
+    CONSTRAINT CK_TB_EXCH_DAY_02 CHECK (
+        DATA_STS IN ('FRESH', 'STALE', 'MISSING', 'PARTIAL', 'ERROR')
+    )
+);
+
+CREATE INDEX IDX_TB_EXCH_DAY_01
+    ON TB_EXCH_DAY (BASE_CURR_CD, QUOTE_CURR_CD, BASE_DT DESC);
+
+CREATE INDEX IDX_TB_EXCH_DAY_02
+    ON TB_EXCH_DAY (BASE_DT DESC);
+
+
+6.4 PostgreSQL COMMENT
+------------------------------------------------------------
+
+COMMENT ON TABLE TB_EXCH_DAY IS '통화쌍별 일별 환율';
+COMMENT ON COLUMN TB_EXCH_DAY.EXCH_DAY_ID IS '일별 환율 ID';
+COMMENT ON COLUMN TB_EXCH_DAY.BASE_DT IS '환율 기준일';
+COMMENT ON COLUMN TB_EXCH_DAY.BASE_CURR_CD IS '기준통화 코드';
+COMMENT ON COLUMN TB_EXCH_DAY.QUOTE_CURR_CD IS '표시통화 코드';
+COMMENT ON COLUMN TB_EXCH_DAY.EXCH_RT IS '기준통화 1단위당 표시통화 환율';
+COMMENT ON COLUMN TB_EXCH_DAY.PREV_EXCH_RT IS '전일 환율';
+COMMENT ON COLUMN TB_EXCH_DAY.CHG_AMT IS '전일 대비 환율 변동값';
+COMMENT ON COLUMN TB_EXCH_DAY.CHG_RT IS '전일 대비 환율 등락률';
+COMMENT ON COLUMN TB_EXCH_DAY.HIGH_52W_RT IS '52주 최고 환율';
+COMMENT ON COLUMN TB_EXCH_DAY.LOW_52W_RT IS '52주 최저 환율';
+COMMENT ON COLUMN TB_EXCH_DAY.PRESS_SCR IS '환율 압력 점수';
+COMMENT ON COLUMN TB_EXCH_DAY.DATA_SRC_CD IS '데이터 출처 코드';
+COMMENT ON COLUMN TB_EXCH_DAY.DATA_STS IS '데이터 상태';
+COMMENT ON COLUMN TB_EXCH_DAY.COLLECT_DTTM IS '수집일시';
+
+
+============================================================
+7. TB_BOND_DAY 일별 채권금리
+============================================================
+
+7.1 테이블 목적
+------------------------------------------------------------
+TB_BOND_DAY는 미국 2년물, 10년물 등 주요 국채금리와
+장단기 금리차를 계산하기 위한 데이터를 저장한다.
+
+
+7.2 컬럼 정의
+------------------------------------------------------------
+
+BOND_DAY_ID
+- 채권금리일별 ID
+- BIGINT
+- PK
+- IDENTITY
+
+BASE_DT
+- 기준일
+- DATE
+- NOT NULL
+
+BOND_CD
+- 채권금리 코드
+- VARCHAR(30)
+- NOT NULL
+- 예시: US02Y, US10Y, KR03Y
+
+BOND_NM
+- 채권금리명
+- VARCHAR(100)
+- NOT NULL
+
+CNTRY_CD
+- 국가 코드
+- VARCHAR(10)
+- NOT NULL
+
+MATURITY_MON
+- 만기 개월 수
+- INTEGER
+- NULL 허용
+- 예시: 24, 120
+
+YLD_RT
+- 수익률
+- NUMERIC(10,6)
+- NOT NULL
+- 단위: 퍼센트
+
+PREV_YLD_RT
+- 전일 수익률
+- NUMERIC(10,6)
+- NULL 허용
+
+CHG_BP
+- 전일 대비 변동(bp)
+- NUMERIC(10,4)
+- NULL 허용
+
+RATE_PRESS_SCR
+- 금리 압력 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+DATA_SRC_CD
+- 데이터 출처 코드
+- VARCHAR(30)
+- NOT NULL
+
+DATA_STS
+- 데이터 상태
+- VARCHAR(20)
+- NOT NULL
+- 기본값: FRESH
+
+COLLECT_DTTM
+- 수집일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+
+7.3 주요 계산식
+------------------------------------------------------------
+
+전일 대비 bp 변화
+
+CHG_BP
+= (YLD_RT - PREV_YLD_RT) × 100
+
+장단기 금리차 예시
+
+US10Y_2Y_SPREAD
+= US10Y.YLD_RT - US02Y.YLD_RT
+
+# 주석
+# 장단기 금리차는 파생값이므로 별도 뷰 또는 시장 스냅샷 계산에서 생성할 수 있다.
+
+
+7.4 PostgreSQL DDL
+------------------------------------------------------------
+
+CREATE TABLE TB_BOND_DAY (
+    BOND_DAY_ID      BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    BASE_DT          DATE                    NOT NULL,
+    BOND_CD          VARCHAR(30)             NOT NULL,
+    BOND_NM          VARCHAR(100)            NOT NULL,
+    CNTRY_CD         VARCHAR(10)             NOT NULL,
+    MATURITY_MON     INTEGER,
+    YLD_RT           NUMERIC(10,6)           NOT NULL,
+    PREV_YLD_RT      NUMERIC(10,6),
+    CHG_BP           NUMERIC(10,4),
+    RATE_PRESS_SCR   NUMERIC(10,4),
+    DATA_SRC_CD      VARCHAR(30)             NOT NULL,
+    DATA_STS         VARCHAR(20)             NOT NULL DEFAULT 'FRESH',
+    COLLECT_DTTM     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT PK_TB_BOND_DAY PRIMARY KEY (BOND_DAY_ID),
+    CONSTRAINT UK_TB_BOND_DAY_01 UNIQUE (BASE_DT, BOND_CD),
+    CONSTRAINT CK_TB_BOND_DAY_01 CHECK (
+        MATURITY_MON IS NULL OR MATURITY_MON > 0
+    ),
+    CONSTRAINT CK_TB_BOND_DAY_02 CHECK (
+        DATA_STS IN ('FRESH', 'STALE', 'MISSING', 'PARTIAL', 'ERROR')
+    )
+);
+
+CREATE INDEX IDX_TB_BOND_DAY_01
+    ON TB_BOND_DAY (BOND_CD, BASE_DT DESC);
+
+CREATE INDEX IDX_TB_BOND_DAY_02
+    ON TB_BOND_DAY (BASE_DT DESC);
+
+
+7.5 PostgreSQL COMMENT
+------------------------------------------------------------
+
+COMMENT ON TABLE TB_BOND_DAY IS '국가별 주요 채권금리 일별 데이터';
+COMMENT ON COLUMN TB_BOND_DAY.BOND_DAY_ID IS '일별 채권금리 ID';
+COMMENT ON COLUMN TB_BOND_DAY.BASE_DT IS '채권금리 기준일';
+COMMENT ON COLUMN TB_BOND_DAY.BOND_CD IS '채권금리 코드';
+COMMENT ON COLUMN TB_BOND_DAY.BOND_NM IS '채권금리명';
+COMMENT ON COLUMN TB_BOND_DAY.CNTRY_CD IS '국가 코드';
+COMMENT ON COLUMN TB_BOND_DAY.MATURITY_MON IS '만기 개월 수';
+COMMENT ON COLUMN TB_BOND_DAY.YLD_RT IS '채권 수익률(퍼센트)';
+COMMENT ON COLUMN TB_BOND_DAY.PREV_YLD_RT IS '전일 채권 수익률';
+COMMENT ON COLUMN TB_BOND_DAY.CHG_BP IS '전일 대비 수익률 변동(bp)';
+COMMENT ON COLUMN TB_BOND_DAY.RATE_PRESS_SCR IS '금리 압력 점수';
+COMMENT ON COLUMN TB_BOND_DAY.DATA_SRC_CD IS '데이터 출처 코드';
+COMMENT ON COLUMN TB_BOND_DAY.DATA_STS IS '데이터 상태';
+COMMENT ON COLUMN TB_BOND_DAY.COLLECT_DTTM IS '수집일시';
+
+
+============================================================
+8. Java Entity 핵심 예시
+============================================================
+
+8.1 TbMktSnap
+------------------------------------------------------------
+
+@Entity
+@Table(
+    name = "TB_MKT_SNAP",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "UK_TB_MKT_SNAP_01",
+            columnNames = {"BASE_DT", "MKT_SNAP_CD"}
+        )
+    }
+)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TbMktSnap {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "MKT_SNAP_ID")
+    private Long marketSnapshotId;
+
+    @Column(name = "BASE_DT", nullable = false)
+    private LocalDate baseDate;
+
+    @Column(name = "MKT_SNAP_CD", nullable = false, length = 30)
+    private String marketSnapshotCode;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "MAIN_IDX_ID")
+    private TbIdx mainIndex;
+
+    @Column(name = "MAIN_IDX_CHG_RT", precision = 10, scale = 4)
+    private BigDecimal mainIndexChangeRate;
+
+    @Column(name = "FRGN_NET_AMT", precision = 20, scale = 4)
+    private BigDecimal foreignNetAmount;
+
+    @Column(name = "EXCH_RT", precision = 20, scale = 6)
+    private BigDecimal exchangeRate;
+
+    @Column(name = "MKT_BREADTH_RT", precision = 10, scale = 4)
+    private BigDecimal marketBreadthRate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "DATA_STS", nullable = false, length = 20)
+    private DataStatus dataStatus;
+}
+
+
+8.2 TbMktSent
+------------------------------------------------------------
+
+@Entity
+@Table(
+    name = "TB_MKT_SENT",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "UK_TB_MKT_SENT_01",
+            columnNames = {"BASE_DT", "MKT_SNAP_CD"}
+        )
+    }
+)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TbMktSent {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "MKT_SENT_ID")
+    private Long marketSentimentId;
+
+    @Column(name = "BASE_DT", nullable = false)
+    private LocalDate baseDate;
+
+    @Column(name = "MKT_SNAP_CD", nullable = false, length = 30)
+    private String marketSnapshotCode;
+
+    @Column(name = "SENT_SCR", nullable = false, precision = 10, scale = 4)
+    private BigDecimal sentimentScore;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "SENT_PHASE", nullable = false, length = 20)
+    private SentimentPhase sentimentPhase;
+
+    @Column(name = "CONF_RT", nullable = false, precision = 10, scale = 4)
+    private BigDecimal confidenceRate;
+
+    @Column(name = "STRUCT_DMG_YN", nullable = false, length = 1)
+    private String structuralDamageYn;
+}
+
+
+8.3 TbPrcDay
+------------------------------------------------------------
+
+@Entity
+@Table(
+    name = "TB_PRC_DAY",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "UK_TB_PRC_DAY_01",
+            columnNames = {"STK_ID", "TRADE_DT"}
+        )
+    }
+)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TbPrcDay {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "PRC_DAY_ID")
+    private Long dailyPriceId;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "STK_ID", nullable = false)
+    private TbStk stock;
+
+    @Column(name = "TRADE_DT", nullable = false)
+    private LocalDate tradeDate;
+
+    @Column(name = "CLS_PRC", nullable = false, precision = 20, scale = 6)
+    private BigDecimal closePrice;
+
+    @Column(name = "CHG_RT", precision = 10, scale = 4)
+    private BigDecimal changeRate;
+
+    @Column(name = "DD_HIGH_RT", precision = 10, scale = 4)
+    private BigDecimal drawdownFromHighRate;
+}
+
+
+============================================================
+9. Repository 예시
+============================================================
+
+public interface TbMktSnapRepository
+        extends JpaRepository<TbMktSnap, Long> {
+
+    Optional<TbMktSnap>
+    findByBaseDateAndMarketSnapshotCode(
+        LocalDate baseDate,
+        String marketSnapshotCode
+    );
+
+    Optional<TbMktSnap>
+    findTopByMarketSnapshotCodeAndDataStatusOrderByBaseDateDesc(
+        String marketSnapshotCode,
+        DataStatus dataStatus
+    );
+}
+
+
+public interface TbPrcDayRepository
+        extends JpaRepository<TbPrcDay, Long> {
+
+    Optional<TbPrcDay>
+    findTopByStock_StockIdOrderByTradeDateDesc(Long stockId);
+
+    List<TbPrcDay>
+    findAllByStock_StockIdAndTradeDateBetweenOrderByTradeDateAsc(
+        Long stockId,
+        LocalDate startDate,
+        LocalDate endDate
+    );
+}
+
+
+public interface TbIdxDayRepository
+        extends JpaRepository<TbIdxDay, Long> {
+
+    Optional<TbIdxDay>
+    findTopByIndex_IndexIdOrderByTradeDateDesc(Long indexId);
+}
+
+
+============================================================
+10. 권장 Java Enum
+============================================================
+
+public enum DataStatus {
+    FRESH,
+    STALE,
+    MISSING,
+    PARTIAL,
+    ERROR
+}
+
+public enum SentimentPhase {
+    GREED,
+    OPTIMISM,
+    NEUTRAL,
+    FATIGUE,
+    FEAR,
+    PANIC
+}
+
+public enum MissingValuePolicy {
+    IGNORE,
+    LAST_VALUE,
+    DEFAULT_VALUE,
+    FAIL
+}
+
+
+============================================================
+11. 시장 데이터 수집 서비스 구조
+============================================================
+
+KrxMarketDataCollector
+- 코스피·코스닥 지수
+- 외국인·기관·개인 수급
+- 외국인 선물
+- 프로그램 매매
+- 상승·하락 종목 수
+- 거래대금
+
+YahooPriceCollector
+- 해외 종목 일별시세
+- 해외 기준지수
+- ETF 기준지수
+
+ExchangeRateCollector
+- 원/달러 환율
+- 필요한 추가 통화쌍
+
+BondYieldCollector
+- 미국 2년물
+- 미국 10년물
+- 필요 시 한국 국채금리
+
+MarketSnapshotService
+- 수집값 통합
+- 시장 확산도 계산
+- 최신성 판단
+- TB_MKT_SNAP 저장
+
+MarketSentimentService
+- 뉴스 공포 점수
+- AI 투자 피로
+- 실적 신뢰도
+- 환율·금리·변동성 압력
+- 종합심리 점수와 단계 계산
+- TB_MKT_SENT 저장
+
+# 주석
+# Collector는 외부 데이터를 가져오는 역할만 담당한다.
+# 계산과 DB 저장은 Service에서 처리한다.
+
+
+============================================================
+12. 수집 및 저장 처리 순서
+============================================================
+
+일일 처리 예시
+
+1. 거래일 확인
+2. 국내 기준지수 수집
+3. 국내 수급 수집
+4. 해외 종목·지수 수집
+5. 환율 수집
+6. 채권금리 수집
+7. 데이터 검증
+8. DATA_STS 결정
+9. TB_PRC_DAY 저장
+10. TB_IDX_DAY 저장
+11. TB_EXCH_DAY 저장
+12. TB_BOND_DAY 저장
+13. TB_MKT_SNAP 생성
+14. TB_MKT_SENT 계산
+15. 투자판단 엔진 호출
+
+# 주석
+# 각 단계는 독립적으로 재실행할 수 있어야 한다.
+# UPSERT를 사용하되 원천 데이터 변경 이력을 로그에 남긴다.
+
+
+============================================================
+13. PostgreSQL UPSERT 예시
+============================================================
+
+INSERT INTO TB_PRC_DAY (
+    STK_ID,
+    TRADE_DT,
+    CLS_PRC,
+    CHG_RT,
+    DATA_SRC_CD,
+    DATA_STS,
+    COLLECT_DTTM
+)
+VALUES (
+    :stockId,
+    :tradeDate,
+    :closePrice,
+    :changeRate,
+    :dataSourceCode,
+    :dataStatus,
+    CURRENT_TIMESTAMP
+)
+ON CONFLICT (STK_ID, TRADE_DT)
+DO UPDATE SET
+    CLS_PRC = EXCLUDED.CLS_PRC,
+    CHG_RT = EXCLUDED.CHG_RT,
+    DATA_SRC_CD = EXCLUDED.DATA_SRC_CD,
+    DATA_STS = EXCLUDED.DATA_STS,
+    COLLECT_DTTM = CURRENT_TIMESTAMP;
+
+
+============================================================
+14. 데이터 검증 규칙
+============================================================
+
+종목시세
+- CLS_PRC는 0 이상
+- HIGH_PRC >= LOW_PRC
+- HIGH_PRC >= OPEN_PRC
+- HIGH_PRC >= CLS_PRC
+- LOW_PRC <= OPEN_PRC
+- LOW_PRC <= CLS_PRC
+
+환율
+- EXCH_RT > 0
+- 전일 대비 급격한 변동 시 경고
+- 기준통화와 표시통화가 같으면 저장하지 않음
+
+채권금리
+- 비정상적인 음수 또는 급변 값은 경고
+- 출처별 단위가 퍼센트인지 소수인지 확인
+
+시장수급
+- 단위를 원, 천원, 백만원 중 하나로 통일
+- 권장 저장 단위: 원 또는 백만원
+- 시스템 전체에서 단위가 섞이지 않도록 설정값으로 고정
+
+# 주석
+# 수급금액 단위는 반드시 한 번 확정해야 한다.
+# 권장안은 원 단위 NUMERIC 저장이지만 값이 매우 크면 백만원 단위도 가능하다.
+# 어떤 방식을 사용하든 컬럼 주석과 API 문서에 단위를 명시한다.
+
+
+============================================================
+15. 권장 Flyway 파일명
+============================================================
+
+V012__create_tb_mkt_snap.sql
+V013__create_tb_mkt_sent.sql
+V014__create_tb_prc_day.sql
+V015__create_tb_idx_day.sql
+V016__create_tb_exch_day.sql
+V017__create_tb_bond_day.sql
+
+
+============================================================
+16. PART 04 완료 체크리스트
+============================================================
+
+[ ] 시장 스냅샷 코드 확정
+[ ] 수급금액 저장 단위 확정
+[ ] 데이터 최신성 기준 확정
+[ ] 결측값 처리정책 확정
+[ ] KRX 수집항목 확정
+[ ] Yahoo 수집항목 확정
+[ ] 환율 출처 확정
+[ ] 채권금리 출처 확정
+
+[ ] TB_MKT_SNAP DDL 실행
+[ ] TB_MKT_SENT DDL 실행
+[ ] TB_PRC_DAY DDL 실행
+[ ] TB_IDX_DAY DDL 실행
+[ ] TB_EXCH_DAY DDL 실행
+[ ] TB_BOND_DAY DDL 실행
+
+[ ] 지수 고점 대비 하락률 계산 테스트
+[ ] 종목 고점 대비 하락률 계산 테스트
+[ ] 환율 변화율 계산 테스트
+[ ] 채권금리 bp 계산 테스트
+[ ] 시장 확산도 계산 테스트
+[ ] 데이터 STALE 처리 테스트
+[ ] 마지막 정상값 대체 테스트
+[ ] 중복 UPSERT 테스트
+
+
+============================================================
+17. PART 05 진행 예정
+============================================================
+
+대상 테이블
+1. TB_INV_DEC
+2. TB_STK_DEC
+3. TB_DEC_CHG
+4. TB_ADD_BUY
+5. TB_REBUY
+
+PART 05에서 연결할 기존 계산
+- 시장점수
+- 시장국면
+- 시장심리
+- 종목별 행동신호
+- 정기매수 배수
+- 추천 매수금액
+- 추가매수 우선순위
+- 추가매수 추천금액
+- 재매수 조건
+- 이전 판단과 현재 판단 비교
+- 변경 사유
+- 판단 신뢰도
+- 실행 여부
+
+※ PART 05에서는 Java 계산엔진 결과를 저장하는 핵심 판단 테이블과
+   일일 판단 API의 입력·출력 구조를 함께 설계한다.

@@ -1,0 +1,1911 @@
+﻿투자 브리핑 Spring Boot 백엔드 설계
+PART 09. 투자판단 계산엔진 상세설계
+============================================================
+
+문서 목적
+------------------------------------------------------------
+이 문서는 투자 브리핑 시스템의 핵심 계산엔진을
+Java 클래스와 메서드 단위로 상세 설계한다.
+
+주요 대상
+1. 시장점수 계산기
+2. 시장국면 판정기
+3. 시장심리 계산기
+4. 계좌 총자산 계산기
+5. 현금비중 계산기
+6. 종목 비중 계산기
+7. 정기매수 배수 계산기
+8. 추천 정기매수금액 계산기
+9. 정기매수 감액분 계산기
+10. 추가매수 우선순위 계산기
+11. 추가매수 추천금액 계산기
+12. 재매수 조건 계산기
+13. 종목 신호등 계산기
+14. 종합 행동신호 계산기
+15. 계산규칙 버전관리
+16. 단위 테스트 시나리오
+
+기술 기준
+- Java 21
+- Spring Boot 3.5.7
+- BigDecimal 기반 계산
+- 계산결과 불변 객체 사용
+- 계산식과 데이터 조회 분리
+- 계산규칙 버전관리
+- 단위 테스트 우선
+
+※ 계산기는 DB에 직접 접근하지 않는다.
+※ Service가 입력값을 조립하고 계산기에 전달한다.
+※ 계산결과 저장은 별도 Orchestrator 또는 Service가 담당한다.
+※ 모든 비율은 퍼센트 단위로 통일한다.
+※ 모든 금액은 원화 기준으로 계산한 뒤 필요 시 외화 원값을 별도 보관한다.
+
+
+============================================================
+1. 계산엔진 전체 구조
+============================================================
+
+권장 패키지
+
+com.nanum.investment.calculation
+ ├─ market
+ │   ├─ MarketScoreCalculator
+ │   ├─ MarketRegimeClassifier
+ │   ├─ MarketSentimentCalculator
+ │   ├─ MarketRiskCalculator
+ │   ├─ dto
+ │   │   ├─ MarketScoreInput
+ │   │   ├─ MarketScoreResult
+ │   │   ├─ MarketSentimentInput
+ │   │   └─ MarketSentimentResult
+ │   └─ rule
+ │       ├─ MarketRuleSet
+ │       └─ MarketRuleProperties
+ │
+ ├─ account
+ │   ├─ AccountAssetCalculator
+ │   ├─ CashWeightCalculator
+ │   ├─ BuyCapacityCalculator
+ │   └─ dto
+ │
+ ├─ stock
+ │   ├─ StockWeightCalculator
+ │   ├─ StockRiskCalculator
+ │   ├─ RelativePerformanceCalculator
+ │   ├─ StockTrafficLightCalculator
+ │   └─ dto
+ │
+ ├─ regularbuy
+ │   ├─ MarketMultiplierCalculator
+ │   ├─ StockAdjustmentCalculator
+ │   ├─ WeightAdjustmentCalculator
+ │   ├─ RiskAdjustmentCalculator
+ │   ├─ FinalMultiplierCalculator
+ │   ├─ RegularBuyAmountCalculator
+ │   ├─ SavedAmountCalculator
+ │   └─ dto
+ │
+ ├─ additionalbuy
+ │   ├─ AdditionalBuyEligibilityCalculator
+ │   ├─ AdditionalBuyPriorityCalculator
+ │   ├─ AdditionalBuyAmountCalculator
+ │   └─ dto
+ │
+ ├─ rebuy
+ │   ├─ RebuyEligibilityCalculator
+ │   ├─ RebuyScoreCalculator
+ │   ├─ RebuySignalCalculator
+ │   └─ dto
+ │
+ ├─ decision
+ │   ├─ StockActionSignalCalculator
+ │   ├─ OverallDecisionSignalCalculator
+ │   ├─ DecisionConfidenceCalculator
+ │   └─ dto
+ │
+ ├─ rule
+ │   ├─ CalculationRuleSet
+ │   ├─ RuleVersion
+ │   ├─ RuleProvider
+ │   └─ RuleValidationService
+ │
+ └─ support
+     ├─ CalculationContext
+     ├─ CalculationResult
+     ├─ CalculationReason
+     └─ CalculationException
+
+# 주석
+# 계산 영역별 패키지를 분리한다.
+# 하나의 거대한 InvestmentCalculator 클래스를 만들지 않는다.
+# 각 계산기는 한 가지 책임만 가진다.
+
+
+============================================================
+2. 공통 계산 원칙
+============================================================
+
+2.1 BigDecimal
+------------------------------------------------------------
+
+금지
+- double
+- float
+
+권장 상수
+
+public final class CalculationScale {
+
+    public static final int MONEY_SCALE = 0;
+    public static final int PRICE_SCALE = 6;
+    public static final int RATE_SCALE = 4;
+    public static final int MULTIPLIER_SCALE = 4;
+    public static final RoundingMode ROUNDING_MODE =
+        RoundingMode.HALF_UP;
+
+    private CalculationScale() {
+    }
+}
+
+
+2.2 NULL 처리
+------------------------------------------------------------
+
+원칙
+- 필수 입력은 생성 시 검증
+- 선택 입력은 Optional 또는 명시적 기본값
+- 결측 데이터를 0으로 자동 변환하지 않음
+- 0과 결측을 구분
+
+예시
+
+public record NumericValue(
+    BigDecimal value,
+    DataStatus dataStatus
+) {
+    public boolean isUsable() {
+        return value != null
+            && dataStatus != DataStatus.ERROR
+            && dataStatus != DataStatus.MISSING;
+    }
+}
+
+
+2.3 점수 범위
+------------------------------------------------------------
+
+시장점수
+- 0 ~ 100
+- 높을수록 시장상태 양호
+
+위험점수
+- 0 ~ 100
+- 높을수록 위험
+
+공포점수
+- 0 ~ 100
+- 높을수록 공포
+
+피로점수
+- 0 ~ 100
+- 높을수록 과열·피로
+
+신뢰도
+- 0 ~ 100
+
+
+2.4 계산결과 공통구조
+------------------------------------------------------------
+
+public record CalculationResult<T>(
+    T value,
+    BigDecimal confidenceRate,
+    List<CalculationReason> reasons,
+    Integer ruleVersionNumber
+) {
+}
+
+public record CalculationReason(
+    String code,
+    String message,
+    BigDecimal inputValue,
+    BigDecimal contribution
+) {
+}
+
+# 주석
+# 계산결과에는 값뿐 아니라 이유를 함께 보관한다.
+# 이후 TB_INV_DEC.KEY_RSN, TB_STK_DEC.DEC_RSN 생성에 사용한다.
+
+
+============================================================
+3. 시장점수 계산기
+============================================================
+
+3.1 목적
+------------------------------------------------------------
+시장점수는 시장의 방향성, 수급, 변동성, 환율, 금리,
+시장 확산도, 유동성을 종합한 0~100 점수다.
+
+높을수록
+- 시장환경 양호
+- 정기매수 유지 또는 증액 가능
+
+낮을수록
+- 시장 위험 증가
+- 감액 또는 중단 필요
+
+
+3.2 입력 DTO
+------------------------------------------------------------
+
+public record MarketScoreInput(
+    BigDecimal mainIndexChangeRate,
+    BigDecimal subIndexChangeRate,
+    BigDecimal foreignNetAmount,
+    BigDecimal institutionNetAmount,
+    BigDecimal foreignFuturesNetQuantity,
+    BigDecimal programNetAmount,
+    BigDecimal exchangeChangeRate,
+    BigDecimal volatilityIndexValue,
+    BigDecimal volatilityIndexChangeRate,
+    BigDecimal marketBreadthRate,
+    BigDecimal newHighLowRatio,
+    BigDecimal liquidityScore,
+    BigDecimal usTwoYearYield,
+    BigDecimal usTenYearYield,
+    BigDecimal dataConfidenceRate
+) {
+}
+
+
+3.3 기본 가중치 예시
+------------------------------------------------------------
+
+지수 방향성               15점
+외국인·기관 수급          20점
+외국인 선물·프로그램      15점
+시장 확산도               15점
+변동성                    15점
+환율 압력                 10점
+금리 압력                  5점
+유동성                     5점
+합계                     100점
+
+
+3.4 구성점수 예시
+------------------------------------------------------------
+
+지수 방향성 점수
+- 대표지수와 보조지수 등락률 평균
+- +3% 이상: 100
+- +1% 이상: 80
+- 0% 이상: 60
+- -1% 이상: 40
+- -3% 이상: 20
+- -3% 미만: 0
+
+수급 점수
+- 외국인과 기관 순매수금액을 시장 거래대금 대비 비율로 정규화
+- 외국인 가중치가 기관보다 높음
+
+선물·프로그램 점수
+- 외국인 선물 순매수와 프로그램 비차익 순매수 중심
+
+시장 확산도 점수
+- 70 이상: 100
+- 60 이상: 80
+- 50 이상: 60
+- 40 이상: 40
+- 30 이상: 20
+- 30 미만: 0
+
+변동성 점수
+- 변동성지수가 낮을수록 높은 점수
+- 급등 시 추가 감점
+
+환율 압력 점수
+- 원·달러 환율 상승률이 높을수록 감점
+- 외국인 순매수와 동시에 나타나면 감점 완화 가능
+
+금리 압력 점수
+- 미국 2년물과 10년물 급등 시 감점
+
+유동성 점수
+- 거래대금, 신용잔고, 정책유동성 등을 별도 계산 후 입력
+
+
+3.5 결과 DTO
+------------------------------------------------------------
+
+public record MarketScoreResult(
+    BigDecimal totalScore,
+    BigDecimal trendScore,
+    BigDecimal flowScore,
+    BigDecimal futuresProgramScore,
+    BigDecimal breadthScore,
+    BigDecimal volatilityScore,
+    BigDecimal exchangeScore,
+    BigDecimal rateScore,
+    BigDecimal liquidityScore,
+    BigDecimal confidenceRate,
+    List<CalculationReason> reasons
+) {
+}
+
+
+3.6 인터페이스
+------------------------------------------------------------
+
+public interface MarketScoreCalculator {
+
+    MarketScoreResult calculate(
+        MarketScoreInput input,
+        MarketRuleSet ruleSet
+    );
+}
+
+
+3.7 구현 핵심 예시
+------------------------------------------------------------
+
+@Component
+public class DefaultMarketScoreCalculator
+        implements MarketScoreCalculator {
+
+    @Override
+    public MarketScoreResult calculate(
+        MarketScoreInput input,
+        MarketRuleSet ruleSet
+    ) {
+        BigDecimal trendScore =
+            calculateTrendScore(input, ruleSet);
+
+        BigDecimal flowScore =
+            calculateFlowScore(input, ruleSet);
+
+        BigDecimal futuresProgramScore =
+            calculateFuturesProgramScore(input, ruleSet);
+
+        BigDecimal breadthScore =
+            calculateBreadthScore(input, ruleSet);
+
+        BigDecimal volatilityScore =
+            calculateVolatilityScore(input, ruleSet);
+
+        BigDecimal exchangeScore =
+            calculateExchangeScore(input, ruleSet);
+
+        BigDecimal rateScore =
+            calculateRateScore(input, ruleSet);
+
+        BigDecimal liquidityScore =
+            defaultNeutral(input.liquidityScore());
+
+        BigDecimal totalScore =
+            weightedAverage(
+                trendScore, ruleSet.trendWeight(),
+                flowScore, ruleSet.flowWeight(),
+                futuresProgramScore, ruleSet.futuresProgramWeight(),
+                breadthScore, ruleSet.breadthWeight(),
+                volatilityScore, ruleSet.volatilityWeight(),
+                exchangeScore, ruleSet.exchangeWeight(),
+                rateScore, ruleSet.rateWeight(),
+                liquidityScore, ruleSet.liquidityWeight()
+            );
+
+        return new MarketScoreResult(
+            clamp(totalScore),
+            trendScore,
+            flowScore,
+            futuresProgramScore,
+            breadthScore,
+            volatilityScore,
+            exchangeScore,
+            rateScore,
+            liquidityScore,
+            calculateConfidence(input),
+            buildReasons(input)
+        );
+    }
+}
+
+
+============================================================
+4. 시장국면 판정기
+============================================================
+
+4.1 기본 판정기준
+------------------------------------------------------------
+
+OVERHEATED
+- 시장점수 80 이상
+- 변동성 낮음
+- 시장 확산도 높음
+- 과열점수 또는 AI 피로점수 높음
+
+NORMAL
+- 시장점수 60 이상 80 미만
+
+MILD_CORRECTION
+- 시장점수 45 이상 60 미만
+
+STRONG_CORRECTION
+- 시장점수 25 이상 45 미만
+
+CRASH_RISK
+- 시장점수 25 미만
+- 또는 별도 강제위험 조건 충족
+
+
+4.2 강제위험 조건 예시
+------------------------------------------------------------
+
+다음 중 하나 이상이면 CRASH_RISK 가능
+- 대표지수 일일 -5% 이하
+- 시장 확산도 15 미만
+- 변동성지수 급등
+- 외국인 현물·선물 동시 대규모 매도
+- 프로그램 비차익 대규모 매도
+- 환율 급등
+- 시스템리스크 이벤트
+- 거래정지·서킷브레이커 등 비상상황
+
+
+4.3 입력 DTO
+------------------------------------------------------------
+
+public record MarketRegimeInput(
+    BigDecimal marketScore,
+    BigDecimal mainIndexChangeRate,
+    BigDecimal marketBreadthRate,
+    BigDecimal volatilityIndexValue,
+    BigDecimal volatilityIndexChangeRate,
+    BigDecimal exchangeChangeRate,
+    BigDecimal foreignNetAmount,
+    BigDecimal foreignFuturesNetQuantity,
+    BigDecimal structuralDamageRate,
+    boolean emergencyEvent
+) {
+}
+
+
+4.4 인터페이스
+------------------------------------------------------------
+
+public interface MarketRegimeClassifier {
+
+    CalculationResult<MarketRegime> classify(
+        MarketRegimeInput input,
+        MarketRuleSet ruleSet
+    );
+}
+
+
+4.5 판정순서
+------------------------------------------------------------
+
+1. emergencyEvent 확인
+2. 구조적 훼손 가능성 확인
+3. 급락 강제조건 확인
+4. 시장점수 구간 확인
+5. 과열조건 확인
+6. 최종 시장국면 결정
+
+# 주석
+# 단순히 시장점수 하나만으로 시장국면을 결정하지 않는다.
+# 강제위험 조건을 먼저 평가한다.
+
+
+============================================================
+5. 시장심리 계산기
+============================================================
+
+5.1 입력
+------------------------------------------------------------
+
+public record MarketSentimentInput(
+    BigDecimal newsFearScore,
+    BigDecimal aiFatigueScore,
+    BigDecimal earningsConfidenceScore,
+    BigDecimal liquidityScore,
+    BigDecimal flowScore,
+    BigDecimal exchangePressureScore,
+    BigDecimal ratePressureScore,
+    BigDecimal volatilityPressureScore,
+    BigDecimal dataConfidenceRate
+) {
+}
+
+
+5.2 종합심리 점수 예시
+------------------------------------------------------------
+
+심리 양호 방향 점수
+
+SENT_SCR
+= 100
+- 뉴스공포 × 0.20
+- AI피로 × 0.10
++ 실적신뢰 × 0.20
++ 유동성 × 0.10
++ 수급 × 0.15
+- 환율압력 × 0.10
+- 금리압력 × 0.05
+- 변동성압력 × 0.10
+
+최종값
+- 0~100 범위로 제한
+
+
+5.3 단계
+------------------------------------------------------------
+
+GREED
+- 80 이상
+
+OPTIMISM
+- 65 이상 80 미만
+
+NEUTRAL
+- 45 이상 65 미만
+
+FATIGUE
+- 35 이상 45 미만
+- 또는 AI 피로점수 강제조건
+
+FEAR
+- 20 이상 35 미만
+
+PANIC
+- 20 미만
+
+
+============================================================
+6. 계좌 총자산 계산기
+============================================================
+
+6.1 입력 DTO
+------------------------------------------------------------
+
+public record AccountAssetInput(
+    BigDecimal cashAmount,
+    BigDecimal reserveCashAmount,
+    List<HoldingValuationInput> holdings
+) {
+}
+
+public record HoldingValuationInput(
+    BigDecimal quantity,
+    BigDecimal currentPrice,
+    BigDecimal exchangeRate
+) {
+}
+
+
+6.2 계산식
+------------------------------------------------------------
+
+종목 평가금액
+
+VALUATION_AMT
+= quantity × currentPrice × exchangeRate
+
+계좌 총자산
+
+TOT_AST_AMT
+= cashAmount
++ reserveCashAmount
++ 모든 종목 평가금액 합계
+
+
+6.3 인터페이스
+------------------------------------------------------------
+
+public interface AccountAssetCalculator {
+
+    AccountAssetResult calculate(AccountAssetInput input);
+}
+
+public record AccountAssetResult(
+    BigDecimal holdingValuationAmount,
+    BigDecimal cashAmount,
+    BigDecimal reserveCashAmount,
+    BigDecimal totalAssetAmount
+) {
+}
+
+
+============================================================
+7. 현금비중 계산기
+============================================================
+
+7.1 전체 현금비중
+------------------------------------------------------------
+
+TOTAL_CASH
+= CASH_AMT + RSV_CASH_AMT
+
+CASH_RT
+= TOTAL_CASH / TOT_AST_AMT × 100
+
+
+7.2 일반현금비중
+------------------------------------------------------------
+
+NORMAL_CASH_RT
+= CASH_AMT / TOT_AST_AMT × 100
+
+
+7.3 대기현금비중
+------------------------------------------------------------
+
+RESERVE_CASH_RT
+= RSV_CASH_AMT / TOT_AST_AMT × 100
+
+
+7.4 상태 판정
+------------------------------------------------------------
+
+CASH_SHORTAGE
+- 현재 현금비중 < 목표 현금비중 - 허용오차
+
+NORMAL
+- 허용범위 내
+
+CASH_EXCESS
+- 현재 현금비중 > 목표 현금비중 + 허용오차
+
+
+============================================================
+8. 종목 비중 계산기
+============================================================
+
+8.1 계산식
+------------------------------------------------------------
+
+CUR_WGT
+= 종목 평가금액 / 계좌 총자산 × 100
+
+TGT_AMT
+= 계좌 총자산 × 목표비중 / 100
+
+WGT_GAP_AMT
+= TGT_AMT - 현재 평가금액
+
+
+8.2 비중상태
+------------------------------------------------------------
+
+UNDERWEIGHT
+- 현재비중 < 최소 허용비중
+
+NORMAL
+- 최소~최대 허용비중
+
+OVERWEIGHT
+- 현재비중 > 최대 허용비중
+
+EXCLUDED
+- 목표비중 없음 또는 투자대상 제외
+
+
+8.3 입력 DTO
+------------------------------------------------------------
+
+public record StockWeightInput(
+    BigDecimal stockValuationAmount,
+    BigDecimal totalAssetAmount,
+    BigDecimal targetWeight,
+    BigDecimal absoluteTolerance,
+    BigDecimal relativeToleranceRate
+) {
+}
+
+
+8.4 결과 DTO
+------------------------------------------------------------
+
+public record StockWeightResult(
+    BigDecimal currentWeight,
+    BigDecimal targetWeight,
+    BigDecimal minimumWeight,
+    BigDecimal maximumWeight,
+    BigDecimal targetAmount,
+    BigDecimal weightGapAmount,
+    WeightStatus weightStatus
+) {
+}
+
+
+============================================================
+9. 상대성과 계산기
+============================================================
+
+REL_PERF_RT
+= 종목 고점 대비 하락률
+- 기준지수 고점 대비 하락률
+
+예시
+- 종목 -20%
+- 기준지수 -30%
+- 상대성과 +10%
+
+해석
+- 양수: 시장보다 강함
+- 음수: 시장보다 약함
+
+추가 활용
+- 추가매수 우선순위
+- 재매수 점수
+- 종목 신호등
+- 위험도 조정
+
+
+============================================================
+10. 정기매수 배수 계산기
+============================================================
+
+10.1 최종 계산식
+------------------------------------------------------------
+
+FINAL_MULT
+= MKT_MULT
+× STK_ADJ_MULT
+× WGT_ADJ_MULT
+× RISK_ADJ_MULT
+
+최종 범위
+- 최소 0
+- 최대 설정값
+- 예: 2.0
+
+
+10.2 시장 기본배수 예시
+------------------------------------------------------------
+
+OVERHEATED
+- 0.50
+
+NORMAL
+- 1.00
+
+MILD_CORRECTION
+- 1.10
+
+STRONG_CORRECTION
+- 0.70 또는 1.20
+- 구조적 훼손 여부에 따라 분기
+
+CRASH_RISK
+- 0.00 ~ 0.30
+
+# 주석
+# 강한 조정에서 무조건 증액하지 않는다.
+# 펀더멘털과 구조적 위험이 정상일 때만 선택적으로 증액한다.
+
+
+10.3 종목 보정배수 예시
+------------------------------------------------------------
+
+핵심종목
+- 1.10
+
+위성종목
+- 1.00
+
+테마종목
+- 0.70
+
+펀더멘털 훼손
+- 0.00
+
+상대성과 우수
+- +0.10 또는 ×1.10
+
+상대성과 매우 부진
+- ×0.70
+
+
+10.4 비중 보정배수 예시
+------------------------------------------------------------
+
+UNDERWEIGHT
+- 1.20
+
+NORMAL
+- 1.00
+
+OVERWEIGHT
+- 0.00 ~ 0.50
+
+EXCLUDED
+- 0.00
+
+
+10.5 위험 보정배수 예시
+------------------------------------------------------------
+
+LOW
+- 1.10
+
+MEDIUM
+- 1.00
+
+HIGH
+- 0.50
+
+CRITICAL
+- 0.00
+
+
+10.6 인터페이스
+------------------------------------------------------------
+
+public interface FinalMultiplierCalculator {
+
+    FinalMultiplierResult calculate(
+        FinalMultiplierInput input,
+        RegularBuyRuleSet ruleSet
+    );
+}
+
+public record FinalMultiplierInput(
+    MarketRegime marketRegime,
+    StockGrade stockGrade,
+    WeightStatus weightStatus,
+    RiskGrade riskGrade,
+    BigDecimal relativePerformanceRate,
+    boolean fundamentalDamage,
+    boolean userPaused
+) {
+}
+
+public record FinalMultiplierResult(
+    BigDecimal marketMultiplier,
+    BigDecimal stockAdjustmentMultiplier,
+    BigDecimal weightAdjustmentMultiplier,
+    BigDecimal riskAdjustmentMultiplier,
+    BigDecimal finalMultiplier,
+    List<CalculationReason> reasons
+) {
+}
+
+
+============================================================
+11. 추천 정기매수금액 계산기
+============================================================
+
+11.1 기본 계산식
+------------------------------------------------------------
+
+RAW_REG_BUY_AMT
+= BASE_BUY_AMT × FINAL_MULT
+
+최종 추천금액
+
+REG_BUY_AMT
+= MIN(
+    RAW_REG_BUY_AMT,
+    종목별 최대 매수금액,
+    계좌 남은 정기매수 예산,
+    목표비중 부족금액
+  )
+
+
+11.2 최소금액 처리
+------------------------------------------------------------
+
+추천금액이 최소주문금액보다 작을 경우
+
+정책 1
+- 0원 처리
+- 차액은 대기현금 적립
+
+정책 2
+- 최소금액으로 올림
+- 단, 계좌 예산을 초과하지 않을 경우
+
+권장안
+- 소수점 매수 가능 계좌: 금액매수
+- 소수점 매수 불가 계좌: 1주 가격과 비교
+- 국내계좌와 해외계좌 정책 분리
+
+
+11.3 수량 계산
+------------------------------------------------------------
+
+소수점 허용
+
+BUY_QTY
+= REG_BUY_AMT / CUR_PRC
+
+소수점 불가
+
+BUY_QTY
+= FLOOR(REG_BUY_AMT / CUR_PRC)
+
+실제 주문금액
+
+ORDER_AMT
+= BUY_QTY × CUR_PRC
+
+
+============================================================
+12. 정기매수 감액분 계산기
+============================================================
+
+SAVED_AMT
+= MAX(BASE_BUY_AMT - REG_BUY_AMT, 0)
+
+적립 대상
+- 비중초과 감액
+- 시장위험 감액
+- 종목위험 감액
+- 사용자 중단
+- 최소주문금액 미달
+
+적립 제외 가능
+- 실제 예산 자체가 감소한 경우
+- 정기매수 설정이 영구 삭제된 경우
+
+# 주석
+# 감액분은 TB_CASH_RSV와 TB_CASH_HIS에 연결한다.
+
+
+============================================================
+13. 추가매수 가능조건 계산기
+============================================================
+
+13.1 필수조건
+------------------------------------------------------------
+
+- 보유종목 또는 매수허용 관찰종목
+- 펀더멘털 훼손 없음
+- 사용자 중단 아님
+- 거래제한 없음
+- WeightStatus = UNDERWEIGHT
+- 손익률 또는 고점 대비 하락률이 기준 이하
+- 시장국면이 허용상태
+- 대기현금 존재
+- 목표비중 부족금액 존재
+
+
+13.2 입력 DTO
+------------------------------------------------------------
+
+public record AdditionalBuyEligibilityInput(
+    StockGrade stockGrade,
+    WeightStatus weightStatus,
+    RiskGrade riskGrade,
+    MarketRegime marketRegime,
+    BigDecimal profitLossRate,
+    BigDecimal stockDrawdownRate,
+    BigDecimal relativePerformanceRate,
+    BigDecimal weightGapAmount,
+    BigDecimal reserveCashAmount,
+    boolean fundamentalDamage,
+    boolean userPaused,
+    boolean tradeLimited
+) {
+}
+
+
+13.3 결과 DTO
+------------------------------------------------------------
+
+public record AdditionalBuyEligibilityResult(
+    boolean eligible,
+    boolean drawdownCondition,
+    boolean weightCondition,
+    boolean fundamentalCondition,
+    boolean marketCondition,
+    boolean cashCondition,
+    List<CalculationReason> reasons
+) {
+}
+
+
+============================================================
+14. 추가매수 우선순위 계산기
+============================================================
+
+14.1 점수 예시
+------------------------------------------------------------
+
+핵심종목 점수               20
+비중부족 점수               20
+펀더멘털 점수               20
+낙폭 점수                   15
+상대성과 점수               10
+시장국면 점수               10
+현금효율 점수                5
+합계                       100
+
+감점
+- 고위험 종목
+- 테마 집중
+- 상대성과 악화
+- 거래단가 과다
+- 변동성 과다
+
+
+14.2 예시 계산
+------------------------------------------------------------
+
+PRIO_SCR
+= GRADE_SCR
++ WEIGHT_GAP_SCR
++ FUNDAMENTAL_SCR
++ DRAWDOWN_SCR
++ RELATIVE_PERFORMANCE_SCR
++ MARKET_SCR
++ CASH_EFFICIENCY_SCR
+- RISK_PENALTY
+- CONCENTRATION_PENALTY
+
+
+14.3 정렬
+------------------------------------------------------------
+
+1차
+- PRIO_SCR 내림차순
+
+2차
+- 핵심종목 우선
+
+3차
+- 비중부족금액 큰 순서
+
+4차
+- 종목코드 오름차순
+
+
+============================================================
+15. 추가매수 추천금액 계산기
+============================================================
+
+15.1 기본 계산식
+------------------------------------------------------------
+
+RCMD_ADD_AMT
+= MIN(
+    종목별 최대 추가매수금액,
+    목표비중 부족금액,
+    사용 가능한 대기현금,
+    계좌 추가매수 예산 잔액,
+    우선순위별 배정금액
+  )
+
+
+15.2 단계별 배정
+------------------------------------------------------------
+
+1. 추가매수 가능 후보만 필터링
+2. 우선순위 점수로 정렬
+3. 계좌 추가매수 예산 설정
+4. 종목별 상한 적용
+5. 목표비중 부족금액 적용
+6. 최소주문금액 확인
+7. 대기현금 차감
+8. 다음 종목으로 이동
+
+# 주석
+# 여러 종목의 추가매수금액은 독립적으로 계산하지 않는다.
+# 계좌 예산을 순차 배정해야 총액 초과를 방지할 수 있다.
+
+
+============================================================
+16. 재매수 조건 계산기
+============================================================
+
+16.1 대상
+------------------------------------------------------------
+
+- 정기매수 일시정지 종목
+- 과거 전량매도 종목
+- 위험등급 때문에 중단된 종목
+- 시장국면 때문에 중단된 종목
+
+
+16.2 조건
+------------------------------------------------------------
+
+펀더멘털
+- 훼손 없음
+- 실적추정치 하향 멈춤
+- 구조적 문제 해소
+
+시장
+- CRASH_RISK 해제
+- STRONG_CORRECTION 이상으로 개선
+
+가격
+- 저점 재이탈 없음
+- 20일 이동평균 회복
+- 급락 변동성 완화
+
+수급
+- 외국인 또는 기관 수급 개선
+- 거래량 정상화
+
+비중
+- 목표비중 미달
+
+현금
+- 재매수 예산 존재
+
+
+16.3 재매수 점수 예시
+------------------------------------------------------------
+
+펀더멘털 정상             30
+시장조건 개선             20
+가격안정                   20
+수급개선                   15
+비중부족                   10
+현금여력                    5
+합계                      100
+
+
+16.4 신호
+------------------------------------------------------------
+
+BLOCKED
+- 펀더멘털 훼손
+- 거래제한
+- 사용자 영구중단
+
+WAIT
+- 40 미만
+
+WATCH
+- 40 이상 60 미만
+
+PARTIAL_REBUY
+- 60 이상 80 미만
+
+REBUY
+- 80 이상
+
+
+============================================================
+17. 종목 위험점수 계산기
+============================================================
+
+17.1 구성요소
+------------------------------------------------------------
+
+손실률
+고점 대비 하락률
+시장 대비 상대성과
+변동성
+비중초과
+펀더멘털 훼손
+테마집중
+유동성
+실적 불확실성
+
+
+17.2 위험점수 예시
+------------------------------------------------------------
+
+RISK_SCR
+= LOSS_RISK
++ DRAWDOWN_RISK
++ RELATIVE_WEAKNESS_RISK
++ VOLATILITY_RISK
++ OVERWEIGHT_RISK
++ FUNDAMENTAL_RISK
++ CONCENTRATION_RISK
++ LIQUIDITY_RISK
+
+범위
+- 0 ~ 100
+
+
+17.3 위험등급
+------------------------------------------------------------
+
+LOW
+- 0 이상 25 미만
+
+MEDIUM
+- 25 이상 50 미만
+
+HIGH
+- 50 이상 75 미만
+
+CRITICAL
+- 75 이상
+
+
+============================================================
+18. 종목 신호등 계산기
+============================================================
+
+18.1 신호등 정의
+------------------------------------------------------------
+
+GREEN
+- 정기매수 유지 또는 증액 가능
+- 펀더멘털 정상
+- 비중 정상 또는 부족
+- 위험 낮음 또는 중간
+
+YELLOW
+- 유지 또는 감액
+- 시장·종목 불확실성 존재
+- 비중초과 또는 위험 중간 이상
+
+RED
+- 매수중단
+- 펀더멘털 훼손
+- 위험 매우 높음
+- 비중 심각한 초과
+- 거래제한
+
+GRAY
+- 데이터 부족
+- 관찰대상
+- 거래정지
+- 판단 보류
+
+
+18.2 판정 우선순위
+------------------------------------------------------------
+
+1. 데이터 부족 → GRAY
+2. 거래제한 → RED
+3. 펀더멘털 훼손 → RED
+4. 위험 CRITICAL → RED
+5. 행동신호 PAUSE → RED
+6. 위험 HIGH 또는 비중초과 → YELLOW
+7. 행동신호 REDUCE → YELLOW
+8. 행동신호 INCREASE 또는 ADDITIONAL_BUY → GREEN
+9. 나머지 → GREEN 또는 YELLOW
+
+
+18.3 결과 DTO
+------------------------------------------------------------
+
+public record StockTrafficLightResult(
+    SignalLevel signalLevel,
+    String signalCode,
+    String summary,
+    List<CalculationReason> reasons
+) {
+}
+
+
+============================================================
+19. 종목 행동신호 계산기
+============================================================
+
+19.1 우선순위
+------------------------------------------------------------
+
+1. 거래제한
+2. 펀더멘털 훼손
+3. 사용자 직접중단
+4. 위험 CRITICAL
+5. 비중 과다초과
+6. 계좌 현금 부족
+7. 재매수 조건
+8. 추가매수 조건
+9. 정기매수 증액
+10. 정기매수 유지
+11. 최소매수 유지
+12. 보유
+
+
+19.2 신호 매핑
+------------------------------------------------------------
+
+PAUSE
+- 거래제한
+- 펀더멘털 훼손
+- 사용자 중단
+- 위험 CRITICAL
+
+REDUCE
+- 위험 HIGH
+- 비중초과
+- 현금 부족
+
+KEEP_MINIMUM
+- 시장 강한 조정
+- 핵심종목
+- 펀더멘털 정상
+- 현금 부족
+
+INCREASE
+- 비중부족
+- 시장 정상 또는 완만한 조정
+- 위험 낮음
+- 핵심종목
+
+ADDITIONAL_BUY
+- 추가매수 조건 충족
+
+REBUY
+- 재매수 조건 충족
+
+REBALANCE_SELL
+- 비중 심각한 초과
+- 리밸런싱 매도 필요
+
+HOLD
+- 매수·매도 없이 유지
+
+
+============================================================
+20. 종합 행동신호 계산기
+============================================================
+
+20.1 입력
+------------------------------------------------------------
+
+public record OverallDecisionInput(
+    MarketRegime marketRegime,
+    RiskGrade marketRiskGrade,
+    BigDecimal cashWeight,
+    BigDecimal targetCashWeight,
+    BigDecimal regularBuyBudget,
+    BigDecimal recommendedRegularBuyTotal,
+    BigDecimal additionalBuyBudget,
+    BigDecimal recommendedAdditionalBuyTotal,
+    long pauseCount,
+    long reduceCount,
+    long increaseCount,
+    long additionalBuyCount,
+    long rebuyCount,
+    boolean structuralDamage
+) {
+}
+
+
+20.2 신호
+------------------------------------------------------------
+
+HOLD_CASH
+- 현금비중 부족
+- 시장 위험 높음
+- 추가매수 보류
+
+KEEP_REGULAR_BUY
+- 시장 정상
+- 예산 내 정기매수 유지
+
+REDUCE_REGULAR_BUY
+- 시장 위험 상승
+- 현금비중 부족
+- 감액 필요 종목 다수
+
+INCREASE_REGULAR_BUY
+- 시장 양호
+- 현금여력 충분
+- 핵심종목 비중부족
+
+SELECTIVE_ADD_BUY
+- 시장 전체는 불안하지만
+- 일부 우량종목 추가매수 조건 충족
+
+PAUSE_BUY
+- 구조적 훼손
+- CRASH_RISK
+- 시장 위험 CRITICAL
+
+
+20.3 우선순위
+------------------------------------------------------------
+
+1. PAUSE_BUY
+2. HOLD_CASH
+3. SELECTIVE_ADD_BUY
+4. REDUCE_REGULAR_BUY
+5. INCREASE_REGULAR_BUY
+6. KEEP_REGULAR_BUY
+
+
+============================================================
+21. 판단 신뢰도 계산기
+============================================================
+
+21.1 감점요인
+------------------------------------------------------------
+
+- 데이터 STALE
+- 일부 데이터 누락
+- API 출처 불일치
+- 가격 기준일 불일치
+- 뉴스심리 미수집
+- 시장수급 일부 누락
+- 비정상값 보정
+- 수동입력 데이터 사용
+
+
+21.2 예시
+------------------------------------------------------------
+
+기본 신뢰도
+- 100
+
+감점
+- STALE 항목당 -5
+- PARTIAL 데이터 -10
+- MISSING 핵심항목 -20
+- 수동입력 -5
+- 기준일 불일치 -10
+
+최종 범위
+- 0 ~ 100
+
+
+============================================================
+22. 계산 Orchestrator
+============================================================
+
+권장 클래스
+
+InvestmentDecisionCalculationOrchestrator
+
+역할
+1. 계산입력 조립
+2. 시장점수 계산
+3. 시장국면 계산
+4. 시장심리 계산
+5. 계좌 자산·현금 계산
+6. 종목별 비중 계산
+7. 종목별 위험 계산
+8. 정기매수 배수 계산
+9. 추천 정기매수금액 계산
+10. 감액분 계산
+11. 추가매수 후보 계산
+12. 재매수 후보 계산
+13. 신호등 계산
+14. 행동신호 계산
+15. 종합 행동신호 계산
+16. 결과 객체 반환
+
+# 주석
+# Orchestrator는 순서만 제어한다.
+# 세부 계산식을 직접 구현하지 않는다.
+
+
+22.1 결과 객체
+------------------------------------------------------------
+
+public record InvestmentCalculationResult(
+    MarketScoreResult marketScore,
+    CalculationResult<MarketRegime> marketRegime,
+    MarketSentimentResult marketSentiment,
+    AccountCalculationResult account,
+    List<StockCalculationResult> stocks,
+    OverallDecisionResult overallDecision,
+    BigDecimal confidenceRate,
+    Integer ruleVersionNumber
+) {
+}
+
+
+============================================================
+23. 계산규칙 버전관리
+============================================================
+
+23.1 RuleVersion
+------------------------------------------------------------
+
+public record RuleVersion(
+    Integer versionNumber,
+    LocalDate effectiveFrom,
+    LocalDate effectiveTo,
+    String description
+) {
+}
+
+
+23.2 RuleProvider
+------------------------------------------------------------
+
+public interface RuleProvider {
+
+    CalculationRuleSet getRuleSet(
+        Integer versionNumber,
+        LocalDate baseDate
+    );
+}
+
+
+23.3 구현방식
+------------------------------------------------------------
+
+초기
+- application.yml
+- @ConfigurationProperties
+- 코드 기반 버전
+
+확장
+- DB 테이블
+- JSONB 규칙
+- 관리자 화면
+
+권장 초기 구조
+- rule-v1.yml
+- rule-v2.yml
+
+# 주석
+# 과거 판단 재현을 위해 계산규칙 버전을 반드시 저장한다.
+# 현재 규칙으로 과거 데이터를 재계산한 결과와 당시 결과를 구분해야 한다.
+
+
+============================================================
+24. 계산 규칙 설정 예시
+============================================================
+
+investment:
+  calculation:
+    rule-version: 1
+
+    market:
+      regime:
+        overheated-min-score: 80
+        normal-min-score: 60
+        mild-correction-min-score: 45
+        strong-correction-min-score: 25
+
+      weight:
+        trend: 15
+        flow: 20
+        futures-program: 15
+        breadth: 15
+        volatility: 15
+        exchange: 10
+        rate: 5
+        liquidity: 5
+
+    regular-buy:
+      maximum-multiplier: 2.0
+      minimum-order-amount: 1000
+
+      market-multiplier:
+        overheated: 0.5
+        normal: 1.0
+        mild-correction: 1.1
+        strong-correction: 0.7
+        crash-risk: 0.0
+
+      stock-grade-multiplier:
+        core: 1.1
+        satellite: 1.0
+        theme: 0.7
+
+      weight-multiplier:
+        underweight: 1.2
+        normal: 1.0
+        overweight: 0.3
+        excluded: 0.0
+
+      risk-multiplier:
+        low: 1.1
+        medium: 1.0
+        high: 0.5
+        critical: 0.0
+
+
+============================================================
+25. 계산 입력 검증
+============================================================
+
+공통 필수검증
+- 기준일 존재
+- 계좌 존재
+- 계좌 총자산 0 이상
+- 종목 평가금액 0 이상
+- 목표비중 0~100
+- 현금비중 0~100
+- 배수 0 이상
+- 예산 0 이상
+
+합계검증
+- 계좌별 종목 목표비중 합계
+- 현금 목표비중 포함 100% 여부
+- 추천매수 총액 <= 예산
+- 추가매수 총액 <= 대기현금
+- 실행금액 <= 추천금액
+
+
+============================================================
+26. 단위 테스트 시나리오
+============================================================
+
+26.1 시장점수
+------------------------------------------------------------
+
+[ ] 모든 지표 양호 → 80 이상
+[ ] 지수 급락·수급 악화 → 40 미만
+[ ] 변동성 급등 → 변동성 점수 하락
+[ ] 환율 급등 → 환율 점수 하락
+[ ] 일부 데이터 누락 → 신뢰도 하락
+[ ] 최종점수 0 미만 방지
+[ ] 최종점수 100 초과 방지
+
+
+26.2 시장국면
+------------------------------------------------------------
+
+[ ] 점수 85 → OVERHEATED 또는 NORMAL 정책 확인
+[ ] 점수 70 → NORMAL
+[ ] 점수 50 → MILD_CORRECTION
+[ ] 점수 30 → STRONG_CORRECTION
+[ ] 점수 10 → CRASH_RISK
+[ ] 비상 이벤트 → 점수와 무관하게 CRASH_RISK
+[ ] 구조적 훼손 강제조건
+
+
+26.3 계좌 자산
+------------------------------------------------------------
+
+[ ] 국내주식 평가금액 계산
+[ ] 해외주식 환율 반영
+[ ] 현금·대기현금 포함
+[ ] 보유종목 없음
+[ ] 총자산 0 처리
+
+
+26.4 종목 비중
+------------------------------------------------------------
+
+[ ] UNDERWEIGHT
+[ ] NORMAL
+[ ] OVERWEIGHT
+[ ] EXCLUDED
+[ ] 허용오차 경계값
+[ ] 목표비중 0
+[ ] 총자산 0
+
+
+26.5 정기매수 배수
+------------------------------------------------------------
+
+[ ] 정상시장·핵심·비중부족·저위험
+[ ] 과열시장
+[ ] 강한 조정
+[ ] CRASH_RISK
+[ ] 펀더멘털 훼손
+[ ] 사용자 중단
+[ ] 비중초과
+[ ] 최종 최대배수 제한
+[ ] 최종배수 0 미만 방지
+
+
+26.6 추천 정기매수금액
+------------------------------------------------------------
+
+[ ] 기준금액 × 배수
+[ ] 종목별 최대금액 제한
+[ ] 계좌 예산 제한
+[ ] 목표비중 부족금액 제한
+[ ] 최소주문금액 미달
+[ ] 소수점 불가 수량 계산
+[ ] 감액분 계산
+
+
+26.7 추가매수
+------------------------------------------------------------
+
+[ ] 모든 조건 충족
+[ ] 펀더멘털 훼손
+[ ] 비중초과
+[ ] 대기현금 없음
+[ ] 시장 CRASH_RISK
+[ ] 우선순위 정렬
+[ ] 계좌 예산 순차배정
+[ ] 추천총액 대기현금 초과 방지
+
+
+26.8 재매수
+------------------------------------------------------------
+
+[ ] BLOCKED
+[ ] WAIT
+[ ] WATCH
+[ ] PARTIAL_REBUY
+[ ] REBUY
+[ ] 사용자 영구중단
+[ ] 시장조건 미충족
+[ ] 가격안정 미충족
+
+
+26.9 신호등
+------------------------------------------------------------
+
+[ ] 데이터 누락 → GRAY
+[ ] 펀더멘털 훼손 → RED
+[ ] 위험 CRITICAL → RED
+[ ] 비중초과 → YELLOW
+[ ] 추가매수 → GREEN
+[ ] 우선순위 충돌
+
+
+26.10 종합 행동신호
+------------------------------------------------------------
+
+[ ] 구조적 훼손 → PAUSE_BUY
+[ ] 현금 부족 → HOLD_CASH
+[ ] 일부 우량주 추가매수 → SELECTIVE_ADD_BUY
+[ ] 감액 종목 다수 → REDUCE_REGULAR_BUY
+[ ] 현금 충분·비중부족 → INCREASE_REGULAR_BUY
+[ ] 정상상태 → KEEP_REGULAR_BUY
+
+
+============================================================
+27. Property 기반 테스트 권장
+============================================================
+
+검증할 불변조건
+
+- 시장점수는 항상 0~100
+- 신뢰도는 항상 0~100
+- 최종배수는 항상 0 이상
+- 추천매수금액은 항상 0 이상
+- 추천매수 총액은 계좌 예산 이하
+- 추가매수 총액은 대기현금 이하
+- 종목 현재비중은 총자산이 양수일 때 0 이상
+- 매수와 매도 신호가 동시에 발생하지 않음
+
+도구 예시
+- jqwik
+- QuickTheories
+
+# 주석
+# 경계값이 많은 계산엔진은 예제 기반 테스트뿐 아니라
+# property 기반 테스트가 효과적이다.
+
+
+============================================================
+28. 성능 고려사항
+============================================================
+
+100개 종목 기준
+- 메모리 내 계산 권장
+- 종목별 DB 조회 금지
+- 필요한 데이터를 한 번에 조회
+- 계산 후 배치 저장
+
+권장 흐름
+1. 계좌별 보유종목 일괄조회
+2. 최신 시세 일괄조회
+3. 최신 지수 일괄조회
+4. 메모리 Map 구성
+5. 병렬계산 여부 검토
+6. 결과 batch insert
+
+# 주석
+# 종목 100개 수준에서는 병렬화보다 단순성과 재현성이 중요하다.
+# 먼저 단일 스레드 계산 후 성능을 측정한다.
+
+
+============================================================
+29. 계산결과 저장 매핑
+============================================================
+
+MarketScoreResult
+→ TB_INV_DEC.MKT_SCR
+→ TB_MKT_SENT 관련 점수
+
+MarketRegime
+→ TB_INV_DEC.MKT_REGIME
+
+AccountAssetResult
+→ TB_INV_DEC.TOT_AST_AMT
+→ TB_INV_DEC.CASH_RT
+
+StockWeightResult
+→ TB_STK_DEC.CUR_WGT
+→ TB_STK_DEC.TGT_WGT
+→ TB_STK_DEC.WGT_STS
+
+FinalMultiplierResult
+→ TB_STK_DEC.MKT_MULT
+→ TB_STK_DEC.STK_ADJ_MULT
+→ TB_STK_DEC.WGT_ADJ_MULT
+→ TB_STK_DEC.RISK_ADJ_MULT
+→ TB_STK_DEC.FINAL_MULT
+
+RegularBuyAmountResult
+→ TB_STK_DEC.REG_BUY_AMT
+→ TB_STK_DEC.SAVED_AMT
+
+AdditionalBuyResult
+→ TB_ADD_BUY
+
+RebuyResult
+→ TB_REBUY
+
+StockTrafficLightResult
+→ TB_BRF_ITEM 또는 종목판단 응답
+
+OverallDecisionResult
+→ TB_INV_DEC.OVR_DEC_SIG
+
+
+============================================================
+30. PART 09 완료 체크리스트
+============================================================
+
+[ ] 계산 패키지 구조 확정
+[ ] BigDecimal 스케일 확정
+[ ] 점수 방향성 확정
+[ ] 시장점수 가중치 확정
+[ ] 시장국면 임계값 확정
+[ ] 정기매수 시장배수 확정
+[ ] 종목등급 보정배수 확정
+[ ] 비중 보정배수 확정
+[ ] 위험 보정배수 확정
+[ ] 최대 최종배수 확정
+
+[ ] MarketScoreCalculator 구현
+[ ] MarketRegimeClassifier 구현
+[ ] MarketSentimentCalculator 구현
+[ ] AccountAssetCalculator 구현
+[ ] CashWeightCalculator 구현
+[ ] StockWeightCalculator 구현
+[ ] RelativePerformanceCalculator 구현
+[ ] FinalMultiplierCalculator 구현
+[ ] RegularBuyAmountCalculator 구현
+[ ] SavedAmountCalculator 구현
+[ ] AdditionalBuyEligibilityCalculator 구현
+[ ] AdditionalBuyPriorityCalculator 구현
+[ ] AdditionalBuyAmountCalculator 구현
+[ ] RebuyEligibilityCalculator 구현
+[ ] RebuyScoreCalculator 구현
+[ ] StockRiskCalculator 구현
+[ ] StockTrafficLightCalculator 구현
+[ ] StockActionSignalCalculator 구현
+[ ] OverallDecisionSignalCalculator 구현
+[ ] DecisionConfidenceCalculator 구현
+[ ] InvestmentDecisionCalculationOrchestrator 구현
+
+[ ] 시장점수 단위 테스트
+[ ] 시장국면 단위 테스트
+[ ] 계좌자산 단위 테스트
+[ ] 종목비중 단위 테스트
+[ ] 정기매수 배수 단위 테스트
+[ ] 추천매수금액 단위 테스트
+[ ] 추가매수 예산배분 테스트
+[ ] 재매수 신호 테스트
+[ ] 신호등 우선순위 테스트
+[ ] 종합 행동신호 테스트
+[ ] Property 기반 테스트
+[ ] 과거 계산 재현 테스트
+
+
+============================================================
+31. PART 10 진행 예정
+============================================================
+
+PART 10에서는 외부 데이터 수집과 스케줄러 구현을 상세 설계한다.
+
+대상 내용
+1. KRX 데이터 수집
+2. 해외 시세 수집
+3. 환율 수집
+4. 채권금리 수집
+5. 거래일 계산
+6. 휴일·주말 처리
+7. 재시도
+8. 타임아웃
+9. Rate Limit
+10. Circuit Breaker
+11. API 로그
+12. 데이터 검증
+13. UPSERT
+14. 스케줄러 실행순서
+15. ShedLock
+16. 장애복구
+17. 수동 재실행 API
+18. 통합 테스트
+
+※ PART 10에서는 Collector, Client, Scheduler, Retry,
+   데이터 검증과 저장 흐름을 실제 클래스 단위로 확정한다.

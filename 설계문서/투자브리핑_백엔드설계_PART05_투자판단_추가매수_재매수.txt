@@ -1,0 +1,2197 @@
+﻿투자 브리핑 Spring Boot 백엔드 설계
+PART 05. 투자판단·종목판단·추가매수·재매수 상세설계
+대상 테이블:
+TB_INV_DEC, TB_STK_DEC, TB_DEC_CHG, TB_ADD_BUY, TB_REBUY
+============================================================
+
+문서 목적
+------------------------------------------------------------
+이 문서는 투자 브리핑 시스템의 핵심 계산결과를 저장하는
+투자판단 관련 테이블을 상세 설계한다.
+
+대상 테이블
+1. TB_INV_DEC : 일별 종합 투자판단
+2. TB_STK_DEC : 종목별 투자판단
+3. TB_DEC_CHG : 판단 변경이력
+4. TB_ADD_BUY : 추가매수 계획
+5. TB_REBUY   : 재매수 계획
+
+이번 문서에서 연결하는 기존 계산결과
+- 시장점수
+- 시장국면
+- 시장심리
+- 시장 위험도
+- 계좌 현금비중
+- 종목별 현재비중
+- 종목별 목표비중
+- 비중상태
+- 종목 위험등급
+- 정기매수 배수
+- 추천 정기매수금액
+- 추가매수 우선순위
+- 추가매수 추천금액
+- 재매수 조건
+- 행동신호
+- 실행 여부
+- 판단 신뢰도
+- 이전 판단과 현재 판단 비교
+- 변경 사유
+
+※ 계산은 Java 서비스에서 수행한다.
+※ OpenAI는 저장된 판단결과를 설명하는 역할만 담당한다.
+※ 같은 기준일에 동일 계산을 재실행해도 중복 데이터가 생성되지 않아야 한다.
+※ 모든 판단결과에는 계산규칙 버전과 입력 데이터 상태를 저장한다.
+
+
+============================================================
+1. 투자판단 저장 구조 개요
+============================================================
+
+1.1 처리 단위
+------------------------------------------------------------
+
+TB_INV_DEC
+- 기준일별 종합 판단
+- 시장 단위 또는 계좌 단위
+- 한 번의 계산 실행을 대표하는 상위 레코드
+
+TB_STK_DEC
+- TB_INV_DEC에 포함되는 종목별 판단
+- 보유종목 또는 관찰종목 단위
+
+TB_DEC_CHG
+- 전일 또는 직전 계산결과와 비교한 변경이력
+
+TB_ADD_BUY
+- 추가매수가 가능한 후보와 금액
+
+TB_REBUY
+- 매수중단 또는 매도 이후 재매수 후보와 조건
+
+
+1.2 권장 관계
+------------------------------------------------------------
+
+TB_INV_DEC 1 : N TB_STK_DEC
+
+TB_STK_DEC 1 : N TB_DEC_CHG
+
+TB_STK_DEC 1 : 0..1 TB_ADD_BUY
+
+TB_STK_DEC 1 : 0..1 TB_REBUY
+
+# 주석
+# 추가매수와 재매수는 종목판단에서 파생되는 별도 실행계획이다.
+# 한 종목에 추가매수와 재매수가 동시에 생성되지 않도록 서비스에서 검증한다.
+
+
+1.3 기준일과 실행번호
+------------------------------------------------------------
+
+BASE_DT
+- 실제 판단 대상 거래일
+
+CALC_SEQ
+- 같은 기준일에 재계산된 순번
+- 1, 2, 3...
+
+LATEST_YN
+- 같은 기준일의 최신 계산 여부
+
+# 주석
+# 재계산 시 기존 레코드를 덮어쓰기보다 새 계산순번을 생성하는 방식을 권장한다.
+# 최신 결과만 조회할 때 LATEST_YN = 'Y' 조건을 사용한다.
+
+
+============================================================
+2. TB_INV_DEC 일별 종합 투자판단
+============================================================
+
+2.1 테이블 목적
+------------------------------------------------------------
+TB_INV_DEC는 기준일별 시장국면, 시장심리, 위험도,
+계좌별 현금상태, 종합 행동방향을 저장한다.
+
+저장 단위
+- 시장 전체 판단
+- 또는 계좌별 판단
+
+권장안
+- ACCT_ID가 NULL이면 시장 전체 판단
+- ACCT_ID가 존재하면 계좌별 판단
+
+# 주석
+# 시장 전체 판단과 계좌별 판단을 한 테이블에서 관리한다.
+# 계좌별 현금비중과 투자여력은 ACCT_ID가 있는 레코드에 저장한다.
+
+
+2.2 컬럼 정의
+------------------------------------------------------------
+
+INV_DEC_ID
+- 투자판단 ID
+- BIGINT
+- PK
+- IDENTITY
+
+BASE_DT
+- 기준일
+- DATE
+- NOT NULL
+
+CALC_SEQ
+- 계산순번
+- INTEGER
+- NOT NULL
+- 기본값: 1
+
+ACCT_ID
+- 계좌 ID
+- BIGINT
+- NULL 허용
+- FK: TB_ACCT.ACCT_ID
+
+MKT_SNAP_CD
+- 시장 스냅샷 코드
+- VARCHAR(30)
+- NOT NULL
+- 예시: KR_MARKET, US_MARKET, GLOBAL
+
+MKT_SCR
+- 시장점수
+- NUMERIC(10,4)
+- NOT NULL
+
+MKT_REGIME
+- 시장국면
+- VARCHAR(30)
+- NOT NULL
+- 값:
+  OVERHEATED
+  NORMAL
+  MILD_CORRECTION
+  STRONG_CORRECTION
+  CRASH_RISK
+
+SENT_SCR
+- 시장심리 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+SENT_PHASE
+- 시장심리 단계
+- VARCHAR(20)
+- NULL 허용
+
+RISK_SCR
+- 종합 위험점수
+- NUMERIC(10,4)
+- NOT NULL
+
+RISK_GRADE
+- 종합 위험등급
+- VARCHAR(20)
+- NOT NULL
+- 예시: LOW, MEDIUM, HIGH, CRITICAL
+
+CASH_AMT
+- 일반 현금
+- NUMERIC(20,4)
+- NULL 허용
+
+RSV_CASH_AMT
+- 추가매수 대기현금
+- NUMERIC(20,4)
+- NULL 허용
+
+TOT_AST_AMT
+- 계좌 총자산
+- NUMERIC(20,4)
+- NULL 허용
+
+CASH_RT
+- 전체 현금비중
+- NUMERIC(10,4)
+- NULL 허용
+
+TGT_CASH_RT
+- 목표 현금비중
+- NUMERIC(10,4)
+- NULL 허용
+
+BUY_CAP_AMT
+- 당일 또는 기간 매수 가능금액
+- NUMERIC(20,4)
+- NULL 허용
+
+REG_BUY_BGT_AMT
+- 정기매수 예산
+- NUMERIC(20,4)
+- NULL 허용
+
+ADD_BUY_BGT_AMT
+- 추가매수 예산
+- NUMERIC(20,4)
+- NULL 허용
+
+REG_BUY_TOT_AMT
+- 추천 정기매수 총액
+- NUMERIC(20,4)
+- NULL 허용
+
+ADD_BUY_TOT_AMT
+- 추천 추가매수 총액
+- NUMERIC(20,4)
+- NULL 허용
+
+RSV_ADD_AMT
+- 정기매수 감액으로 확보할 대기현금
+- NUMERIC(20,4)
+- NULL 허용
+
+OVR_DEC_SIG
+- 종합 행동신호
+- VARCHAR(30)
+- NOT NULL
+- 예시:
+  HOLD_CASH
+  KEEP_REGULAR_BUY
+  REDUCE_REGULAR_BUY
+  INCREASE_REGULAR_BUY
+  SELECTIVE_ADD_BUY
+  PAUSE_BUY
+
+EXEC_YN
+- 실행 여부
+- CHAR(1)
+- NOT NULL
+- 기본값: N
+
+EXEC_RSN
+- 실행 또는 미실행 사유
+- VARCHAR(1000)
+- NULL 허용
+
+CONF_RT
+- 판단 신뢰도
+- NUMERIC(10,4)
+- NOT NULL
+
+KEY_RSN
+- 핵심 판단근거
+- VARCHAR(2000)
+- NULL 허용
+
+DATA_STS
+- 입력 데이터 상태
+- VARCHAR(20)
+- NOT NULL
+
+RULE_VER_NO
+- 계산규칙 버전
+- INTEGER
+- NOT NULL
+- 기본값: 1
+
+LATEST_YN
+- 같은 기준일의 최신 계산 여부
+- CHAR(1)
+- NOT NULL
+- 기본값: Y
+
+CALC_DTTM
+- 계산일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+CRT_DTTM
+- 생성일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+CRT_USR_ID
+- 생성자 ID
+- VARCHAR(50)
+- NULL 허용
+
+
+2.3 주요 계산식 연결
+------------------------------------------------------------
+
+시장점수
+- 시장 데이터 입력값을 가중합하여 Java에서 계산
+- TB_INV_DEC.MKT_SCR 저장
+
+시장국면
+- 시장점수 구간과 구조적 위험조건으로 결정
+- TB_INV_DEC.MKT_REGIME 저장
+
+계좌 총자산
+
+TOT_AST_AMT
+= CASH_AMT
++ RSV_CASH_AMT
++ 계좌 내 보유종목 평가금액 합계
+
+전체 현금비중
+
+CASH_RT
+= ((CASH_AMT + RSV_CASH_AMT) / TOT_AST_AMT) × 100
+
+추천 정기매수 총액
+- TB_STK_DEC.REG_BUY_AMT 합계
+
+추천 추가매수 총액
+- TB_ADD_BUY.RCMD_ADD_AMT 합계
+
+대기현금 확보액
+- TB_STK_DEC.SAVED_AMT 합계
+
+
+2.4 PostgreSQL DDL
+------------------------------------------------------------
+
+CREATE TABLE TB_INV_DEC (
+    INV_DEC_ID        BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    BASE_DT           DATE                    NOT NULL,
+    CALC_SEQ          INTEGER                 NOT NULL DEFAULT 1,
+    ACCT_ID           BIGINT,
+    MKT_SNAP_CD       VARCHAR(30)             NOT NULL,
+    MKT_SCR           NUMERIC(10,4)           NOT NULL,
+    MKT_REGIME        VARCHAR(30)             NOT NULL,
+    SENT_SCR          NUMERIC(10,4),
+    SENT_PHASE        VARCHAR(20),
+    RISK_SCR          NUMERIC(10,4)           NOT NULL,
+    RISK_GRADE        VARCHAR(20)             NOT NULL,
+    CASH_AMT          NUMERIC(20,4),
+    RSV_CASH_AMT      NUMERIC(20,4),
+    TOT_AST_AMT       NUMERIC(20,4),
+    CASH_RT           NUMERIC(10,4),
+    TGT_CASH_RT       NUMERIC(10,4),
+    BUY_CAP_AMT       NUMERIC(20,4),
+    REG_BUY_BGT_AMT   NUMERIC(20,4),
+    ADD_BUY_BGT_AMT   NUMERIC(20,4),
+    REG_BUY_TOT_AMT   NUMERIC(20,4),
+    ADD_BUY_TOT_AMT   NUMERIC(20,4),
+    RSV_ADD_AMT       NUMERIC(20,4),
+    OVR_DEC_SIG       VARCHAR(30)             NOT NULL,
+    EXEC_YN           CHAR(1)                 NOT NULL DEFAULT 'N',
+    EXEC_RSN          VARCHAR(1000),
+    CONF_RT           NUMERIC(10,4)           NOT NULL,
+    KEY_RSN           VARCHAR(2000),
+    DATA_STS          VARCHAR(20)             NOT NULL,
+    RULE_VER_NO       INTEGER                 NOT NULL DEFAULT 1,
+    LATEST_YN         CHAR(1)                 NOT NULL DEFAULT 'Y',
+    CALC_DTTM         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CRT_DTTM          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CRT_USR_ID        VARCHAR(50),
+
+    CONSTRAINT PK_TB_INV_DEC PRIMARY KEY (INV_DEC_ID),
+    CONSTRAINT UK_TB_INV_DEC_01 UNIQUE (
+        BASE_DT,
+        CALC_SEQ,
+        ACCT_ID,
+        MKT_SNAP_CD
+    ),
+    CONSTRAINT FK_TB_INV_DEC_01 FOREIGN KEY (ACCT_ID)
+        REFERENCES TB_ACCT (ACCT_ID),
+    CONSTRAINT CK_TB_INV_DEC_01 CHECK (CALC_SEQ > 0),
+    CONSTRAINT CK_TB_INV_DEC_02 CHECK (
+        MKT_REGIME IN (
+            'OVERHEATED',
+            'NORMAL',
+            'MILD_CORRECTION',
+            'STRONG_CORRECTION',
+            'CRASH_RISK'
+        )
+    ),
+    CONSTRAINT CK_TB_INV_DEC_03 CHECK (
+        SENT_PHASE IS NULL OR SENT_PHASE IN (
+            'GREED',
+            'OPTIMISM',
+            'NEUTRAL',
+            'FATIGUE',
+            'FEAR',
+            'PANIC'
+        )
+    ),
+    CONSTRAINT CK_TB_INV_DEC_04 CHECK (
+        RISK_GRADE IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')
+    ),
+    CONSTRAINT CK_TB_INV_DEC_05 CHECK (
+        CASH_RT IS NULL OR CASH_RT BETWEEN 0 AND 100
+    ),
+    CONSTRAINT CK_TB_INV_DEC_06 CHECK (
+        TGT_CASH_RT IS NULL OR TGT_CASH_RT BETWEEN 0 AND 100
+    ),
+    CONSTRAINT CK_TB_INV_DEC_07 CHECK (
+        OVR_DEC_SIG IN (
+            'HOLD_CASH',
+            'KEEP_REGULAR_BUY',
+            'REDUCE_REGULAR_BUY',
+            'INCREASE_REGULAR_BUY',
+            'SELECTIVE_ADD_BUY',
+            'PAUSE_BUY'
+        )
+    ),
+    CONSTRAINT CK_TB_INV_DEC_08 CHECK (EXEC_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_INV_DEC_09 CHECK (
+        CONF_RT BETWEEN 0 AND 100
+    ),
+    CONSTRAINT CK_TB_INV_DEC_10 CHECK (
+        DATA_STS IN ('FRESH', 'STALE', 'MISSING', 'PARTIAL', 'ERROR')
+    ),
+    CONSTRAINT CK_TB_INV_DEC_11 CHECK (LATEST_YN IN ('Y', 'N'))
+);
+
+CREATE INDEX IDX_TB_INV_DEC_01
+    ON TB_INV_DEC (BASE_DT DESC);
+
+CREATE INDEX IDX_TB_INV_DEC_02
+    ON TB_INV_DEC (ACCT_ID, BASE_DT DESC);
+
+CREATE INDEX IDX_TB_INV_DEC_03
+    ON TB_INV_DEC (MKT_REGIME, BASE_DT DESC);
+
+CREATE INDEX IDX_TB_INV_DEC_04
+    ON TB_INV_DEC (LATEST_YN, BASE_DT DESC);
+
+
+2.5 PostgreSQL COMMENT
+------------------------------------------------------------
+
+COMMENT ON TABLE TB_INV_DEC IS '기준일별 시장 및 계좌 종합 투자판단';
+COMMENT ON COLUMN TB_INV_DEC.INV_DEC_ID IS '투자판단 ID';
+COMMENT ON COLUMN TB_INV_DEC.BASE_DT IS '투자판단 기준일';
+COMMENT ON COLUMN TB_INV_DEC.CALC_SEQ IS '같은 기준일의 계산순번';
+COMMENT ON COLUMN TB_INV_DEC.ACCT_ID IS '계좌 ID(NULL이면 시장 전체 판단)';
+COMMENT ON COLUMN TB_INV_DEC.MKT_SNAP_CD IS '대상 시장 스냅샷 코드';
+COMMENT ON COLUMN TB_INV_DEC.MKT_SCR IS '시장 종합점수';
+COMMENT ON COLUMN TB_INV_DEC.MKT_REGIME IS '시장국면';
+COMMENT ON COLUMN TB_INV_DEC.SENT_SCR IS '시장심리 점수';
+COMMENT ON COLUMN TB_INV_DEC.SENT_PHASE IS '시장심리 단계';
+COMMENT ON COLUMN TB_INV_DEC.RISK_SCR IS '종합 위험점수';
+COMMENT ON COLUMN TB_INV_DEC.RISK_GRADE IS '종합 위험등급';
+COMMENT ON COLUMN TB_INV_DEC.CASH_AMT IS '계좌 일반 현금';
+COMMENT ON COLUMN TB_INV_DEC.RSV_CASH_AMT IS '계좌 추가매수 대기현금';
+COMMENT ON COLUMN TB_INV_DEC.TOT_AST_AMT IS '계좌 총자산';
+COMMENT ON COLUMN TB_INV_DEC.CASH_RT IS '계좌 전체 현금비중';
+COMMENT ON COLUMN TB_INV_DEC.TGT_CASH_RT IS '계좌 목표 현금비중';
+COMMENT ON COLUMN TB_INV_DEC.BUY_CAP_AMT IS '해당 판단에서 사용 가능한 총 매수금액';
+COMMENT ON COLUMN TB_INV_DEC.REG_BUY_BGT_AMT IS '정기매수 예산';
+COMMENT ON COLUMN TB_INV_DEC.ADD_BUY_BGT_AMT IS '추가매수 예산';
+COMMENT ON COLUMN TB_INV_DEC.REG_BUY_TOT_AMT IS '추천 정기매수 총액';
+COMMENT ON COLUMN TB_INV_DEC.ADD_BUY_TOT_AMT IS '추천 추가매수 총액';
+COMMENT ON COLUMN TB_INV_DEC.RSV_ADD_AMT IS '정기매수 감액으로 확보할 대기현금';
+COMMENT ON COLUMN TB_INV_DEC.OVR_DEC_SIG IS '종합 행동신호';
+COMMENT ON COLUMN TB_INV_DEC.EXEC_YN IS '실행 여부';
+COMMENT ON COLUMN TB_INV_DEC.EXEC_RSN IS '실행 또는 미실행 사유';
+COMMENT ON COLUMN TB_INV_DEC.CONF_RT IS '종합 판단 신뢰도';
+COMMENT ON COLUMN TB_INV_DEC.KEY_RSN IS '종합 판단 핵심근거';
+COMMENT ON COLUMN TB_INV_DEC.DATA_STS IS '입력 데이터 상태';
+COMMENT ON COLUMN TB_INV_DEC.RULE_VER_NO IS '계산규칙 버전';
+COMMENT ON COLUMN TB_INV_DEC.LATEST_YN IS '같은 기준일의 최신 계산 여부';
+COMMENT ON COLUMN TB_INV_DEC.CALC_DTTM IS '계산일시';
+COMMENT ON COLUMN TB_INV_DEC.CRT_DTTM IS '생성일시';
+COMMENT ON COLUMN TB_INV_DEC.CRT_USR_ID IS '생성자 ID';
+
+
+============================================================
+3. TB_STK_DEC 종목별 투자판단
+============================================================
+
+3.1 테이블 목적
+------------------------------------------------------------
+TB_STK_DEC는 특정 투자판단 실행에서 종목별로 계산된
+현재비중, 목표비중, 위험도, 행동신호, 매수배수,
+추천매수금액, 실행 여부를 저장한다.
+
+# 주석
+# 보유종목뿐 아니라 관찰종목도 포함할 수 있다.
+# HOLD_ID는 보유종목인 경우에만 저장하고, 관찰종목이면 NULL을 허용한다.
+
+
+3.2 컬럼 정의
+------------------------------------------------------------
+
+STK_DEC_ID
+- 종목판단 ID
+- BIGINT
+- PK
+- IDENTITY
+
+INV_DEC_ID
+- 투자판단 ID
+- BIGINT
+- NOT NULL
+- FK: TB_INV_DEC.INV_DEC_ID
+
+ACCT_ID
+- 계좌 ID
+- BIGINT
+- NOT NULL
+- FK: TB_ACCT.ACCT_ID
+
+STK_ID
+- 종목 ID
+- BIGINT
+- NOT NULL
+- FK: TB_STK.STK_ID
+
+HOLD_ID
+- 보유종목 ID
+- BIGINT
+- NULL 허용
+- FK: TB_HOLD.HOLD_ID
+
+BASE_DT
+- 기준일
+- DATE
+- NOT NULL
+
+CUR_PRC
+- 현재가
+- NUMERIC(20,6)
+- NULL 허용
+
+AVG_PRC
+- 평단가
+- NUMERIC(20,6)
+- NULL 허용
+
+PL_RT
+- 손익률
+- NUMERIC(10,4)
+- NULL 허용
+
+STK_DD_RT
+- 종목 고점 대비 하락률
+- NUMERIC(10,4)
+- NULL 허용
+
+MKT_DD_RT
+- 기준지수 고점 대비 하락률
+- NUMERIC(10,4)
+- NULL 허용
+
+REL_PERF_RT
+- 기준지수 대비 상대성과
+- NUMERIC(10,4)
+- NULL 허용
+
+TGT_WGT
+- 목표비중
+- NUMERIC(7,4)
+- NULL 허용
+
+CUR_WGT
+- 현재비중
+- NUMERIC(7,4)
+- NULL 허용
+
+WGT_STS
+- 비중상태
+- VARCHAR(20)
+- NULL 허용
+
+FUND_SCR
+- 펀더멘털 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+VALU_SCR
+- 밸류에이션 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+MOM_SCR
+- 모멘텀 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+RISK_SCR
+- 종목 위험점수
+- NUMERIC(10,4)
+- NOT NULL
+
+RISK_GRADE
+- 종목 위험등급
+- VARCHAR(20)
+- NOT NULL
+
+MKT_MULT
+- 시장 기본배수
+- NUMERIC(8,4)
+- NULL 허용
+
+STK_ADJ_MULT
+- 종목 보정배수
+- NUMERIC(8,4)
+- NULL 허용
+
+WGT_ADJ_MULT
+- 비중 보정배수
+- NUMERIC(8,4)
+- NULL 허용
+
+RISK_ADJ_MULT
+- 위험 보정배수
+- NUMERIC(8,4)
+- NULL 허용
+
+FINAL_MULT
+- 최종 매수배수
+- NUMERIC(8,4)
+- NULL 허용
+
+BASE_BUY_AMT
+- 기준 정기매수금액
+- NUMERIC(20,4)
+- NULL 허용
+
+REG_BUY_AMT
+- 추천 정기매수금액
+- NUMERIC(20,4)
+- NULL 허용
+
+SAVED_AMT
+- 정기매수 감액 확보금액
+- NUMERIC(20,4)
+- NULL 허용
+
+ACT_SIG
+- 행동신호
+- VARCHAR(30)
+- NOT NULL
+
+EXEC_YN
+- 실행 여부
+- CHAR(1)
+- NOT NULL
+- 기본값: N
+
+EXEC_AMT
+- 실행 예정 또는 실행 금액
+- NUMERIC(20,4)
+- NULL 허용
+
+EXEC_RSN
+- 실행 또는 미실행 사유
+- VARCHAR(1000)
+- NULL 허용
+
+PRIO_NO
+- 실행 우선순위
+- INTEGER
+- NULL 허용
+
+CONF_RT
+- 판단 신뢰도
+- NUMERIC(10,4)
+- NOT NULL
+
+DEC_RSN
+- 종목 판단근거
+- VARCHAR(2000)
+- NULL 허용
+
+RULE_VER_NO
+- 계산규칙 버전
+- INTEGER
+- NOT NULL
+- 기본값: 1
+
+CRT_DTTM
+- 생성일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+
+3.3 상대성과 계산
+------------------------------------------------------------
+
+상대성과
+
+REL_PERF_RT
+= STK_DD_RT - MKT_DD_RT
+
+예시
+- 종목 하락률: -20%
+- 시장 하락률: -30%
+- 상대성과: 10%
+
+해석
+- 양수: 시장보다 강함
+- 음수: 시장보다 약함
+
+
+3.4 행동신호 우선순위
+------------------------------------------------------------
+
+권장 우선순위
+
+1. 펀더멘털 훼손
+2. 사용자 직접 일시정지
+3. 구조적 시장위험
+4. 비중 과다 초과
+5. 계좌 현금 부족
+6. 추가매수 조건
+7. 재매수 조건
+8. 정기매수 감액 또는 증액
+9. 최소금액 유지
+
+# 주석
+# 여러 조건이 동시에 충족되면 가장 보수적인 상위 신호를 적용한다.
+
+
+3.5 PostgreSQL DDL
+------------------------------------------------------------
+
+CREATE TABLE TB_STK_DEC (
+    STK_DEC_ID        BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    INV_DEC_ID        BIGINT                  NOT NULL,
+    ACCT_ID           BIGINT                  NOT NULL,
+    STK_ID            BIGINT                  NOT NULL,
+    HOLD_ID           BIGINT,
+    BASE_DT           DATE                    NOT NULL,
+    CUR_PRC           NUMERIC(20,6),
+    AVG_PRC           NUMERIC(20,6),
+    PL_RT             NUMERIC(10,4),
+    STK_DD_RT         NUMERIC(10,4),
+    MKT_DD_RT         NUMERIC(10,4),
+    REL_PERF_RT       NUMERIC(10,4),
+    TGT_WGT           NUMERIC(7,4),
+    CUR_WGT           NUMERIC(7,4),
+    WGT_STS           VARCHAR(20),
+    FUND_SCR          NUMERIC(10,4),
+    VALU_SCR          NUMERIC(10,4),
+    MOM_SCR           NUMERIC(10,4),
+    RISK_SCR          NUMERIC(10,4)           NOT NULL,
+    RISK_GRADE        VARCHAR(20)             NOT NULL,
+    MKT_MULT          NUMERIC(8,4),
+    STK_ADJ_MULT      NUMERIC(8,4),
+    WGT_ADJ_MULT      NUMERIC(8,4),
+    RISK_ADJ_MULT     NUMERIC(8,4),
+    FINAL_MULT        NUMERIC(8,4),
+    BASE_BUY_AMT      NUMERIC(20,4),
+    REG_BUY_AMT       NUMERIC(20,4),
+    SAVED_AMT         NUMERIC(20,4),
+    ACT_SIG           VARCHAR(30)             NOT NULL,
+    EXEC_YN           CHAR(1)                 NOT NULL DEFAULT 'N',
+    EXEC_AMT          NUMERIC(20,4),
+    EXEC_RSN          VARCHAR(1000),
+    PRIO_NO           INTEGER,
+    CONF_RT           NUMERIC(10,4)           NOT NULL,
+    DEC_RSN           VARCHAR(2000),
+    RULE_VER_NO       INTEGER                 NOT NULL DEFAULT 1,
+    CRT_DTTM          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT PK_TB_STK_DEC PRIMARY KEY (STK_DEC_ID),
+    CONSTRAINT UK_TB_STK_DEC_01 UNIQUE (INV_DEC_ID, ACCT_ID, STK_ID),
+    CONSTRAINT FK_TB_STK_DEC_01 FOREIGN KEY (INV_DEC_ID)
+        REFERENCES TB_INV_DEC (INV_DEC_ID),
+    CONSTRAINT FK_TB_STK_DEC_02 FOREIGN KEY (ACCT_ID)
+        REFERENCES TB_ACCT (ACCT_ID),
+    CONSTRAINT FK_TB_STK_DEC_03 FOREIGN KEY (STK_ID)
+        REFERENCES TB_STK (STK_ID),
+    CONSTRAINT FK_TB_STK_DEC_04 FOREIGN KEY (HOLD_ID)
+        REFERENCES TB_HOLD (HOLD_ID),
+    CONSTRAINT CK_TB_STK_DEC_01 CHECK (
+        WGT_STS IS NULL OR WGT_STS IN (
+            'UNDERWEIGHT',
+            'NORMAL',
+            'OVERWEIGHT'
+        )
+    ),
+    CONSTRAINT CK_TB_STK_DEC_02 CHECK (
+        RISK_GRADE IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')
+    ),
+    CONSTRAINT CK_TB_STK_DEC_03 CHECK (
+        FINAL_MULT IS NULL OR FINAL_MULT >= 0
+    ),
+    CONSTRAINT CK_TB_STK_DEC_04 CHECK (
+        REG_BUY_AMT IS NULL OR REG_BUY_AMT >= 0
+    ),
+    CONSTRAINT CK_TB_STK_DEC_05 CHECK (
+        SAVED_AMT IS NULL OR SAVED_AMT >= 0
+    ),
+    CONSTRAINT CK_TB_STK_DEC_06 CHECK (
+        ACT_SIG IN (
+            'PAUSE',
+            'REDUCE',
+            'KEEP_MINIMUM',
+            'INCREASE',
+            'ADDITIONAL_BUY',
+            'REBUY',
+            'REBALANCE_SELL',
+            'HOLD'
+        )
+    ),
+    CONSTRAINT CK_TB_STK_DEC_07 CHECK (EXEC_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_STK_DEC_08 CHECK (
+        EXEC_AMT IS NULL OR EXEC_AMT >= 0
+    ),
+    CONSTRAINT CK_TB_STK_DEC_09 CHECK (
+        CONF_RT BETWEEN 0 AND 100
+    )
+);
+
+CREATE INDEX IDX_TB_STK_DEC_01
+    ON TB_STK_DEC (INV_DEC_ID);
+
+CREATE INDEX IDX_TB_STK_DEC_02
+    ON TB_STK_DEC (ACCT_ID, BASE_DT DESC);
+
+CREATE INDEX IDX_TB_STK_DEC_03
+    ON TB_STK_DEC (STK_ID, BASE_DT DESC);
+
+CREATE INDEX IDX_TB_STK_DEC_04
+    ON TB_STK_DEC (ACT_SIG, BASE_DT DESC);
+
+CREATE INDEX IDX_TB_STK_DEC_05
+    ON TB_STK_DEC (PRIO_NO);
+
+
+3.6 PostgreSQL COMMENT
+------------------------------------------------------------
+
+COMMENT ON TABLE TB_STK_DEC IS '투자판단 실행별 종목 투자판단';
+COMMENT ON COLUMN TB_STK_DEC.STK_DEC_ID IS '종목판단 ID';
+COMMENT ON COLUMN TB_STK_DEC.INV_DEC_ID IS '상위 투자판단 ID';
+COMMENT ON COLUMN TB_STK_DEC.ACCT_ID IS '계좌 ID';
+COMMENT ON COLUMN TB_STK_DEC.STK_ID IS '종목 ID';
+COMMENT ON COLUMN TB_STK_DEC.HOLD_ID IS '보유종목 ID';
+COMMENT ON COLUMN TB_STK_DEC.BASE_DT IS '종목판단 기준일';
+COMMENT ON COLUMN TB_STK_DEC.CUR_PRC IS '판단 시점 현재가';
+COMMENT ON COLUMN TB_STK_DEC.AVG_PRC IS '판단 시점 평단가';
+COMMENT ON COLUMN TB_STK_DEC.PL_RT IS '판단 시점 손익률';
+COMMENT ON COLUMN TB_STK_DEC.STK_DD_RT IS '종목 고점 대비 하락률';
+COMMENT ON COLUMN TB_STK_DEC.MKT_DD_RT IS '기준지수 고점 대비 하락률';
+COMMENT ON COLUMN TB_STK_DEC.REL_PERF_RT IS '종목의 기준지수 대비 상대성과';
+COMMENT ON COLUMN TB_STK_DEC.TGT_WGT IS '종목 목표비중';
+COMMENT ON COLUMN TB_STK_DEC.CUR_WGT IS '종목 현재비중';
+COMMENT ON COLUMN TB_STK_DEC.WGT_STS IS '비중상태';
+COMMENT ON COLUMN TB_STK_DEC.FUND_SCR IS '종목 펀더멘털 점수';
+COMMENT ON COLUMN TB_STK_DEC.VALU_SCR IS '종목 밸류에이션 점수';
+COMMENT ON COLUMN TB_STK_DEC.MOM_SCR IS '종목 모멘텀 점수';
+COMMENT ON COLUMN TB_STK_DEC.RISK_SCR IS '종목 위험점수';
+COMMENT ON COLUMN TB_STK_DEC.RISK_GRADE IS '종목 위험등급';
+COMMENT ON COLUMN TB_STK_DEC.MKT_MULT IS '시장 기본 매수배수';
+COMMENT ON COLUMN TB_STK_DEC.STK_ADJ_MULT IS '종목 보정배수';
+COMMENT ON COLUMN TB_STK_DEC.WGT_ADJ_MULT IS '비중 보정배수';
+COMMENT ON COLUMN TB_STK_DEC.RISK_ADJ_MULT IS '위험 보정배수';
+COMMENT ON COLUMN TB_STK_DEC.FINAL_MULT IS '최종 적용 매수배수';
+COMMENT ON COLUMN TB_STK_DEC.BASE_BUY_AMT IS '감액 전 기준 정기매수금액';
+COMMENT ON COLUMN TB_STK_DEC.REG_BUY_AMT IS '추천 정기매수금액';
+COMMENT ON COLUMN TB_STK_DEC.SAVED_AMT IS '정기매수 감액으로 확보한 금액';
+COMMENT ON COLUMN TB_STK_DEC.ACT_SIG IS '종목 행동신호';
+COMMENT ON COLUMN TB_STK_DEC.EXEC_YN IS '실행 여부';
+COMMENT ON COLUMN TB_STK_DEC.EXEC_AMT IS '실행 예정 또는 실행 금액';
+COMMENT ON COLUMN TB_STK_DEC.EXEC_RSN IS '실행 또는 미실행 사유';
+COMMENT ON COLUMN TB_STK_DEC.PRIO_NO IS '실행 우선순위';
+COMMENT ON COLUMN TB_STK_DEC.CONF_RT IS '종목판단 신뢰도';
+COMMENT ON COLUMN TB_STK_DEC.DEC_RSN IS '종목판단 근거';
+COMMENT ON COLUMN TB_STK_DEC.RULE_VER_NO IS '계산규칙 버전';
+COMMENT ON COLUMN TB_STK_DEC.CRT_DTTM IS '생성일시';
+
+
+============================================================
+4. TB_DEC_CHG 판단 변경이력
+============================================================
+
+4.1 테이블 목적
+------------------------------------------------------------
+TB_DEC_CHG는 직전 투자판단과 현재 투자판단 사이에서 변경된
+행동신호, 매수배수, 추천금액, 위험등급, 비중상태를 저장한다.
+
+
+4.2 컬럼 정의
+------------------------------------------------------------
+
+DEC_CHG_ID
+- 판단 변경이력 ID
+- BIGINT
+- PK
+- IDENTITY
+
+STK_DEC_ID
+- 현재 종목판단 ID
+- BIGINT
+- NOT NULL
+- FK: TB_STK_DEC.STK_DEC_ID
+
+PREV_STK_DEC_ID
+- 직전 종목판단 ID
+- BIGINT
+- NULL 허용
+- FK: TB_STK_DEC.STK_DEC_ID
+
+BASE_DT
+- 현재 기준일
+- DATE
+- NOT NULL
+
+CHG_TP
+- 변경 유형
+- VARCHAR(30)
+- NOT NULL
+- 값:
+  NEW
+  SIGNAL_CHANGE
+  AMOUNT_CHANGE
+  MULTIPLIER_CHANGE
+  RISK_CHANGE
+  WEIGHT_CHANGE
+  EXECUTION_CHANGE
+
+PREV_ACT_SIG
+- 이전 행동신호
+- VARCHAR(30)
+- NULL 허용
+
+CUR_ACT_SIG
+- 현재 행동신호
+- VARCHAR(30)
+- NULL 허용
+
+PREV_MULT
+- 이전 최종배수
+- NUMERIC(8,4)
+- NULL 허용
+
+CUR_MULT
+- 현재 최종배수
+- NUMERIC(8,4)
+- NULL 허용
+
+PREV_BUY_AMT
+- 이전 추천매수금액
+- NUMERIC(20,4)
+- NULL 허용
+
+CUR_BUY_AMT
+- 현재 추천매수금액
+- NUMERIC(20,4)
+- NULL 허용
+
+PREV_RISK_GRADE
+- 이전 위험등급
+- VARCHAR(20)
+- NULL 허용
+
+CUR_RISK_GRADE
+- 현재 위험등급
+- VARCHAR(20)
+- NULL 허용
+
+PREV_WGT_STS
+- 이전 비중상태
+- VARCHAR(20)
+- NULL 허용
+
+CUR_WGT_STS
+- 현재 비중상태
+- VARCHAR(20)
+- NULL 허용
+
+CHG_RSN
+- 변경 사유
+- VARCHAR(2000)
+- NULL 허용
+
+CRT_DTTM
+- 생성일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+
+4.3 PostgreSQL DDL
+------------------------------------------------------------
+
+CREATE TABLE TB_DEC_CHG (
+    DEC_CHG_ID         BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    STK_DEC_ID         BIGINT                  NOT NULL,
+    PREV_STK_DEC_ID    BIGINT,
+    BASE_DT            DATE                    NOT NULL,
+    CHG_TP             VARCHAR(30)             NOT NULL,
+    PREV_ACT_SIG       VARCHAR(30),
+    CUR_ACT_SIG        VARCHAR(30),
+    PREV_MULT          NUMERIC(8,4),
+    CUR_MULT           NUMERIC(8,4),
+    PREV_BUY_AMT       NUMERIC(20,4),
+    CUR_BUY_AMT        NUMERIC(20,4),
+    PREV_RISK_GRADE    VARCHAR(20),
+    CUR_RISK_GRADE     VARCHAR(20),
+    PREV_WGT_STS       VARCHAR(20),
+    CUR_WGT_STS        VARCHAR(20),
+    CHG_RSN            VARCHAR(2000),
+    CRT_DTTM           TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT PK_TB_DEC_CHG PRIMARY KEY (DEC_CHG_ID),
+    CONSTRAINT FK_TB_DEC_CHG_01 FOREIGN KEY (STK_DEC_ID)
+        REFERENCES TB_STK_DEC (STK_DEC_ID),
+    CONSTRAINT FK_TB_DEC_CHG_02 FOREIGN KEY (PREV_STK_DEC_ID)
+        REFERENCES TB_STK_DEC (STK_DEC_ID),
+    CONSTRAINT CK_TB_DEC_CHG_01 CHECK (
+        CHG_TP IN (
+            'NEW',
+            'SIGNAL_CHANGE',
+            'AMOUNT_CHANGE',
+            'MULTIPLIER_CHANGE',
+            'RISK_CHANGE',
+            'WEIGHT_CHANGE',
+            'EXECUTION_CHANGE'
+        )
+    )
+);
+
+CREATE INDEX IDX_TB_DEC_CHG_01
+    ON TB_DEC_CHG (STK_DEC_ID);
+
+CREATE INDEX IDX_TB_DEC_CHG_02
+    ON TB_DEC_CHG (BASE_DT DESC);
+
+CREATE INDEX IDX_TB_DEC_CHG_03
+    ON TB_DEC_CHG (CHG_TP, BASE_DT DESC);
+
+
+4.4 PostgreSQL COMMENT
+------------------------------------------------------------
+
+COMMENT ON TABLE TB_DEC_CHG IS '종목 투자판단 변경이력';
+COMMENT ON COLUMN TB_DEC_CHG.DEC_CHG_ID IS '판단 변경이력 ID';
+COMMENT ON COLUMN TB_DEC_CHG.STK_DEC_ID IS '현재 종목판단 ID';
+COMMENT ON COLUMN TB_DEC_CHG.PREV_STK_DEC_ID IS '직전 종목판단 ID';
+COMMENT ON COLUMN TB_DEC_CHG.BASE_DT IS '현재 판단 기준일';
+COMMENT ON COLUMN TB_DEC_CHG.CHG_TP IS '판단 변경 유형';
+COMMENT ON COLUMN TB_DEC_CHG.PREV_ACT_SIG IS '이전 행동신호';
+COMMENT ON COLUMN TB_DEC_CHG.CUR_ACT_SIG IS '현재 행동신호';
+COMMENT ON COLUMN TB_DEC_CHG.PREV_MULT IS '이전 최종 매수배수';
+COMMENT ON COLUMN TB_DEC_CHG.CUR_MULT IS '현재 최종 매수배수';
+COMMENT ON COLUMN TB_DEC_CHG.PREV_BUY_AMT IS '이전 추천매수금액';
+COMMENT ON COLUMN TB_DEC_CHG.CUR_BUY_AMT IS '현재 추천매수금액';
+COMMENT ON COLUMN TB_DEC_CHG.PREV_RISK_GRADE IS '이전 위험등급';
+COMMENT ON COLUMN TB_DEC_CHG.CUR_RISK_GRADE IS '현재 위험등급';
+COMMENT ON COLUMN TB_DEC_CHG.PREV_WGT_STS IS '이전 비중상태';
+COMMENT ON COLUMN TB_DEC_CHG.CUR_WGT_STS IS '현재 비중상태';
+COMMENT ON COLUMN TB_DEC_CHG.CHG_RSN IS '판단 변경 사유';
+COMMENT ON COLUMN TB_DEC_CHG.CRT_DTTM IS '생성일시';
+
+
+============================================================
+5. TB_ADD_BUY 추가매수 계획
+============================================================
+
+5.1 테이블 목적
+------------------------------------------------------------
+TB_ADD_BUY는 종목별 추가매수 조건 충족 여부,
+우선순위, 추천금액, 사용 현금 유형, 실행 여부를 저장한다.
+
+
+5.2 추가매수 기본 조건
+------------------------------------------------------------
+
+필수 조건 예시
+- 펀더멘털 훼손 없음
+- 종목등급이 핵심 또는 우량 위성
+- 현재비중이 목표비중보다 낮음
+- 종목 하락률이 설정 기준 이하
+- 시장국면이 추가매수를 허용
+- 계좌 대기현금이 충분함
+- 사용자 중단 상태가 아님
+
+추천금액 제한
+- 종목별 최대 추가매수금액
+- 계좌별 추가매수 예산
+- 추가매수 대기현금 잔액
+- 목표비중 부족액
+
+
+5.3 컬럼 정의
+------------------------------------------------------------
+
+ADD_BUY_ID
+- 추가매수 계획 ID
+- BIGINT
+- PK
+- IDENTITY
+
+STK_DEC_ID
+- 종목판단 ID
+- BIGINT
+- NOT NULL
+- UNIQUE
+- FK: TB_STK_DEC.STK_DEC_ID
+
+ACCT_ID
+- 계좌 ID
+- BIGINT
+- NOT NULL
+
+STK_ID
+- 종목 ID
+- BIGINT
+- NOT NULL
+
+BASE_DT
+- 기준일
+- DATE
+- NOT NULL
+
+ELIG_YN
+- 추가매수 가능 여부
+- CHAR(1)
+- NOT NULL
+
+ELIG_RSN
+- 가능 또는 불가 사유
+- VARCHAR(2000)
+- NULL 허용
+
+DD_COND_YN
+- 낙폭 조건 충족 여부
+- CHAR(1)
+- NOT NULL
+
+WGT_COND_YN
+- 비중 조건 충족 여부
+- CHAR(1)
+- NOT NULL
+
+FUND_COND_YN
+- 펀더멘털 조건 충족 여부
+- CHAR(1)
+- NOT NULL
+
+MKT_COND_YN
+- 시장 조건 충족 여부
+- CHAR(1)
+- NOT NULL
+
+CASH_COND_YN
+- 현금 조건 충족 여부
+- CHAR(1)
+- NOT NULL
+
+PRIO_NO
+- 추가매수 우선순위
+- INTEGER
+- NULL 허용
+
+PRIO_SCR
+- 추가매수 우선순위 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+MAX_ADD_AMT
+- 종목별 최대 추가매수금액
+- NUMERIC(20,4)
+- NULL 허용
+
+WGT_GAP_AMT
+- 목표비중 부족금액
+- NUMERIC(20,4)
+- NULL 허용
+
+CASH_AVAIL_AMT
+- 사용 가능한 대기현금
+- NUMERIC(20,4)
+- NULL 허용
+
+RCMD_ADD_AMT
+- 추천 추가매수금액
+- NUMERIC(20,4)
+- NULL 허용
+
+CASH_TP
+- 사용 현금 유형
+- VARCHAR(20)
+- NOT NULL
+- 기본값: RESERVE
+
+EXEC_YN
+- 실행 여부
+- CHAR(1)
+- NOT NULL
+- 기본값: N
+
+EXEC_AMT
+- 실제 실행금액
+- NUMERIC(20,4)
+- NULL 허용
+
+EXEC_DTTM
+- 실행일시
+- TIMESTAMP WITH TIME ZONE
+- NULL 허용
+
+EXEC_RSN
+- 실행 또는 미실행 사유
+- VARCHAR(1000)
+- NULL 허용
+
+CRT_DTTM
+- 생성일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+
+5.4 추천 추가매수금액
+------------------------------------------------------------
+
+RCMD_ADD_AMT
+= MIN(
+    MAX_ADD_AMT,
+    WGT_GAP_AMT,
+    CASH_AVAIL_AMT,
+    계좌 추가매수 예산 잔액
+  )
+
+# 주석
+# 추천금액이 0 이하이면 ELIG_YN = 'N'으로 처리한다.
+# 실제 주문단위가 1주라면 주문 가능금액보다 주가가 높은 경우 실행 불가다.
+
+
+5.5 PostgreSQL DDL
+------------------------------------------------------------
+
+CREATE TABLE TB_ADD_BUY (
+    ADD_BUY_ID        BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    STK_DEC_ID        BIGINT                  NOT NULL,
+    ACCT_ID           BIGINT                  NOT NULL,
+    STK_ID            BIGINT                  NOT NULL,
+    BASE_DT           DATE                    NOT NULL,
+    ELIG_YN           CHAR(1)                 NOT NULL,
+    ELIG_RSN          VARCHAR(2000),
+    DD_COND_YN        CHAR(1)                 NOT NULL,
+    WGT_COND_YN       CHAR(1)                 NOT NULL,
+    FUND_COND_YN      CHAR(1)                 NOT NULL,
+    MKT_COND_YN       CHAR(1)                 NOT NULL,
+    CASH_COND_YN      CHAR(1)                 NOT NULL,
+    PRIO_NO           INTEGER,
+    PRIO_SCR          NUMERIC(10,4),
+    MAX_ADD_AMT       NUMERIC(20,4),
+    WGT_GAP_AMT       NUMERIC(20,4),
+    CASH_AVAIL_AMT    NUMERIC(20,4),
+    RCMD_ADD_AMT      NUMERIC(20,4),
+    CASH_TP           VARCHAR(20)             NOT NULL DEFAULT 'RESERVE',
+    EXEC_YN           CHAR(1)                 NOT NULL DEFAULT 'N',
+    EXEC_AMT          NUMERIC(20,4),
+    EXEC_DTTM         TIMESTAMP WITH TIME ZONE,
+    EXEC_RSN          VARCHAR(1000),
+    CRT_DTTM          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT PK_TB_ADD_BUY PRIMARY KEY (ADD_BUY_ID),
+    CONSTRAINT UK_TB_ADD_BUY_01 UNIQUE (STK_DEC_ID),
+    CONSTRAINT FK_TB_ADD_BUY_01 FOREIGN KEY (STK_DEC_ID)
+        REFERENCES TB_STK_DEC (STK_DEC_ID),
+    CONSTRAINT FK_TB_ADD_BUY_02 FOREIGN KEY (ACCT_ID)
+        REFERENCES TB_ACCT (ACCT_ID),
+    CONSTRAINT FK_TB_ADD_BUY_03 FOREIGN KEY (STK_ID)
+        REFERENCES TB_STK (STK_ID),
+    CONSTRAINT CK_TB_ADD_BUY_01 CHECK (ELIG_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_ADD_BUY_02 CHECK (DD_COND_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_ADD_BUY_03 CHECK (WGT_COND_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_ADD_BUY_04 CHECK (FUND_COND_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_ADD_BUY_05 CHECK (MKT_COND_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_ADD_BUY_06 CHECK (CASH_COND_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_ADD_BUY_07 CHECK (
+        RCMD_ADD_AMT IS NULL OR RCMD_ADD_AMT >= 0
+    ),
+    CONSTRAINT CK_TB_ADD_BUY_08 CHECK (
+        CASH_TP IN ('NORMAL', 'RESERVE')
+    ),
+    CONSTRAINT CK_TB_ADD_BUY_09 CHECK (EXEC_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_ADD_BUY_10 CHECK (
+        EXEC_AMT IS NULL OR EXEC_AMT >= 0
+    )
+);
+
+CREATE INDEX IDX_TB_ADD_BUY_01
+    ON TB_ADD_BUY (ACCT_ID, BASE_DT DESC);
+
+CREATE INDEX IDX_TB_ADD_BUY_02
+    ON TB_ADD_BUY (ELIG_YN, PRIO_NO);
+
+CREATE INDEX IDX_TB_ADD_BUY_03
+    ON TB_ADD_BUY (STK_ID, BASE_DT DESC);
+
+
+5.6 PostgreSQL COMMENT
+------------------------------------------------------------
+
+COMMENT ON TABLE TB_ADD_BUY IS '종목별 추가매수 계획';
+COMMENT ON COLUMN TB_ADD_BUY.ADD_BUY_ID IS '추가매수 계획 ID';
+COMMENT ON COLUMN TB_ADD_BUY.STK_DEC_ID IS '종목판단 ID';
+COMMENT ON COLUMN TB_ADD_BUY.ACCT_ID IS '계좌 ID';
+COMMENT ON COLUMN TB_ADD_BUY.STK_ID IS '종목 ID';
+COMMENT ON COLUMN TB_ADD_BUY.BASE_DT IS '추가매수 판단 기준일';
+COMMENT ON COLUMN TB_ADD_BUY.ELIG_YN IS '추가매수 가능 여부';
+COMMENT ON COLUMN TB_ADD_BUY.ELIG_RSN IS '추가매수 가능 또는 불가 사유';
+COMMENT ON COLUMN TB_ADD_BUY.DD_COND_YN IS '낙폭 조건 충족 여부';
+COMMENT ON COLUMN TB_ADD_BUY.WGT_COND_YN IS '목표비중 부족 조건 충족 여부';
+COMMENT ON COLUMN TB_ADD_BUY.FUND_COND_YN IS '펀더멘털 조건 충족 여부';
+COMMENT ON COLUMN TB_ADD_BUY.MKT_COND_YN IS '시장국면 조건 충족 여부';
+COMMENT ON COLUMN TB_ADD_BUY.CASH_COND_YN IS '추가매수 현금 조건 충족 여부';
+COMMENT ON COLUMN TB_ADD_BUY.PRIO_NO IS '추가매수 우선순위';
+COMMENT ON COLUMN TB_ADD_BUY.PRIO_SCR IS '추가매수 우선순위 점수';
+COMMENT ON COLUMN TB_ADD_BUY.MAX_ADD_AMT IS '종목별 최대 추가매수금액';
+COMMENT ON COLUMN TB_ADD_BUY.WGT_GAP_AMT IS '목표비중 부족금액';
+COMMENT ON COLUMN TB_ADD_BUY.CASH_AVAIL_AMT IS '사용 가능한 현금';
+COMMENT ON COLUMN TB_ADD_BUY.RCMD_ADD_AMT IS '추천 추가매수금액';
+COMMENT ON COLUMN TB_ADD_BUY.CASH_TP IS '사용 현금 유형';
+COMMENT ON COLUMN TB_ADD_BUY.EXEC_YN IS '추가매수 실행 여부';
+COMMENT ON COLUMN TB_ADD_BUY.EXEC_AMT IS '실제 추가매수 실행금액';
+COMMENT ON COLUMN TB_ADD_BUY.EXEC_DTTM IS '추가매수 실행일시';
+COMMENT ON COLUMN TB_ADD_BUY.EXEC_RSN IS '추가매수 실행 또는 미실행 사유';
+COMMENT ON COLUMN TB_ADD_BUY.CRT_DTTM IS '생성일시';
+
+
+============================================================
+6. TB_REBUY 재매수 계획
+============================================================
+
+6.1 테이블 목적
+------------------------------------------------------------
+TB_REBUY는 과거에 정기매수를 중단했거나 매도한 종목이
+다시 매수 가능한 상태인지 판단한 결과를 저장한다.
+
+
+6.2 재매수 조건 예시
+------------------------------------------------------------
+
+필수 조건
+- 펀더멘털 훼손 없음
+- 시장 구조적 위험 완화
+- 종목 가격 안정
+- 기준지수 대비 상대성과 개선
+- 비중 부족
+- 사용자 중단 해제 가능
+- 현금 여력 존재
+
+확인 신호 예시
+- 20일 이동평균 회복
+- 거래량 안정
+- 급락 후 저점 재이탈 없음
+- 기준지수 하락률 개선
+- 외국인 또는 기관 수급 반전
+- 실적 추정치 하향 중단
+
+
+6.3 컬럼 정의
+------------------------------------------------------------
+
+REBUY_ID
+- 재매수 계획 ID
+- BIGINT
+- PK
+- IDENTITY
+
+STK_DEC_ID
+- 종목판단 ID
+- BIGINT
+- NOT NULL
+- UNIQUE
+- FK: TB_STK_DEC.STK_DEC_ID
+
+ACCT_ID
+- 계좌 ID
+- BIGINT
+- NOT NULL
+
+STK_ID
+- 종목 ID
+- BIGINT
+- NOT NULL
+
+BASE_DT
+- 기준일
+- DATE
+- NOT NULL
+
+ELIG_YN
+- 재매수 가능 여부
+- CHAR(1)
+- NOT NULL
+
+FUND_OK_YN
+- 펀더멘털 정상 여부
+- CHAR(1)
+- NOT NULL
+
+MKT_OK_YN
+- 시장조건 정상 여부
+- CHAR(1)
+- NOT NULL
+
+PRICE_OK_YN
+- 가격 안정 조건 여부
+- CHAR(1)
+- NOT NULL
+
+FLOW_OK_YN
+- 수급 개선 여부
+- CHAR(1)
+- NOT NULL
+
+WGT_OK_YN
+- 비중 부족 조건 여부
+- CHAR(1)
+- NOT NULL
+
+CASH_OK_YN
+- 현금 조건 여부
+- CHAR(1)
+- NOT NULL
+
+REBUY_SCR
+- 재매수 점수
+- NUMERIC(10,4)
+- NULL 허용
+
+PRIO_NO
+- 재매수 우선순위
+- INTEGER
+- NULL 허용
+
+RCMD_REBUY_AMT
+- 추천 재매수금액
+- NUMERIC(20,4)
+- NULL 허용
+
+REBUY_SIG
+- 재매수 신호
+- VARCHAR(30)
+- NOT NULL
+- 값:
+  WAIT
+  WATCH
+  PARTIAL_REBUY
+  REBUY
+  BLOCKED
+
+ELIG_RSN
+- 재매수 판단근거
+- VARCHAR(2000)
+- NULL 허용
+
+EXEC_YN
+- 실행 여부
+- CHAR(1)
+- NOT NULL
+- 기본값: N
+
+EXEC_AMT
+- 실제 실행금액
+- NUMERIC(20,4)
+- NULL 허용
+
+EXEC_DTTM
+- 실행일시
+- TIMESTAMP WITH TIME ZONE
+- NULL 허용
+
+EXEC_RSN
+- 실행 또는 미실행 사유
+- VARCHAR(1000)
+- NULL 허용
+
+CRT_DTTM
+- 생성일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+
+6.4 PostgreSQL DDL
+------------------------------------------------------------
+
+CREATE TABLE TB_REBUY (
+    REBUY_ID          BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    STK_DEC_ID        BIGINT                  NOT NULL,
+    ACCT_ID           BIGINT                  NOT NULL,
+    STK_ID            BIGINT                  NOT NULL,
+    BASE_DT           DATE                    NOT NULL,
+    ELIG_YN           CHAR(1)                 NOT NULL,
+    FUND_OK_YN        CHAR(1)                 NOT NULL,
+    MKT_OK_YN         CHAR(1)                 NOT NULL,
+    PRICE_OK_YN       CHAR(1)                 NOT NULL,
+    FLOW_OK_YN        CHAR(1)                 NOT NULL,
+    WGT_OK_YN         CHAR(1)                 NOT NULL,
+    CASH_OK_YN        CHAR(1)                 NOT NULL,
+    REBUY_SCR         NUMERIC(10,4),
+    PRIO_NO           INTEGER,
+    RCMD_REBUY_AMT    NUMERIC(20,4),
+    REBUY_SIG         VARCHAR(30)             NOT NULL,
+    ELIG_RSN          VARCHAR(2000),
+    EXEC_YN           CHAR(1)                 NOT NULL DEFAULT 'N',
+    EXEC_AMT          NUMERIC(20,4),
+    EXEC_DTTM         TIMESTAMP WITH TIME ZONE,
+    EXEC_RSN          VARCHAR(1000),
+    CRT_DTTM          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT PK_TB_REBUY PRIMARY KEY (REBUY_ID),
+    CONSTRAINT UK_TB_REBUY_01 UNIQUE (STK_DEC_ID),
+    CONSTRAINT FK_TB_REBUY_01 FOREIGN KEY (STK_DEC_ID)
+        REFERENCES TB_STK_DEC (STK_DEC_ID),
+    CONSTRAINT FK_TB_REBUY_02 FOREIGN KEY (ACCT_ID)
+        REFERENCES TB_ACCT (ACCT_ID),
+    CONSTRAINT FK_TB_REBUY_03 FOREIGN KEY (STK_ID)
+        REFERENCES TB_STK (STK_ID),
+    CONSTRAINT CK_TB_REBUY_01 CHECK (ELIG_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_REBUY_02 CHECK (FUND_OK_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_REBUY_03 CHECK (MKT_OK_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_REBUY_04 CHECK (PRICE_OK_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_REBUY_05 CHECK (FLOW_OK_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_REBUY_06 CHECK (WGT_OK_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_REBUY_07 CHECK (CASH_OK_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_REBUY_08 CHECK (
+        RCMD_REBUY_AMT IS NULL OR RCMD_REBUY_AMT >= 0
+    ),
+    CONSTRAINT CK_TB_REBUY_09 CHECK (
+        REBUY_SIG IN ('WAIT', 'WATCH', 'PARTIAL_REBUY', 'REBUY', 'BLOCKED')
+    ),
+    CONSTRAINT CK_TB_REBUY_10 CHECK (EXEC_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_REBUY_11 CHECK (
+        EXEC_AMT IS NULL OR EXEC_AMT >= 0
+    )
+);
+
+CREATE INDEX IDX_TB_REBUY_01
+    ON TB_REBUY (ACCT_ID, BASE_DT DESC);
+
+CREATE INDEX IDX_TB_REBUY_02
+    ON TB_REBUY (REBUY_SIG, PRIO_NO);
+
+CREATE INDEX IDX_TB_REBUY_03
+    ON TB_REBUY (STK_ID, BASE_DT DESC);
+
+
+6.5 PostgreSQL COMMENT
+------------------------------------------------------------
+
+COMMENT ON TABLE TB_REBUY IS '종목별 재매수 계획';
+COMMENT ON COLUMN TB_REBUY.REBUY_ID IS '재매수 계획 ID';
+COMMENT ON COLUMN TB_REBUY.STK_DEC_ID IS '종목판단 ID';
+COMMENT ON COLUMN TB_REBUY.ACCT_ID IS '계좌 ID';
+COMMENT ON COLUMN TB_REBUY.STK_ID IS '종목 ID';
+COMMENT ON COLUMN TB_REBUY.BASE_DT IS '재매수 판단 기준일';
+COMMENT ON COLUMN TB_REBUY.ELIG_YN IS '재매수 가능 여부';
+COMMENT ON COLUMN TB_REBUY.FUND_OK_YN IS '펀더멘털 정상 여부';
+COMMENT ON COLUMN TB_REBUY.MKT_OK_YN IS '시장조건 정상 여부';
+COMMENT ON COLUMN TB_REBUY.PRICE_OK_YN IS '가격 안정 조건 충족 여부';
+COMMENT ON COLUMN TB_REBUY.FLOW_OK_YN IS '수급 개선 조건 충족 여부';
+COMMENT ON COLUMN TB_REBUY.WGT_OK_YN IS '비중 부족 조건 충족 여부';
+COMMENT ON COLUMN TB_REBUY.CASH_OK_YN IS '현금 조건 충족 여부';
+COMMENT ON COLUMN TB_REBUY.REBUY_SCR IS '재매수 종합점수';
+COMMENT ON COLUMN TB_REBUY.PRIO_NO IS '재매수 우선순위';
+COMMENT ON COLUMN TB_REBUY.RCMD_REBUY_AMT IS '추천 재매수금액';
+COMMENT ON COLUMN TB_REBUY.REBUY_SIG IS '재매수 신호';
+COMMENT ON COLUMN TB_REBUY.ELIG_RSN IS '재매수 가능 또는 불가 판단근거';
+COMMENT ON COLUMN TB_REBUY.EXEC_YN IS '재매수 실행 여부';
+COMMENT ON COLUMN TB_REBUY.EXEC_AMT IS '실제 재매수 실행금액';
+COMMENT ON COLUMN TB_REBUY.EXEC_DTTM IS '재매수 실행일시';
+COMMENT ON COLUMN TB_REBUY.EXEC_RSN IS '재매수 실행 또는 미실행 사유';
+COMMENT ON COLUMN TB_REBUY.CRT_DTTM IS '생성일시';
+
+
+============================================================
+7. Java Entity 핵심 예시
+============================================================
+
+7.1 TbInvDec
+------------------------------------------------------------
+
+@Entity
+@Table(
+    name = "TB_INV_DEC",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "UK_TB_INV_DEC_01",
+            columnNames = {
+                "BASE_DT",
+                "CALC_SEQ",
+                "ACCT_ID",
+                "MKT_SNAP_CD"
+            }
+        )
+    }
+)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TbInvDec {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "INV_DEC_ID")
+    private Long investmentDecisionId;
+
+    @Column(name = "BASE_DT", nullable = false)
+    private LocalDate baseDate;
+
+    @Column(name = "CALC_SEQ", nullable = false)
+    private Integer calculationSequence;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ACCT_ID")
+    private TbAcct account;
+
+    @Column(name = "MKT_SCR", nullable = false, precision = 10, scale = 4)
+    private BigDecimal marketScore;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "MKT_REGIME", nullable = false, length = 30)
+    private MarketRegime marketRegime;
+
+    @Column(name = "RISK_SCR", nullable = false, precision = 10, scale = 4)
+    private BigDecimal riskScore;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "RISK_GRADE", nullable = false, length = 20)
+    private RiskGrade riskGrade;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "OVR_DEC_SIG", nullable = false, length = 30)
+    private OverallDecisionSignal overallDecisionSignal;
+
+    @Column(name = "CONF_RT", nullable = false, precision = 10, scale = 4)
+    private BigDecimal confidenceRate;
+}
+
+
+7.2 TbStkDec
+------------------------------------------------------------
+
+@Entity
+@Table(
+    name = "TB_STK_DEC",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "UK_TB_STK_DEC_01",
+            columnNames = {"INV_DEC_ID", "ACCT_ID", "STK_ID"}
+        )
+    }
+)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TbStkDec {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "STK_DEC_ID")
+    private Long stockDecisionId;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "INV_DEC_ID", nullable = false)
+    private TbInvDec investmentDecision;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "ACCT_ID", nullable = false)
+    private TbAcct account;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "STK_ID", nullable = false)
+    private TbStk stock;
+
+    @Column(name = "FINAL_MULT", precision = 8, scale = 4)
+    private BigDecimal finalMultiplier;
+
+    @Column(name = "REG_BUY_AMT", precision = 20, scale = 4)
+    private BigDecimal regularBuyAmount;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ACT_SIG", nullable = false, length = 30)
+    private ActionSignal actionSignal;
+
+    @Column(name = "CONF_RT", nullable = false, precision = 10, scale = 4)
+    private BigDecimal confidenceRate;
+}
+
+
+7.3 TbAddBuy
+------------------------------------------------------------
+
+@Entity
+@Table(
+    name = "TB_ADD_BUY",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "UK_TB_ADD_BUY_01",
+            columnNames = "STK_DEC_ID"
+        )
+    }
+)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TbAddBuy {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "ADD_BUY_ID")
+    private Long additionalBuyId;
+
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "STK_DEC_ID", nullable = false)
+    private TbStkDec stockDecision;
+
+    @Column(name = "ELIG_YN", nullable = false, length = 1)
+    private String eligibleYn;
+
+    @Column(name = "PRIO_NO")
+    private Integer priorityNumber;
+
+    @Column(name = "RCMD_ADD_AMT", precision = 20, scale = 4)
+    private BigDecimal recommendedAdditionalBuyAmount;
+
+    @Column(name = "EXEC_YN", nullable = false, length = 1)
+    private String executeYn;
+}
+
+
+============================================================
+8. Repository 예시
+============================================================
+
+public interface TbInvDecRepository
+        extends JpaRepository<TbInvDec, Long> {
+
+    Optional<TbInvDec>
+    findTopByBaseDateAndAccount_AccountIdAndMarketSnapshotCodeOrderByCalculationSequenceDesc(
+        LocalDate baseDate,
+        Long accountId,
+        String marketSnapshotCode
+    );
+
+    List<TbInvDec>
+    findAllByBaseDateAndLatestYnOrderByAccount_AccountIdAsc(
+        LocalDate baseDate,
+        String latestYn
+    );
+}
+
+
+public interface TbStkDecRepository
+        extends JpaRepository<TbStkDec, Long> {
+
+    List<TbStkDec>
+    findAllByInvestmentDecision_InvestmentDecisionIdOrderByPriorityNumberAsc(
+        Long investmentDecisionId
+    );
+
+    Optional<TbStkDec>
+    findTopByAccount_AccountIdAndStock_StockIdOrderByBaseDateDescCreatedDateTimeDesc(
+        Long accountId,
+        Long stockId
+    );
+}
+
+
+public interface TbAddBuyRepository
+        extends JpaRepository<TbAddBuy, Long> {
+
+    List<TbAddBuy>
+    findAllByAccount_AccountIdAndBaseDateAndEligibleYnOrderByPriorityNumberAsc(
+        Long accountId,
+        LocalDate baseDate,
+        String eligibleYn
+    );
+}
+
+
+============================================================
+9. 권장 Java Enum
+============================================================
+
+public enum MarketRegime {
+    OVERHEATED,
+    NORMAL,
+    MILD_CORRECTION,
+    STRONG_CORRECTION,
+    CRASH_RISK
+}
+
+public enum RiskGrade {
+    LOW,
+    MEDIUM,
+    HIGH,
+    CRITICAL
+}
+
+public enum OverallDecisionSignal {
+    HOLD_CASH,
+    KEEP_REGULAR_BUY,
+    REDUCE_REGULAR_BUY,
+    INCREASE_REGULAR_BUY,
+    SELECTIVE_ADD_BUY,
+    PAUSE_BUY
+}
+
+public enum ActionSignal {
+    PAUSE,
+    REDUCE,
+    KEEP_MINIMUM,
+    INCREASE,
+    ADDITIONAL_BUY,
+    REBUY,
+    REBALANCE_SELL,
+    HOLD
+}
+
+public enum DecisionChangeType {
+    NEW,
+    SIGNAL_CHANGE,
+    AMOUNT_CHANGE,
+    MULTIPLIER_CHANGE,
+    RISK_CHANGE,
+    WEIGHT_CHANGE,
+    EXECUTION_CHANGE
+}
+
+public enum RebuySignal {
+    WAIT,
+    WATCH,
+    PARTIAL_REBUY,
+    REBUY,
+    BLOCKED
+}
+
+
+============================================================
+10. 투자판단 계산 및 저장 처리 순서
+============================================================
+
+1. 기준일 결정
+2. 최신 시장 스냅샷 조회
+3. 최신 시장심리 조회
+4. 계좌별 현금과 총자산 계산
+5. 시장점수 계산
+6. 시장국면 계산
+7. 시장 위험점수 계산
+8. TB_INV_DEC 임시 생성
+9. 계좌별 보유종목 조회
+10. 종목별 현재비중 계산
+11. 종목별 위험점수 계산
+12. 정기매수 최종배수 계산
+13. 추천 정기매수금액 계산
+14. 행동신호 결정
+15. TB_STK_DEC 저장
+16. 추가매수 조건 계산
+17. TB_ADD_BUY 저장
+18. 재매수 조건 계산
+19. TB_REBUY 저장
+20. 직전 판단 조회
+21. TB_DEC_CHG 저장
+22. 계좌별 추천금액 합계 계산
+23. TB_INV_DEC 합계 컬럼 갱신
+24. 이전 LATEST_YN을 N으로 변경
+25. 현재 TB_INV_DEC.LATEST_YN을 Y로 확정
+26. 전체 트랜잭션 커밋
+
+
+============================================================
+11. 판단 변경이력 생성 기준
+============================================================
+
+신규 판단
+- 직전 데이터 없음
+- CHG_TP = NEW
+
+행동신호 변경
+- 이전 ACT_SIG != 현재 ACT_SIG
+- CHG_TP = SIGNAL_CHANGE
+
+추천금액 변경
+- 이전 금액과 현재 금액 차이가 설정 임계값 이상
+- CHG_TP = AMOUNT_CHANGE
+
+매수배수 변경
+- 이전 FINAL_MULT != 현재 FINAL_MULT
+- CHG_TP = MULTIPLIER_CHANGE
+
+위험등급 변경
+- 이전 RISK_GRADE != 현재 RISK_GRADE
+- CHG_TP = RISK_CHANGE
+
+비중상태 변경
+- 이전 WGT_STS != 현재 WGT_STS
+- CHG_TP = WEIGHT_CHANGE
+
+# 주석
+# 하나의 종목판단에서 여러 변경이 발생하면
+# 변경유형별로 여러 건을 저장하거나 대표 변경 한 건만 저장할 수 있다.
+# 권장안은 변경유형별 다건 저장이다.
+
+
+============================================================
+12. 일일 투자판단 API 연결
+============================================================
+
+12.1 판단 생성
+------------------------------------------------------------
+
+POST /api/investment/decisions
+
+Request 예시 항목
+- baseDate
+- accountIds
+- marketSnapshotCode
+- forceRecalculate
+- ruleVersionNumber
+
+Response 예시 항목
+- investmentDecisionId
+- baseDate
+- marketRegime
+- marketScore
+- riskGrade
+- overallDecisionSignal
+- totalRegularBuyAmount
+- totalAdditionalBuyAmount
+- reservedCashAddAmount
+- stockDecisions
+
+
+12.2 판단 목록
+------------------------------------------------------------
+
+GET /api/investment/decisions
+
+조회조건
+- baseDate
+- accountId
+- marketRegime
+- latestYn
+
+
+12.3 종목별 판단
+------------------------------------------------------------
+
+GET /api/investment/decisions/{investmentDecisionId}/stocks
+
+
+12.4 추가매수 후보
+------------------------------------------------------------
+
+GET /api/investment/additional-buys
+
+조회조건
+- baseDate
+- accountId
+- eligibleYn
+- maximumCount
+
+
+12.5 재매수 후보
+------------------------------------------------------------
+
+GET /api/investment/rebuys
+
+조회조건
+- baseDate
+- accountId
+- rebuySignal
+
+
+============================================================
+13. 판단 생성 Request DTO 예시
+============================================================
+
+public record InvestmentDecisionCreateRequest(
+
+    @NotNull
+    LocalDate baseDate,
+
+    List<Long> accountIds,
+
+    @NotBlank
+    @Size(max = 30)
+    String marketSnapshotCode,
+
+    boolean forceRecalculate,
+
+    @NotNull
+    @Min(1)
+    Integer ruleVersionNumber
+) {
+}
+
+
+============================================================
+14. 판단 결과 Response DTO 예시
+============================================================
+
+public record InvestmentDecisionResponse(
+    Long investmentDecisionId,
+    LocalDate baseDate,
+    Long accountId,
+    String accountName,
+    MarketRegime marketRegime,
+    BigDecimal marketScore,
+    RiskGrade riskGrade,
+    BigDecimal cashRate,
+    OverallDecisionSignal overallDecisionSignal,
+    BigDecimal totalRegularBuyAmount,
+    BigDecimal totalAdditionalBuyAmount,
+    BigDecimal reserveAddAmount,
+    BigDecimal confidenceRate,
+    List<StockDecisionResponse> stockDecisions
+) {
+}
+
+
+public record StockDecisionResponse(
+    Long stockDecisionId,
+    Long stockId,
+    String ticker,
+    String stockName,
+    BigDecimal profitLossRate,
+    BigDecimal stockDrawdownRate,
+    BigDecimal marketDrawdownRate,
+    BigDecimal targetWeight,
+    BigDecimal currentWeight,
+    WeightStatus weightStatus,
+    RiskGrade riskGrade,
+    BigDecimal finalMultiplier,
+    BigDecimal regularBuyAmount,
+    BigDecimal savedAmount,
+    ActionSignal actionSignal,
+    Integer priorityNumber,
+    BigDecimal confidenceRate,
+    String decisionReason
+) {
+}
+
+
+============================================================
+15. 트랜잭션과 멱등성
+============================================================
+
+권장 멱등성 키
+
+INV_DEC:{BASE_DT}:{ACCT_ID}:{MKT_SNAP_CD}:{RULE_VER_NO}
+
+재계산 허용 시
+- forceRecalculate = false
+  동일 최신 결과 반환
+
+- forceRecalculate = true
+  CALC_SEQ 증가 후 신규 판단 생성
+
+트랜잭션 범위
+- TB_INV_DEC
+- TB_STK_DEC
+- TB_ADD_BUY
+- TB_REBUY
+- TB_DEC_CHG
+
+# 주석
+# 판단 생성 중 한 종목에서 오류가 발생한 경우
+# 전체 롤백 또는 부분 성공 중 운영정책을 정해야 한다.
+# 권장안은 계좌 단위 전체 롤백이다.
+
+
+============================================================
+16. 데이터 검증 규칙
+============================================================
+
+TB_INV_DEC
+- CONF_RT는 0~100
+- 추천 총액은 매수 가능금액 이하
+- 최신 판단은 기준일·계좌·시장코드별 1건
+
+TB_STK_DEC
+- FINAL_MULT는 0 이상
+- 추천매수금액은 0 이상
+- 실행금액은 추천금액을 초과하지 않도록 서비스 검증
+- 목표비중과 현재비중은 0~100
+
+TB_ADD_BUY
+- ELIG_YN = N이면 추천금액은 0 또는 NULL
+- 실행금액은 대기현금 이하
+- 목표비중 부족금액 이하
+
+TB_REBUY
+- REBUY_SIG = BLOCKED이면 실행 불가
+- REBUY_SIG = REBUY 또는 PARTIAL_REBUY일 때만 실행 가능
+
+
+============================================================
+17. 권장 Flyway 파일명
+============================================================
+
+V018__create_tb_inv_dec.sql
+V019__create_tb_stk_dec.sql
+V020__create_tb_dec_chg.sql
+V021__create_tb_add_buy.sql
+V022__create_tb_rebuy.sql
+
+
+============================================================
+18. PART 05 완료 체크리스트
+============================================================
+
+[ ] 시장 전체 판단과 계좌별 판단 구분 검토
+[ ] CALC_SEQ 및 LATEST_YN 정책 확정
+[ ] 시장국면 Enum 검토
+[ ] 위험등급 Enum 검토
+[ ] 종합 행동신호 Enum 검토
+[ ] 종목 행동신호 우선순위 검토
+
+[ ] TB_INV_DEC DDL 실행
+[ ] TB_STK_DEC DDL 실행
+[ ] TB_DEC_CHG DDL 실행
+[ ] TB_ADD_BUY DDL 실행
+[ ] TB_REBUY DDL 실행
+
+[ ] 시장점수 저장 테스트
+[ ] 시장국면 저장 테스트
+[ ] 종목별 매수배수 저장 테스트
+[ ] 추천 정기매수금액 합계 테스트
+[ ] 감액 확보금액 합계 테스트
+[ ] 추가매수 우선순위 테스트
+[ ] 재매수 조건 테스트
+[ ] 직전 판단 비교 테스트
+[ ] LATEST_YN 단일성 테스트
+[ ] 강제 재계산 테스트
+[ ] 계좌 단위 롤백 테스트
+
+
+============================================================
+19. PART 06 진행 예정
+============================================================
+
+대상 테이블
+1. TB_REBAL
+2. TB_REBAL_ITEM
+
+PART 06에서 연결할 기존 계산
+- 계좌별 현재비중
+- 계좌별 목표비중
+- 종목별 목표비중
+- 리밸런싱 필요 여부
+- 비중 부족금액
+- 비중 초과금액
+- 추천 매수·매도금액
+- 정기매수 조정
+- 주간 리밸런싱
+- 월간 리밸런싱
+- 현금 목표비중 보정
+- 실행 우선순위
+- 리밸런싱 완료 여부
+
+※ PART 06에서는 주간·월간 리밸런싱 계획과
+   종목별 조정항목을 상세 설계한다.

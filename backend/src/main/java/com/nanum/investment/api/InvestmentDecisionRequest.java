@@ -7,5 +7,5 @@ import java.time.LocalDate;
 import java.util.List;
 
 public record InvestmentDecisionRequest(LocalDate decisionDate, @Valid MarketSnapshot market,
-                @NotEmpty List<@Valid StockPosition> positions, long existingReservedCash) {
+        @NotEmpty List<@Valid StockPosition> positions, long existingReservedCash) {
 }

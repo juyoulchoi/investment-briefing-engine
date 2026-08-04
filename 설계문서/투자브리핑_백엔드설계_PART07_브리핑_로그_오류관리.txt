@@ -1,0 +1,1939 @@
+﻿투자 브리핑 Spring Boot 백엔드 설계
+PART 07. 브리핑·브리핑항목·API로그·스케줄러로그·오류로그 상세설계
+대상 테이블:
+TB_BRF, TB_BRF_ITEM, TB_API_LOG, TB_SCH_LOG, TB_ERR_LOG
+============================================================
+
+문서 목적
+------------------------------------------------------------
+이 문서는 투자 브리핑 시스템의 브리핑 저장, 항목별 구성,
+OpenAI 설명 생성, 외부 API 호출이력, 스케줄러 실행이력,
+시스템 오류로그를 상세 설계한다.
+
+대상 테이블
+1. TB_BRF      : 투자 브리핑 헤더 및 본문
+2. TB_BRF_ITEM : 투자 브리핑 항목
+3. TB_API_LOG  : 외부 API 호출이력
+4. TB_SCH_LOG  : 스케줄러 실행이력
+5. TB_ERR_LOG  : 시스템 오류로그
+
+이번 문서에서 연결하는 주요 기능
+- 일일·주간·월간 투자 브리핑
+- 평일 오전 자동 브리핑 생성
+- 한국시장 전일 마감요약
+- 시장국면
+- 시장심리
+- 정기매수 신호
+- 추가매수 신호
+- 재매수 신호
+- 계좌별 현금상태
+- 종목별 신호등
+- 리밸런싱 결과
+- OpenAI 설명 생성
+- 브리핑 생성·검토·발행 상태
+- 외부 API 호출 성공·실패
+- 스케줄러 실행 성공·실패
+- 예외 및 오류 추적
+
+※ 계산 결과는 Java 계산엔진이 생성한다.
+※ OpenAI는 계산결과를 바꾸지 않고 자연어 설명만 생성한다.
+※ 브리핑 원천값과 생성문을 분리하여 저장한다.
+※ 동일 기준일 브리핑 재생성 시 계산순번과 최신 여부를 관리한다.
+
+
+============================================================
+1. 브리핑 생성 기본 원칙
+============================================================
+
+1.1 브리핑 유형
+------------------------------------------------------------
+
+DAILY
+- 일일 투자 브리핑
+- 전일 또는 최근 거래일 시장 마감 포함
+- 계좌별 투자판단 포함
+
+WEEKLY
+- 주간 투자 브리핑
+- 주간 수익률, 수급, 리밸런싱 결과 포함
+
+MONTHLY
+- 월간 투자 브리핑
+- 월간 성과, 목표비중, 현금비중, 전략 변경 포함
+
+AD_HOC
+- 수시 브리핑
+- 급락, 급등, 중요 실적, 정책변화 등 특별상황
+
+# 주석
+# 브리핑 유형은 BRF_TP 컬럼으로 구분한다.
+# 같은 기준일에도 계좌별 또는 전체 브리핑을 별도로 생성할 수 있다.
+
+
+1.2 브리핑 대상 범위
+------------------------------------------------------------
+
+GLOBAL
+- 전체 계좌 및 전체 시장
+
+ACCOUNT
+- 특정 계좌
+
+MARKET
+- 특정 시장
+
+STOCK
+- 특정 종목
+
+저장 컬럼
+- SCOPE_TP
+- ACCT_ID
+- MKT_SNAP_CD
+- STK_ID
+
+# 주석
+# 범위에 따라 관련 ID는 NULL을 허용한다.
+# 예: 전체 일일 브리핑은 SCOPE_TP = GLOBAL, ACCT_ID = NULL
+
+
+1.3 브리핑 생성 상태
+------------------------------------------------------------
+
+READY
+- 원천 계산결과 준비 완료
+
+GENERATING
+- OpenAI 설명 생성 중
+
+GENERATED
+- 설명 생성 완료
+
+REVIEWED
+- 검토 완료
+
+PUBLISHED
+- 발행 완료
+
+FAILED
+- 생성 실패
+
+CANCELLED
+- 취소
+
+# 주석
+# 생성 실패 시 기존 정상 브리핑을 덮어쓰지 않는다.
+# 재생성 시 새로운 CALC_SEQ를 사용한다.
+
+
+1.4 브리핑 14개 고정 항목
+------------------------------------------------------------
+
+권장 항목 코드
+
+01. KR_MARKET_CLOSE
+- 전일 한국시장 마감요약
+- 코스피·코스닥 등락
+- 외국인·기관·개인 수급
+- 외국인 선물
+- 프로그램 매매
+- 원·달러 환율
+- 주요 상승·하락 업종과 종목
+- 상승·하락 원인
+- 보유종목 영향
+
+02. GLOBAL_MARKET
+- 미국 및 글로벌 시장요약
+
+03. MARKET_REGIME
+- 시장국면
+
+04. MARKET_SENTIMENT
+- 시장심리
+
+05. MARKET_RISK
+- 시장 위험요인
+
+06. ACCOUNT_CASH
+- 계좌별 현금 및 현금비중
+
+07. REGULAR_BUY
+- 정기매수 신호
+
+08. ADDITIONAL_BUY
+- 추가매수 신호
+
+09. REBUY
+- 재매수 신호
+
+10. STOCK_TRAFFIC_LIGHT
+- 보유종목별 신호등
+
+11. POSITION_RISK
+- 비중초과·위험종목
+
+12. REBALANCE
+- 리밸런싱 결과
+
+13. ACTION_TODAY
+- 오늘 실행할 행동
+
+14. OVERALL_VIEW
+- 종합판단
+
+# 주석
+# 브리핑 항목은 TB_BRF_ITEM에 각각 한 건씩 저장한다.
+# 항목 순서는 DISP_SEQ로 관리한다.
+
+
+============================================================
+2. TB_BRF 투자 브리핑
+============================================================
+
+2.1 테이블 목적
+------------------------------------------------------------
+TB_BRF는 브리핑의 기준일, 유형, 범위, 생성상태,
+종합제목, 종합요약, OpenAI 생성문, 발행상태를 관리한다.
+
+
+2.2 컬럼 정의
+------------------------------------------------------------
+
+BRF_ID
+- 브리핑 ID
+- BIGINT
+- PK
+- IDENTITY
+
+BASE_DT
+- 브리핑 기준일
+- DATE
+- NOT NULL
+
+CALC_SEQ
+- 생성순번
+- INTEGER
+- NOT NULL
+- 기본값: 1
+
+BRF_TP
+- 브리핑 유형
+- VARCHAR(20)
+- NOT NULL
+- 값: DAILY, WEEKLY, MONTHLY, AD_HOC
+
+SCOPE_TP
+- 브리핑 범위
+- VARCHAR(20)
+- NOT NULL
+- 값: GLOBAL, ACCOUNT, MARKET, STOCK
+
+ACCT_ID
+- 계좌 ID
+- BIGINT
+- NULL 허용
+- FK: TB_ACCT.ACCT_ID
+
+STK_ID
+- 종목 ID
+- BIGINT
+- NULL 허용
+- FK: TB_STK.STK_ID
+
+MKT_SNAP_CD
+- 시장 스냅샷 코드
+- VARCHAR(30)
+- NULL 허용
+
+INV_DEC_ID
+- 참조 투자판단 ID
+- BIGINT
+- NULL 허용
+- FK: TB_INV_DEC.INV_DEC_ID
+
+REBAL_ID
+- 참조 리밸런싱 ID
+- BIGINT
+- NULL 허용
+- FK: TB_REBAL.REBAL_ID
+
+BRF_STS
+- 브리핑 상태
+- VARCHAR(20)
+- NOT NULL
+- 기본값: READY
+
+TITLE
+- 브리핑 제목
+- VARCHAR(300)
+- NOT NULL
+
+SUMMARY_TXT
+- 종합 요약
+- TEXT
+- NULL 허용
+
+BODY_TXT
+- 최종 브리핑 본문
+- TEXT
+- NULL 허용
+
+RAW_DATA_JSON
+- 원천 계산결과 JSON
+- JSONB
+- NULL 허용
+
+AI_MODEL_NM
+- 사용 OpenAI 모델명
+- VARCHAR(100)
+- NULL 허용
+
+AI_PROMPT_VER
+- 프롬프트 버전
+- VARCHAR(50)
+- NULL 허용
+
+AI_REQ_ID
+- OpenAI 요청 ID
+- VARCHAR(100)
+- NULL 허용
+
+AI_INPUT_TOKEN_CNT
+- 입력 토큰 수
+- INTEGER
+- NULL 허용
+
+AI_OUTPUT_TOKEN_CNT
+- 출력 토큰 수
+- INTEGER
+- NULL 허용
+
+AI_COST_AMT
+- 추정 API 비용
+- NUMERIC(20,8)
+- NULL 허용
+
+AI_GEN_DTTM
+- AI 생성일시
+- TIMESTAMP WITH TIME ZONE
+- NULL 허용
+
+DATA_STS
+- 원천 데이터 상태
+- VARCHAR(20)
+- NOT NULL
+
+CONF_RT
+- 브리핑 신뢰도
+- NUMERIC(10,4)
+- NOT NULL
+
+LATEST_YN
+- 최신 브리핑 여부
+- CHAR(1)
+- NOT NULL
+- 기본값: Y
+
+PUBL_YN
+- 발행 여부
+- CHAR(1)
+- NOT NULL
+- 기본값: N
+
+PUBL_DTTM
+- 발행일시
+- TIMESTAMP WITH TIME ZONE
+- NULL 허용
+
+PUBL_CHNL
+- 발행 채널
+- VARCHAR(30)
+- NULL 허용
+- 예시: APP, EMAIL, PUSH, WEB
+
+FAIL_RSN
+- 생성 실패 사유
+- VARCHAR(2000)
+- NULL 허용
+
+CRT_DTTM
+- 생성일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+CRT_USR_ID
+- 생성자 ID
+- VARCHAR(50)
+- NULL 허용
+
+UPD_DTTM
+- 수정일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+UPD_USR_ID
+- 수정자 ID
+- VARCHAR(50)
+- NULL 허용
+
+
+2.3 PostgreSQL DDL
+------------------------------------------------------------
+
+CREATE TABLE TB_BRF (
+    BRF_ID               BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    BASE_DT              DATE                    NOT NULL,
+    CALC_SEQ             INTEGER                 NOT NULL DEFAULT 1,
+    BRF_TP               VARCHAR(20)             NOT NULL,
+    SCOPE_TP             VARCHAR(20)             NOT NULL,
+    ACCT_ID              BIGINT,
+    STK_ID               BIGINT,
+    MKT_SNAP_CD          VARCHAR(30),
+    INV_DEC_ID           BIGINT,
+    REBAL_ID             BIGINT,
+    BRF_STS              VARCHAR(20)             NOT NULL DEFAULT 'READY',
+    TITLE                VARCHAR(300)            NOT NULL,
+    SUMMARY_TXT          TEXT,
+    BODY_TXT             TEXT,
+    RAW_DATA_JSON        JSONB,
+    AI_MODEL_NM          VARCHAR(100),
+    AI_PROMPT_VER        VARCHAR(50),
+    AI_REQ_ID            VARCHAR(100),
+    AI_INPUT_TOKEN_CNT   INTEGER,
+    AI_OUTPUT_TOKEN_CNT  INTEGER,
+    AI_COST_AMT          NUMERIC(20,8),
+    AI_GEN_DTTM          TIMESTAMP WITH TIME ZONE,
+    DATA_STS             VARCHAR(20)             NOT NULL,
+    CONF_RT              NUMERIC(10,4)           NOT NULL,
+    LATEST_YN            CHAR(1)                 NOT NULL DEFAULT 'Y',
+    PUBL_YN              CHAR(1)                 NOT NULL DEFAULT 'N',
+    PUBL_DTTM            TIMESTAMP WITH TIME ZONE,
+    PUBL_CHNL            VARCHAR(30),
+    FAIL_RSN             VARCHAR(2000),
+    CRT_DTTM             TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CRT_USR_ID           VARCHAR(50),
+    UPD_DTTM             TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UPD_USR_ID           VARCHAR(50),
+
+    CONSTRAINT PK_TB_BRF PRIMARY KEY (BRF_ID),
+    CONSTRAINT UK_TB_BRF_01 UNIQUE (
+        BASE_DT,
+        CALC_SEQ,
+        BRF_TP,
+        SCOPE_TP,
+        ACCT_ID,
+        STK_ID,
+        MKT_SNAP_CD
+    ),
+    CONSTRAINT FK_TB_BRF_01 FOREIGN KEY (ACCT_ID)
+        REFERENCES TB_ACCT (ACCT_ID),
+    CONSTRAINT FK_TB_BRF_02 FOREIGN KEY (STK_ID)
+        REFERENCES TB_STK (STK_ID),
+    CONSTRAINT FK_TB_BRF_03 FOREIGN KEY (INV_DEC_ID)
+        REFERENCES TB_INV_DEC (INV_DEC_ID),
+    CONSTRAINT FK_TB_BRF_04 FOREIGN KEY (REBAL_ID)
+        REFERENCES TB_REBAL (REBAL_ID),
+    CONSTRAINT CK_TB_BRF_01 CHECK (CALC_SEQ > 0),
+    CONSTRAINT CK_TB_BRF_02 CHECK (
+        BRF_TP IN ('DAILY', 'WEEKLY', 'MONTHLY', 'AD_HOC')
+    ),
+    CONSTRAINT CK_TB_BRF_03 CHECK (
+        SCOPE_TP IN ('GLOBAL', 'ACCOUNT', 'MARKET', 'STOCK')
+    ),
+    CONSTRAINT CK_TB_BRF_04 CHECK (
+        BRF_STS IN (
+            'READY',
+            'GENERATING',
+            'GENERATED',
+            'REVIEWED',
+            'PUBLISHED',
+            'FAILED',
+            'CANCELLED'
+        )
+    ),
+    CONSTRAINT CK_TB_BRF_05 CHECK (
+        DATA_STS IN ('FRESH', 'STALE', 'MISSING', 'PARTIAL', 'ERROR')
+    ),
+    CONSTRAINT CK_TB_BRF_06 CHECK (
+        CONF_RT BETWEEN 0 AND 100
+    ),
+    CONSTRAINT CK_TB_BRF_07 CHECK (LATEST_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_BRF_08 CHECK (PUBL_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_BRF_09 CHECK (
+        AI_INPUT_TOKEN_CNT IS NULL OR AI_INPUT_TOKEN_CNT >= 0
+    ),
+    CONSTRAINT CK_TB_BRF_10 CHECK (
+        AI_OUTPUT_TOKEN_CNT IS NULL OR AI_OUTPUT_TOKEN_CNT >= 0
+    ),
+    CONSTRAINT CK_TB_BRF_11 CHECK (
+        AI_COST_AMT IS NULL OR AI_COST_AMT >= 0
+    )
+);
+
+CREATE INDEX IDX_TB_BRF_01
+    ON TB_BRF (BASE_DT DESC);
+
+CREATE INDEX IDX_TB_BRF_02
+    ON TB_BRF (BRF_TP, BASE_DT DESC);
+
+CREATE INDEX IDX_TB_BRF_03
+    ON TB_BRF (ACCT_ID, BASE_DT DESC);
+
+CREATE INDEX IDX_TB_BRF_04
+    ON TB_BRF (BRF_STS, BASE_DT DESC);
+
+CREATE INDEX IDX_TB_BRF_05
+    ON TB_BRF (LATEST_YN, PUBL_YN, BASE_DT DESC);
+
+CREATE INDEX IDX_TB_BRF_06
+    ON TB_BRF USING GIN (RAW_DATA_JSON);
+
+
+2.4 PostgreSQL COMMENT
+------------------------------------------------------------
+
+COMMENT ON TABLE TB_BRF IS '투자 브리핑 헤더 및 최종 본문';
+COMMENT ON COLUMN TB_BRF.BRF_ID IS '브리핑 ID';
+COMMENT ON COLUMN TB_BRF.BASE_DT IS '브리핑 기준일';
+COMMENT ON COLUMN TB_BRF.CALC_SEQ IS '같은 기준일·유형·범위의 생성순번';
+COMMENT ON COLUMN TB_BRF.BRF_TP IS '브리핑 유형(DAILY, WEEKLY, MONTHLY, AD_HOC)';
+COMMENT ON COLUMN TB_BRF.SCOPE_TP IS '브리핑 범위(GLOBAL, ACCOUNT, MARKET, STOCK)';
+COMMENT ON COLUMN TB_BRF.ACCT_ID IS '대상 계좌 ID';
+COMMENT ON COLUMN TB_BRF.STK_ID IS '대상 종목 ID';
+COMMENT ON COLUMN TB_BRF.MKT_SNAP_CD IS '대상 시장 스냅샷 코드';
+COMMENT ON COLUMN TB_BRF.INV_DEC_ID IS '참조 투자판단 ID';
+COMMENT ON COLUMN TB_BRF.REBAL_ID IS '참조 리밸런싱 ID';
+COMMENT ON COLUMN TB_BRF.BRF_STS IS '브리핑 생성 및 발행 상태';
+COMMENT ON COLUMN TB_BRF.TITLE IS '브리핑 제목';
+COMMENT ON COLUMN TB_BRF.SUMMARY_TXT IS '브리핑 종합요약';
+COMMENT ON COLUMN TB_BRF.BODY_TXT IS '최종 브리핑 본문';
+COMMENT ON COLUMN TB_BRF.RAW_DATA_JSON IS '브리핑 생성에 사용된 원천 계산결과 JSON';
+COMMENT ON COLUMN TB_BRF.AI_MODEL_NM IS '설명 생성에 사용한 OpenAI 모델명';
+COMMENT ON COLUMN TB_BRF.AI_PROMPT_VER IS '브리핑 생성 프롬프트 버전';
+COMMENT ON COLUMN TB_BRF.AI_REQ_ID IS 'OpenAI API 요청 식별자';
+COMMENT ON COLUMN TB_BRF.AI_INPUT_TOKEN_CNT IS 'OpenAI 입력 토큰 수';
+COMMENT ON COLUMN TB_BRF.AI_OUTPUT_TOKEN_CNT IS 'OpenAI 출력 토큰 수';
+COMMENT ON COLUMN TB_BRF.AI_COST_AMT IS 'OpenAI 호출 추정비용';
+COMMENT ON COLUMN TB_BRF.AI_GEN_DTTM IS 'OpenAI 설명 생성일시';
+COMMENT ON COLUMN TB_BRF.DATA_STS IS '브리핑 원천 데이터 상태';
+COMMENT ON COLUMN TB_BRF.CONF_RT IS '브리핑 신뢰도';
+COMMENT ON COLUMN TB_BRF.LATEST_YN IS '같은 기준일·유형·범위의 최신 브리핑 여부';
+COMMENT ON COLUMN TB_BRF.PUBL_YN IS '발행 여부';
+COMMENT ON COLUMN TB_BRF.PUBL_DTTM IS '발행일시';
+COMMENT ON COLUMN TB_BRF.PUBL_CHNL IS '발행 채널';
+COMMENT ON COLUMN TB_BRF.FAIL_RSN IS '브리핑 생성 실패 사유';
+COMMENT ON COLUMN TB_BRF.CRT_DTTM IS '생성일시';
+COMMENT ON COLUMN TB_BRF.CRT_USR_ID IS '생성자 ID';
+COMMENT ON COLUMN TB_BRF.UPD_DTTM IS '수정일시';
+COMMENT ON COLUMN TB_BRF.UPD_USR_ID IS '수정자 ID';
+
+
+============================================================
+3. TB_BRF_ITEM 투자 브리핑 항목
+============================================================
+
+3.1 테이블 목적
+------------------------------------------------------------
+TB_BRF_ITEM은 브리핑을 구성하는 세부 항목을 저장한다.
+
+예시
+- 한국시장 마감요약
+- 시장국면
+- 시장심리
+- 정기매수
+- 추가매수
+- 종목별 신호등
+- 종합판단
+
+
+3.2 컬럼 정의
+------------------------------------------------------------
+
+BRF_ITEM_ID
+- 브리핑 항목 ID
+- BIGINT
+- PK
+- IDENTITY
+
+BRF_ID
+- 브리핑 ID
+- BIGINT
+- NOT NULL
+- FK: TB_BRF.BRF_ID
+
+ITEM_CD
+- 항목 코드
+- VARCHAR(50)
+- NOT NULL
+
+ITEM_NM
+- 항목명
+- VARCHAR(150)
+- NOT NULL
+
+DISP_SEQ
+- 표시순번
+- INTEGER
+- NOT NULL
+
+ITEM_STS
+- 항목 상태
+- VARCHAR(20)
+- NOT NULL
+- 기본값: READY
+
+RAW_DATA_JSON
+- 항목 원천데이터 JSON
+- JSONB
+- NULL 허용
+
+CALC_SUMMARY
+- Java 계산결과 요약
+- TEXT
+- NULL 허용
+
+AI_TEXT
+- OpenAI 생성 설명
+- TEXT
+- NULL 허용
+
+FINAL_TEXT
+- 최종 확정 문구
+- TEXT
+- NULL 허용
+
+SIGNAL_CD
+- 대표 신호 코드
+- VARCHAR(50)
+- NULL 허용
+
+SIGNAL_LVL
+- 대표 신호 단계
+- VARCHAR(20)
+- NULL 허용
+- 예시: GREEN, YELLOW, RED
+
+CONF_RT
+- 항목 신뢰도
+- NUMERIC(10,4)
+- NOT NULL
+
+DATA_STS
+- 데이터 상태
+- VARCHAR(20)
+- NOT NULL
+
+FAIL_RSN
+- 항목 생성 실패 사유
+- VARCHAR(2000)
+- NULL 허용
+
+CRT_DTTM
+- 생성일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+UPD_DTTM
+- 수정일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+
+3.3 PostgreSQL DDL
+------------------------------------------------------------
+
+CREATE TABLE TB_BRF_ITEM (
+    BRF_ITEM_ID      BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    BRF_ID           BIGINT                  NOT NULL,
+    ITEM_CD          VARCHAR(50)             NOT NULL,
+    ITEM_NM          VARCHAR(150)            NOT NULL,
+    DISP_SEQ         INTEGER                 NOT NULL,
+    ITEM_STS         VARCHAR(20)             NOT NULL DEFAULT 'READY',
+    RAW_DATA_JSON    JSONB,
+    CALC_SUMMARY     TEXT,
+    AI_TEXT          TEXT,
+    FINAL_TEXT       TEXT,
+    SIGNAL_CD        VARCHAR(50),
+    SIGNAL_LVL       VARCHAR(20),
+    CONF_RT          NUMERIC(10,4)           NOT NULL,
+    DATA_STS         VARCHAR(20)             NOT NULL,
+    FAIL_RSN         VARCHAR(2000),
+    CRT_DTTM         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UPD_DTTM         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT PK_TB_BRF_ITEM PRIMARY KEY (BRF_ITEM_ID),
+    CONSTRAINT UK_TB_BRF_ITEM_01 UNIQUE (BRF_ID, ITEM_CD),
+    CONSTRAINT FK_TB_BRF_ITEM_01 FOREIGN KEY (BRF_ID)
+        REFERENCES TB_BRF (BRF_ID),
+    CONSTRAINT CK_TB_BRF_ITEM_01 CHECK (DISP_SEQ > 0),
+    CONSTRAINT CK_TB_BRF_ITEM_02 CHECK (
+        ITEM_STS IN ('READY', 'GENERATING', 'GENERATED', 'FAILED', 'SKIPPED')
+    ),
+    CONSTRAINT CK_TB_BRF_ITEM_03 CHECK (
+        SIGNAL_LVL IS NULL OR SIGNAL_LVL IN ('GREEN', 'YELLOW', 'RED', 'GRAY')
+    ),
+    CONSTRAINT CK_TB_BRF_ITEM_04 CHECK (
+        CONF_RT BETWEEN 0 AND 100
+    ),
+    CONSTRAINT CK_TB_BRF_ITEM_05 CHECK (
+        DATA_STS IN ('FRESH', 'STALE', 'MISSING', 'PARTIAL', 'ERROR')
+    )
+);
+
+CREATE INDEX IDX_TB_BRF_ITEM_01
+    ON TB_BRF_ITEM (BRF_ID, DISP_SEQ);
+
+CREATE INDEX IDX_TB_BRF_ITEM_02
+    ON TB_BRF_ITEM (ITEM_CD);
+
+CREATE INDEX IDX_TB_BRF_ITEM_03
+    ON TB_BRF_ITEM (SIGNAL_LVL);
+
+CREATE INDEX IDX_TB_BRF_ITEM_04
+    ON TB_BRF_ITEM USING GIN (RAW_DATA_JSON);
+
+
+3.4 PostgreSQL COMMENT
+------------------------------------------------------------
+
+COMMENT ON TABLE TB_BRF_ITEM IS '투자 브리핑 세부 항목';
+COMMENT ON COLUMN TB_BRF_ITEM.BRF_ITEM_ID IS '브리핑 항목 ID';
+COMMENT ON COLUMN TB_BRF_ITEM.BRF_ID IS '브리핑 ID';
+COMMENT ON COLUMN TB_BRF_ITEM.ITEM_CD IS '브리핑 항목 코드';
+COMMENT ON COLUMN TB_BRF_ITEM.ITEM_NM IS '브리핑 항목명';
+COMMENT ON COLUMN TB_BRF_ITEM.DISP_SEQ IS '브리핑 항목 표시순번';
+COMMENT ON COLUMN TB_BRF_ITEM.ITEM_STS IS '항목 생성상태';
+COMMENT ON COLUMN TB_BRF_ITEM.RAW_DATA_JSON IS '항목 생성에 사용된 원천데이터 JSON';
+COMMENT ON COLUMN TB_BRF_ITEM.CALC_SUMMARY IS 'Java 계산엔진이 생성한 항목 요약';
+COMMENT ON COLUMN TB_BRF_ITEM.AI_TEXT IS 'OpenAI가 생성한 항목 설명';
+COMMENT ON COLUMN TB_BRF_ITEM.FINAL_TEXT IS '검토 후 확정된 최종 항목 문구';
+COMMENT ON COLUMN TB_BRF_ITEM.SIGNAL_CD IS '항목 대표 신호 코드';
+COMMENT ON COLUMN TB_BRF_ITEM.SIGNAL_LVL IS '항목 대표 신호 단계';
+COMMENT ON COLUMN TB_BRF_ITEM.CONF_RT IS '항목 신뢰도';
+COMMENT ON COLUMN TB_BRF_ITEM.DATA_STS IS '항목 원천 데이터 상태';
+COMMENT ON COLUMN TB_BRF_ITEM.FAIL_RSN IS '항목 생성 실패 사유';
+COMMENT ON COLUMN TB_BRF_ITEM.CRT_DTTM IS '생성일시';
+COMMENT ON COLUMN TB_BRF_ITEM.UPD_DTTM IS '수정일시';
+
+
+============================================================
+4. TB_API_LOG 외부 API 호출이력
+============================================================
+
+4.1 테이블 목적
+------------------------------------------------------------
+TB_API_LOG는 KRX, Yahoo Finance, 환율, FRED, OpenAI 등
+외부 API 호출의 요청·응답·처리시간·성공여부를 저장한다.
+
+# 주석
+# 인증키, 계좌번호, 개인정보는 로그에 원문 저장하지 않는다.
+# 요청·응답 본문은 마스킹 후 저장하거나 크기 제한을 적용한다.
+
+
+4.2 컬럼 정의
+------------------------------------------------------------
+
+API_LOG_ID
+- API 로그 ID
+- BIGINT
+- PK
+- IDENTITY
+
+TRACE_ID
+- 추적 ID
+- VARCHAR(100)
+- NOT NULL
+
+API_GRP_CD
+- API 그룹 코드
+- VARCHAR(30)
+- NOT NULL
+- 예시: KRX, YAHOO, EXCHANGE, FRED, OPENAI
+
+API_NM
+- API명
+- VARCHAR(150)
+- NOT NULL
+
+HTTP_METHOD
+- HTTP 메서드
+- VARCHAR(10)
+- NULL 허용
+
+REQ_URL
+- 요청 URL
+- VARCHAR(2000)
+- NULL 허용
+
+REQ_PARAM
+- 요청 파라미터
+- TEXT
+- NULL 허용
+
+REQ_BODY
+- 요청 본문
+- TEXT
+- NULL 허용
+
+HTTP_STS_CD
+- HTTP 상태코드
+- INTEGER
+- NULL 허용
+
+RSP_BODY
+- 응답 본문
+- TEXT
+- NULL 허용
+
+SUCC_YN
+- 성공 여부
+- CHAR(1)
+- NOT NULL
+
+ERR_CD
+- 오류 코드
+- VARCHAR(100)
+- NULL 허용
+
+ERR_MSG
+- 오류 메시지
+- VARCHAR(2000)
+- NULL 허용
+
+ELAPSED_MS
+- 처리시간 밀리초
+- BIGINT
+- NULL 허용
+
+RETRY_CNT
+- 재시도 횟수
+- INTEGER
+- NOT NULL
+- 기본값: 0
+
+REQ_DTTM
+- 요청일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+
+RSP_DTTM
+- 응답일시
+- TIMESTAMP WITH TIME ZONE
+- NULL 허용
+
+BRF_ID
+- 관련 브리핑 ID
+- BIGINT
+- NULL 허용
+
+SCH_LOG_ID
+- 관련 스케줄러 로그 ID
+- BIGINT
+- NULL 허용
+
+CRT_DTTM
+- 생성일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+
+4.3 PostgreSQL DDL
+------------------------------------------------------------
+
+CREATE TABLE TB_API_LOG (
+    API_LOG_ID       BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    TRACE_ID         VARCHAR(100)            NOT NULL,
+    API_GRP_CD       VARCHAR(30)             NOT NULL,
+    API_NM           VARCHAR(150)            NOT NULL,
+    HTTP_METHOD      VARCHAR(10),
+    REQ_URL          VARCHAR(2000),
+    REQ_PARAM        TEXT,
+    REQ_BODY         TEXT,
+    HTTP_STS_CD      INTEGER,
+    RSP_BODY         TEXT,
+    SUCC_YN          CHAR(1)                 NOT NULL,
+    ERR_CD           VARCHAR(100),
+    ERR_MSG          VARCHAR(2000),
+    ELAPSED_MS       BIGINT,
+    RETRY_CNT        INTEGER                 NOT NULL DEFAULT 0,
+    REQ_DTTM         TIMESTAMP WITH TIME ZONE NOT NULL,
+    RSP_DTTM         TIMESTAMP WITH TIME ZONE,
+    BRF_ID           BIGINT,
+    SCH_LOG_ID       BIGINT,
+    CRT_DTTM         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT PK_TB_API_LOG PRIMARY KEY (API_LOG_ID),
+    CONSTRAINT FK_TB_API_LOG_01 FOREIGN KEY (BRF_ID)
+        REFERENCES TB_BRF (BRF_ID),
+    CONSTRAINT CK_TB_API_LOG_01 CHECK (SUCC_YN IN ('Y', 'N')),
+    CONSTRAINT CK_TB_API_LOG_02 CHECK (
+        ELAPSED_MS IS NULL OR ELAPSED_MS >= 0
+    ),
+    CONSTRAINT CK_TB_API_LOG_03 CHECK (RETRY_CNT >= 0)
+);
+
+CREATE INDEX IDX_TB_API_LOG_01
+    ON TB_API_LOG (TRACE_ID);
+
+CREATE INDEX IDX_TB_API_LOG_02
+    ON TB_API_LOG (API_GRP_CD, REQ_DTTM DESC);
+
+CREATE INDEX IDX_TB_API_LOG_03
+    ON TB_API_LOG (SUCC_YN, REQ_DTTM DESC);
+
+CREATE INDEX IDX_TB_API_LOG_04
+    ON TB_API_LOG (BRF_ID);
+
+
+4.4 PostgreSQL COMMENT
+------------------------------------------------------------
+
+COMMENT ON TABLE TB_API_LOG IS '외부 API 호출이력';
+COMMENT ON COLUMN TB_API_LOG.API_LOG_ID IS 'API 로그 ID';
+COMMENT ON COLUMN TB_API_LOG.TRACE_ID IS '요청 전체 흐름 추적 ID';
+COMMENT ON COLUMN TB_API_LOG.API_GRP_CD IS 'API 그룹 코드';
+COMMENT ON COLUMN TB_API_LOG.API_NM IS '호출 API명';
+COMMENT ON COLUMN TB_API_LOG.HTTP_METHOD IS 'HTTP 요청 메서드';
+COMMENT ON COLUMN TB_API_LOG.REQ_URL IS '마스킹된 요청 URL';
+COMMENT ON COLUMN TB_API_LOG.REQ_PARAM IS '마스킹된 요청 파라미터';
+COMMENT ON COLUMN TB_API_LOG.REQ_BODY IS '마스킹된 요청 본문';
+COMMENT ON COLUMN TB_API_LOG.HTTP_STS_CD IS 'HTTP 응답 상태코드';
+COMMENT ON COLUMN TB_API_LOG.RSP_BODY IS '크기 제한 및 마스킹된 응답 본문';
+COMMENT ON COLUMN TB_API_LOG.SUCC_YN IS 'API 호출 성공 여부';
+COMMENT ON COLUMN TB_API_LOG.ERR_CD IS 'API 오류 코드';
+COMMENT ON COLUMN TB_API_LOG.ERR_MSG IS 'API 오류 메시지';
+COMMENT ON COLUMN TB_API_LOG.ELAPSED_MS IS 'API 호출 처리시간(밀리초)';
+COMMENT ON COLUMN TB_API_LOG.RETRY_CNT IS 'API 호출 재시도 횟수';
+COMMENT ON COLUMN TB_API_LOG.REQ_DTTM IS 'API 요청일시';
+COMMENT ON COLUMN TB_API_LOG.RSP_DTTM IS 'API 응답일시';
+COMMENT ON COLUMN TB_API_LOG.BRF_ID IS '관련 브리핑 ID';
+COMMENT ON COLUMN TB_API_LOG.SCH_LOG_ID IS '관련 스케줄러 로그 ID';
+COMMENT ON COLUMN TB_API_LOG.CRT_DTTM IS '생성일시';
+
+
+============================================================
+5. TB_SCH_LOG 스케줄러 실행이력
+============================================================
+
+5.1 테이블 목적
+------------------------------------------------------------
+TB_SCH_LOG는 시장데이터 수집, 투자판단 계산,
+브리핑 생성·발행 등 스케줄러 작업의 실행이력을 저장한다.
+
+
+5.2 컬럼 정의
+------------------------------------------------------------
+
+SCH_LOG_ID
+- 스케줄러 로그 ID
+- BIGINT
+- PK
+- IDENTITY
+
+TRACE_ID
+- 추적 ID
+- VARCHAR(100)
+- NOT NULL
+
+JOB_CD
+- 작업 코드
+- VARCHAR(50)
+- NOT NULL
+- 예시:
+  MARKET_DATA_COLLECT
+  INVESTMENT_DECISION
+  DAILY_BRIEFING_GENERATE
+  DAILY_BRIEFING_PUBLISH
+  WEEKLY_REBALANCE
+  MONTHLY_REBALANCE
+
+JOB_NM
+- 작업명
+- VARCHAR(150)
+- NOT NULL
+
+BASE_DT
+- 작업 기준일
+- DATE
+- NULL 허용
+
+START_DTTM
+- 시작일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+
+END_DTTM
+- 종료일시
+- TIMESTAMP WITH TIME ZONE
+- NULL 허용
+
+JOB_STS
+- 작업상태
+- VARCHAR(20)
+- NOT NULL
+- 값: RUNNING, SUCCESS, PARTIAL_SUCCESS, FAILED, SKIPPED
+
+SUCC_CNT
+- 성공 건수
+- INTEGER
+- NOT NULL
+- 기본값: 0
+
+FAIL_CNT
+- 실패 건수
+- INTEGER
+- NOT NULL
+- 기본값: 0
+
+SKIP_CNT
+- 건너뜀 건수
+- INTEGER
+- NOT NULL
+- 기본값: 0
+
+ELAPSED_MS
+- 처리시간 밀리초
+- BIGINT
+- NULL 허용
+
+PARAM_JSON
+- 작업 파라미터
+- JSONB
+- NULL 허용
+
+RESULT_JSON
+- 작업 결과
+- JSONB
+- NULL 허용
+
+ERR_MSG
+- 대표 오류 메시지
+- VARCHAR(2000)
+- NULL 허용
+
+HOST_NM
+- 실행 서버명
+- VARCHAR(100)
+- NULL 허용
+
+INSTANCE_ID
+- 애플리케이션 인스턴스 ID
+- VARCHAR(100)
+- NULL 허용
+
+CRT_DTTM
+- 생성일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+UPD_DTTM
+- 수정일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+
+5.3 PostgreSQL DDL
+------------------------------------------------------------
+
+CREATE TABLE TB_SCH_LOG (
+    SCH_LOG_ID       BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    TRACE_ID         VARCHAR(100)            NOT NULL,
+    JOB_CD           VARCHAR(50)             NOT NULL,
+    JOB_NM           VARCHAR(150)            NOT NULL,
+    BASE_DT          DATE,
+    START_DTTM       TIMESTAMP WITH TIME ZONE NOT NULL,
+    END_DTTM         TIMESTAMP WITH TIME ZONE,
+    JOB_STS          VARCHAR(20)             NOT NULL,
+    SUCC_CNT         INTEGER                 NOT NULL DEFAULT 0,
+    FAIL_CNT         INTEGER                 NOT NULL DEFAULT 0,
+    SKIP_CNT         INTEGER                 NOT NULL DEFAULT 0,
+    ELAPSED_MS       BIGINT,
+    PARAM_JSON       JSONB,
+    RESULT_JSON      JSONB,
+    ERR_MSG          VARCHAR(2000),
+    HOST_NM          VARCHAR(100),
+    INSTANCE_ID      VARCHAR(100),
+    CRT_DTTM         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UPD_DTTM         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT PK_TB_SCH_LOG PRIMARY KEY (SCH_LOG_ID),
+    CONSTRAINT CK_TB_SCH_LOG_01 CHECK (
+        JOB_STS IN ('RUNNING', 'SUCCESS', 'PARTIAL_SUCCESS', 'FAILED', 'SKIPPED')
+    ),
+    CONSTRAINT CK_TB_SCH_LOG_02 CHECK (SUCC_CNT >= 0),
+    CONSTRAINT CK_TB_SCH_LOG_03 CHECK (FAIL_CNT >= 0),
+    CONSTRAINT CK_TB_SCH_LOG_04 CHECK (SKIP_CNT >= 0),
+    CONSTRAINT CK_TB_SCH_LOG_05 CHECK (
+        ELAPSED_MS IS NULL OR ELAPSED_MS >= 0
+    )
+);
+
+CREATE INDEX IDX_TB_SCH_LOG_01
+    ON TB_SCH_LOG (JOB_CD, START_DTTM DESC);
+
+CREATE INDEX IDX_TB_SCH_LOG_02
+    ON TB_SCH_LOG (JOB_STS, START_DTTM DESC);
+
+CREATE INDEX IDX_TB_SCH_LOG_03
+    ON TB_SCH_LOG (TRACE_ID);
+
+CREATE INDEX IDX_TB_SCH_LOG_04
+    ON TB_SCH_LOG (BASE_DT DESC);
+
+
+5.4 PostgreSQL COMMENT
+------------------------------------------------------------
+
+COMMENT ON TABLE TB_SCH_LOG IS '스케줄러 작업 실행이력';
+COMMENT ON COLUMN TB_SCH_LOG.SCH_LOG_ID IS '스케줄러 로그 ID';
+COMMENT ON COLUMN TB_SCH_LOG.TRACE_ID IS '작업 전체 흐름 추적 ID';
+COMMENT ON COLUMN TB_SCH_LOG.JOB_CD IS '스케줄러 작업 코드';
+COMMENT ON COLUMN TB_SCH_LOG.JOB_NM IS '스케줄러 작업명';
+COMMENT ON COLUMN TB_SCH_LOG.BASE_DT IS '작업 기준일';
+COMMENT ON COLUMN TB_SCH_LOG.START_DTTM IS '작업 시작일시';
+COMMENT ON COLUMN TB_SCH_LOG.END_DTTM IS '작업 종료일시';
+COMMENT ON COLUMN TB_SCH_LOG.JOB_STS IS '작업상태';
+COMMENT ON COLUMN TB_SCH_LOG.SUCC_CNT IS '작업 성공 건수';
+COMMENT ON COLUMN TB_SCH_LOG.FAIL_CNT IS '작업 실패 건수';
+COMMENT ON COLUMN TB_SCH_LOG.SKIP_CNT IS '작업 건너뜀 건수';
+COMMENT ON COLUMN TB_SCH_LOG.ELAPSED_MS IS '작업 처리시간(밀리초)';
+COMMENT ON COLUMN TB_SCH_LOG.PARAM_JSON IS '작업 실행 파라미터 JSON';
+COMMENT ON COLUMN TB_SCH_LOG.RESULT_JSON IS '작업 실행 결과 JSON';
+COMMENT ON COLUMN TB_SCH_LOG.ERR_MSG IS '대표 오류 메시지';
+COMMENT ON COLUMN TB_SCH_LOG.HOST_NM IS '작업 실행 서버명';
+COMMENT ON COLUMN TB_SCH_LOG.INSTANCE_ID IS '애플리케이션 인스턴스 ID';
+COMMENT ON COLUMN TB_SCH_LOG.CRT_DTTM IS '생성일시';
+COMMENT ON COLUMN TB_SCH_LOG.UPD_DTTM IS '수정일시';
+
+
+============================================================
+6. TB_ERR_LOG 시스템 오류로그
+============================================================
+
+6.1 테이블 목적
+------------------------------------------------------------
+TB_ERR_LOG는 서비스, API, 스케줄러, 데이터 수집,
+OpenAI 호출에서 발생한 오류를 통합 저장한다.
+
+
+6.2 컬럼 정의
+------------------------------------------------------------
+
+ERR_LOG_ID
+- 오류로그 ID
+- BIGINT
+- PK
+- IDENTITY
+
+TRACE_ID
+- 추적 ID
+- VARCHAR(100)
+- NULL 허용
+
+ERR_DTTM
+- 오류 발생일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+
+ERR_LVL
+- 오류 수준
+- VARCHAR(20)
+- NOT NULL
+- 값: INFO, WARN, ERROR, FATAL
+
+ERR_GRP_CD
+- 오류 그룹 코드
+- VARCHAR(50)
+- NOT NULL
+- 예시: API, SCHEDULER, DATABASE, CALCULATION, OPENAI, VALIDATION
+
+ERR_CD
+- 오류 코드
+- VARCHAR(100)
+- NULL 허용
+
+ERR_MSG
+- 오류 메시지
+- VARCHAR(2000)
+- NOT NULL
+
+EXC_CLASS_NM
+- 예외 클래스명
+- VARCHAR(300)
+- NULL 허용
+
+STACK_TRACE
+- 스택트레이스
+- TEXT
+- NULL 허용
+
+REQ_URI
+- 요청 URI
+- VARCHAR(2000)
+- NULL 허용
+
+HTTP_METHOD
+- HTTP 메서드
+- VARCHAR(10)
+- NULL 허용
+
+USR_ID
+- 사용자 ID
+- VARCHAR(100)
+- NULL 허용
+
+SCH_LOG_ID
+- 스케줄러 로그 ID
+- BIGINT
+- NULL 허용
+
+API_LOG_ID
+- API 로그 ID
+- BIGINT
+- NULL 허용
+
+BRF_ID
+- 브리핑 ID
+- BIGINT
+- NULL 허용
+
+REF_TBL_NM
+- 참조 테이블명
+- VARCHAR(50)
+- NULL 허용
+
+REF_ID
+- 참조 ID
+- BIGINT
+- NULL 허용
+
+RESOLVED_YN
+- 해결 여부
+- CHAR(1)
+- NOT NULL
+- 기본값: N
+
+RESOLVED_DTTM
+- 해결일시
+- TIMESTAMP WITH TIME ZONE
+- NULL 허용
+
+RESOLVED_USR_ID
+- 해결자 ID
+- VARCHAR(100)
+- NULL 허용
+
+RESOLUTION_MEMO
+- 해결 메모
+- VARCHAR(2000)
+- NULL 허용
+
+CRT_DTTM
+- 생성일시
+- TIMESTAMP WITH TIME ZONE
+- NOT NULL
+- 기본값: CURRENT_TIMESTAMP
+
+
+6.3 PostgreSQL DDL
+------------------------------------------------------------
+
+CREATE TABLE TB_ERR_LOG (
+    ERR_LOG_ID        BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    TRACE_ID          VARCHAR(100),
+    ERR_DTTM          TIMESTAMP WITH TIME ZONE NOT NULL,
+    ERR_LVL           VARCHAR(20)             NOT NULL,
+    ERR_GRP_CD        VARCHAR(50)             NOT NULL,
+    ERR_CD            VARCHAR(100),
+    ERR_MSG           VARCHAR(2000)           NOT NULL,
+    EXC_CLASS_NM      VARCHAR(300),
+    STACK_TRACE       TEXT,
+    REQ_URI           VARCHAR(2000),
+    HTTP_METHOD       VARCHAR(10),
+    USR_ID            VARCHAR(100),
+    SCH_LOG_ID        BIGINT,
+    API_LOG_ID        BIGINT,
+    BRF_ID            BIGINT,
+    REF_TBL_NM        VARCHAR(50),
+    REF_ID            BIGINT,
+    RESOLVED_YN       CHAR(1)                 NOT NULL DEFAULT 'N',
+    RESOLVED_DTTM     TIMESTAMP WITH TIME ZONE,
+    RESOLVED_USR_ID   VARCHAR(100),
+    RESOLUTION_MEMO   VARCHAR(2000),
+    CRT_DTTM          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT PK_TB_ERR_LOG PRIMARY KEY (ERR_LOG_ID),
+    CONSTRAINT FK_TB_ERR_LOG_01 FOREIGN KEY (SCH_LOG_ID)
+        REFERENCES TB_SCH_LOG (SCH_LOG_ID),
+    CONSTRAINT FK_TB_ERR_LOG_02 FOREIGN KEY (API_LOG_ID)
+        REFERENCES TB_API_LOG (API_LOG_ID),
+    CONSTRAINT FK_TB_ERR_LOG_03 FOREIGN KEY (BRF_ID)
+        REFERENCES TB_BRF (BRF_ID),
+    CONSTRAINT CK_TB_ERR_LOG_01 CHECK (
+        ERR_LVL IN ('INFO', 'WARN', 'ERROR', 'FATAL')
+    ),
+    CONSTRAINT CK_TB_ERR_LOG_02 CHECK (
+        RESOLVED_YN IN ('Y', 'N')
+    )
+);
+
+CREATE INDEX IDX_TB_ERR_LOG_01
+    ON TB_ERR_LOG (ERR_DTTM DESC);
+
+CREATE INDEX IDX_TB_ERR_LOG_02
+    ON TB_ERR_LOG (ERR_LVL, ERR_DTTM DESC);
+
+CREATE INDEX IDX_TB_ERR_LOG_03
+    ON TB_ERR_LOG (ERR_GRP_CD, ERR_DTTM DESC);
+
+CREATE INDEX IDX_TB_ERR_LOG_04
+    ON TB_ERR_LOG (RESOLVED_YN, ERR_DTTM DESC);
+
+CREATE INDEX IDX_TB_ERR_LOG_05
+    ON TB_ERR_LOG (TRACE_ID);
+
+
+6.4 PostgreSQL COMMENT
+------------------------------------------------------------
+
+COMMENT ON TABLE TB_ERR_LOG IS '시스템 통합 오류로그';
+COMMENT ON COLUMN TB_ERR_LOG.ERR_LOG_ID IS '오류로그 ID';
+COMMENT ON COLUMN TB_ERR_LOG.TRACE_ID IS '요청 또는 작업 추적 ID';
+COMMENT ON COLUMN TB_ERR_LOG.ERR_DTTM IS '오류 발생일시';
+COMMENT ON COLUMN TB_ERR_LOG.ERR_LVL IS '오류 수준(INFO, WARN, ERROR, FATAL)';
+COMMENT ON COLUMN TB_ERR_LOG.ERR_GRP_CD IS '오류 그룹 코드';
+COMMENT ON COLUMN TB_ERR_LOG.ERR_CD IS '오류 코드';
+COMMENT ON COLUMN TB_ERR_LOG.ERR_MSG IS '오류 메시지';
+COMMENT ON COLUMN TB_ERR_LOG.EXC_CLASS_NM IS '예외 클래스명';
+COMMENT ON COLUMN TB_ERR_LOG.STACK_TRACE IS '예외 스택트레이스';
+COMMENT ON COLUMN TB_ERR_LOG.REQ_URI IS '오류가 발생한 요청 URI';
+COMMENT ON COLUMN TB_ERR_LOG.HTTP_METHOD IS 'HTTP 요청 메서드';
+COMMENT ON COLUMN TB_ERR_LOG.USR_ID IS '오류 발생 사용자 ID';
+COMMENT ON COLUMN TB_ERR_LOG.SCH_LOG_ID IS '관련 스케줄러 로그 ID';
+COMMENT ON COLUMN TB_ERR_LOG.API_LOG_ID IS '관련 API 로그 ID';
+COMMENT ON COLUMN TB_ERR_LOG.BRF_ID IS '관련 브리핑 ID';
+COMMENT ON COLUMN TB_ERR_LOG.REF_TBL_NM IS '관련 업무 참조 테이블명';
+COMMENT ON COLUMN TB_ERR_LOG.REF_ID IS '관련 업무 참조 ID';
+COMMENT ON COLUMN TB_ERR_LOG.RESOLVED_YN IS '오류 해결 여부';
+COMMENT ON COLUMN TB_ERR_LOG.RESOLVED_DTTM IS '오류 해결일시';
+COMMENT ON COLUMN TB_ERR_LOG.RESOLVED_USR_ID IS '오류 해결자 ID';
+COMMENT ON COLUMN TB_ERR_LOG.RESOLUTION_MEMO IS '오류 해결 메모';
+COMMENT ON COLUMN TB_ERR_LOG.CRT_DTTM IS '생성일시';
+
+
+============================================================
+7. 외래키 추가 순서 주의사항
+============================================================
+
+TB_API_LOG.SCH_LOG_ID는 TB_SCH_LOG를 참조하지만
+TB_SCH_LOG가 TB_API_LOG보다 뒤에 생성될 수 있다.
+
+권장 생성 순서
+1. TB_SCH_LOG
+2. TB_BRF
+3. TB_BRF_ITEM
+4. TB_API_LOG
+5. TB_ERR_LOG
+
+또는
+- TB_API_LOG 생성 시 SCH_LOG_ID FK를 제외
+- TB_SCH_LOG 생성 후 ALTER TABLE로 FK 추가
+
+권장 ALTER 예시
+
+ALTER TABLE TB_API_LOG
+ADD CONSTRAINT FK_TB_API_LOG_02
+FOREIGN KEY (SCH_LOG_ID)
+REFERENCES TB_SCH_LOG (SCH_LOG_ID);
+
+
+============================================================
+8. 브리핑 생성 처리 순서
+============================================================
+
+1. 기준일 결정
+2. 최신 시장데이터 확인
+3. 최신 투자판단 조회
+4. 최신 리밸런싱 조회
+5. TB_BRF READY 상태 생성
+6. 14개 TB_BRF_ITEM 생성
+7. 항목별 원천데이터 JSON 생성
+8. 항목별 Java 계산요약 생성
+9. 브리핑 상태 GENERATING 변경
+10. OpenAI 요청 프롬프트 생성
+11. OpenAI API 호출
+12. TB_API_LOG 저장
+13. 항목별 AI_TEXT 저장
+14. 검증 및 금지표현 검사
+15. FINAL_TEXT 확정
+16. 전체 BODY_TXT 조합
+17. SUMMARY_TXT 생성
+18. 토큰수·모델명·요청ID 저장
+19. 브리핑 상태 GENERATED 변경
+20. 기존 최신 브리핑 LATEST_YN = N
+21. 현재 브리핑 LATEST_YN = Y
+22. 검토 후 REVIEWED
+23. 발행 시 PUBLISHED, PUBL_YN = Y
+24. 스케줄러 로그 성공 처리
+
+
+============================================================
+9. OpenAI 역할 분리
+============================================================
+
+Java 계산엔진 담당
+- 시장점수
+- 시장국면
+- 위험등급
+- 정기매수 배수
+- 추천매수금액
+- 추가매수금액
+- 재매수신호
+- 계좌 현금비중
+- 종목별 신호등
+- 리밸런싱 수치
+
+OpenAI 담당
+- 계산결과 설명
+- 핵심원인 요약
+- 사용자 친화적 문장 생성
+- 항목 간 연결 설명
+- 반복문장 정리
+
+OpenAI가 하면 안 되는 것
+- 계산값 임의변경
+- 없는 데이터 추정
+- 매수금액 재계산
+- 시장국면 재판정
+- 위험등급 임의수정
+
+# 주석
+# 프롬프트에는 "숫자와 신호를 변경하지 말 것"을 명시한다.
+# 응답 검증 단계에서 원천값과 생성문 숫자가 일치하는지 확인한다.
+
+
+============================================================
+10. 브리핑 항목 기본 데이터 예시
+============================================================
+
+INSERT INTO TB_BRF_ITEM (
+    BRF_ID,
+    ITEM_CD,
+    ITEM_NM,
+    DISP_SEQ,
+    ITEM_STS,
+    CONF_RT,
+    DATA_STS
+) VALUES
+(:briefingId, 'KR_MARKET_CLOSE', '전일 한국시장 마감요약', 1, 'READY', 100, 'FRESH'),
+(:briefingId, 'GLOBAL_MARKET', '글로벌 시장요약', 2, 'READY', 100, 'FRESH'),
+(:briefingId, 'MARKET_REGIME', '시장국면', 3, 'READY', 100, 'FRESH'),
+(:briefingId, 'MARKET_SENTIMENT', '시장심리', 4, 'READY', 100, 'FRESH'),
+(:briefingId, 'MARKET_RISK', '시장 위험요인', 5, 'READY', 100, 'FRESH'),
+(:briefingId, 'ACCOUNT_CASH', '계좌별 현금상태', 6, 'READY', 100, 'FRESH'),
+(:briefingId, 'REGULAR_BUY', '정기매수 신호', 7, 'READY', 100, 'FRESH'),
+(:briefingId, 'ADDITIONAL_BUY', '추가매수 신호', 8, 'READY', 100, 'FRESH'),
+(:briefingId, 'REBUY', '재매수 신호', 9, 'READY', 100, 'FRESH'),
+(:briefingId, 'STOCK_TRAFFIC_LIGHT', '보유종목별 신호등', 10, 'READY', 100, 'FRESH'),
+(:briefingId, 'POSITION_RISK', '비중초과 및 위험종목', 11, 'READY', 100, 'FRESH'),
+(:briefingId, 'REBALANCE', '리밸런싱 결과', 12, 'READY', 100, 'FRESH'),
+(:briefingId, 'ACTION_TODAY', '오늘 실행할 행동', 13, 'READY', 100, 'FRESH'),
+(:briefingId, 'OVERALL_VIEW', '종합판단', 14, 'READY', 100, 'FRESH');
+
+
+============================================================
+11. Java Entity 핵심 예시
+============================================================
+
+11.1 TbBrf
+------------------------------------------------------------
+
+@Entity
+@Table(
+    name = "TB_BRF",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "UK_TB_BRF_01",
+            columnNames = {
+                "BASE_DT",
+                "CALC_SEQ",
+                "BRF_TP",
+                "SCOPE_TP",
+                "ACCT_ID",
+                "STK_ID",
+                "MKT_SNAP_CD"
+            }
+        )
+    }
+)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TbBrf {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "BRF_ID")
+    private Long briefingId;
+
+    @Column(name = "BASE_DT", nullable = false)
+    private LocalDate baseDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "BRF_TP", nullable = false, length = 20)
+    private BriefingType briefingType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "SCOPE_TP", nullable = false, length = 20)
+    private BriefingScopeType scopeType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "BRF_STS", nullable = false, length = 20)
+    private BriefingStatus briefingStatus;
+
+    @Column(name = "TITLE", nullable = false, length = 300)
+    private String title;
+
+    @Column(name = "SUMMARY_TXT", columnDefinition = "TEXT")
+    private String summaryText;
+
+    @Column(name = "BODY_TXT", columnDefinition = "TEXT")
+    private String bodyText;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "RAW_DATA_JSON", columnDefinition = "jsonb")
+    private String rawDataJson;
+
+    @Column(name = "CONF_RT", nullable = false, precision = 10, scale = 4)
+    private BigDecimal confidenceRate;
+}
+
+
+11.2 TbBrfItem
+------------------------------------------------------------
+
+@Entity
+@Table(
+    name = "TB_BRF_ITEM",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "UK_TB_BRF_ITEM_01",
+            columnNames = {"BRF_ID", "ITEM_CD"}
+        )
+    }
+)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TbBrfItem {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "BRF_ITEM_ID")
+    private Long briefingItemId;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "BRF_ID", nullable = false)
+    private TbBrf briefing;
+
+    @Column(name = "ITEM_CD", nullable = false, length = 50)
+    private String itemCode;
+
+    @Column(name = "ITEM_NM", nullable = false, length = 150)
+    private String itemName;
+
+    @Column(name = "DISP_SEQ", nullable = false)
+    private Integer displaySequence;
+
+    @Column(name = "CALC_SUMMARY", columnDefinition = "TEXT")
+    private String calculationSummary;
+
+    @Column(name = "AI_TEXT", columnDefinition = "TEXT")
+    private String aiText;
+
+    @Column(name = "FINAL_TEXT", columnDefinition = "TEXT")
+    private String finalText;
+}
+
+
+============================================================
+12. Repository 예시
+============================================================
+
+public interface TbBrfRepository
+        extends JpaRepository<TbBrf, Long> {
+
+    Optional<TbBrf>
+    findTopByBaseDateAndBriefingTypeAndScopeTypeAndLatestYnOrderByCalculationSequenceDesc(
+        LocalDate baseDate,
+        BriefingType briefingType,
+        BriefingScopeType scopeType,
+        String latestYn
+    );
+
+    List<TbBrf>
+    findAllByPublishedYnOrderByBaseDateDesc(
+        String publishedYn
+    );
+}
+
+
+public interface TbBrfItemRepository
+        extends JpaRepository<TbBrfItem, Long> {
+
+    List<TbBrfItem>
+    findAllByBriefing_BriefingIdOrderByDisplaySequenceAsc(
+        Long briefingId
+    );
+}
+
+
+public interface TbSchLogRepository
+        extends JpaRepository<TbSchLog, Long> {
+
+    Optional<TbSchLog>
+    findTopByJobCodeOrderByStartDateTimeDesc(
+        String jobCode
+    );
+}
+
+
+============================================================
+13. 권장 Java Enum
+============================================================
+
+public enum BriefingType {
+    DAILY,
+    WEEKLY,
+    MONTHLY,
+    AD_HOC
+}
+
+public enum BriefingScopeType {
+    GLOBAL,
+    ACCOUNT,
+    MARKET,
+    STOCK
+}
+
+public enum BriefingStatus {
+    READY,
+    GENERATING,
+    GENERATED,
+    REVIEWED,
+    PUBLISHED,
+    FAILED,
+    CANCELLED
+}
+
+public enum BriefingItemStatus {
+    READY,
+    GENERATING,
+    GENERATED,
+    FAILED,
+    SKIPPED
+}
+
+public enum SignalLevel {
+    GREEN,
+    YELLOW,
+    RED,
+    GRAY
+}
+
+public enum SchedulerJobStatus {
+    RUNNING,
+    SUCCESS,
+    PARTIAL_SUCCESS,
+    FAILED,
+    SKIPPED
+}
+
+public enum ErrorLevel {
+    INFO,
+    WARN,
+    ERROR,
+    FATAL
+}
+
+
+============================================================
+14. 브리핑 생성 Request DTO
+============================================================
+
+public record BriefingCreateRequest(
+
+    @NotNull
+    LocalDate baseDate,
+
+    @NotNull
+    BriefingType briefingType,
+
+    @NotNull
+    BriefingScopeType scopeType,
+
+    Long accountId,
+
+    Long stockId,
+
+    @Size(max = 30)
+    String marketSnapshotCode,
+
+    boolean forceRegenerate,
+
+    @NotBlank
+    @Size(max = 50)
+    String promptVersion
+) {
+}
+
+
+============================================================
+15. 브리핑 Response DTO
+============================================================
+
+public record BriefingResponse(
+    Long briefingId,
+    LocalDate baseDate,
+    BriefingType briefingType,
+    BriefingScopeType scopeType,
+    BriefingStatus briefingStatus,
+    String title,
+    String summaryText,
+    String bodyText,
+    BigDecimal confidenceRate,
+    String publishedYn,
+    OffsetDateTime publishedDateTime,
+    List<BriefingItemResponse> items
+) {
+}
+
+
+public record BriefingItemResponse(
+    Long briefingItemId,
+    String itemCode,
+    String itemName,
+    Integer displaySequence,
+    BriefingItemStatus itemStatus,
+    String finalText,
+    String signalCode,
+    SignalLevel signalLevel,
+    BigDecimal confidenceRate,
+    DataStatus dataStatus
+) {
+}
+
+
+============================================================
+16. REST API 연결 기준
+============================================================
+
+브리핑 생성
+POST /api/briefings
+
+브리핑 목록
+GET /api/briefings
+
+조회조건
+- baseDate
+- briefingType
+- scopeType
+- accountId
+- publishedYn
+- latestYn
+
+브리핑 상세
+GET /api/briefings/{briefingId}
+
+브리핑 재생성
+POST /api/briefings/{briefingId}/regenerate
+
+브리핑 검토완료
+POST /api/briefings/{briefingId}/review
+
+브리핑 발행
+POST /api/briefings/{briefingId}/publish
+
+로그 조회
+GET /api/admin/scheduler-logs
+GET /api/admin/api-logs
+GET /api/admin/error-logs
+
+
+============================================================
+17. 스케줄러 권장 흐름
+============================================================
+
+권장 작업 코드
+
+MARKET_DATA_COLLECT
+- 시장데이터 수집
+
+INVESTMENT_DECISION
+- 투자판단 생성
+
+DAILY_BRIEFING_GENERATE
+- 일일 브리핑 생성
+
+DAILY_BRIEFING_PUBLISH
+- 일일 브리핑 발행
+
+WEEKLY_REBALANCE
+- 주간 리밸런싱
+
+MONTHLY_REBALANCE
+- 월간 리밸런싱
+
+권장 일일 실행 흐름
+1. 시장데이터 수집
+2. 데이터 검증
+3. 투자판단 생성
+4. 브리핑 원천항목 생성
+5. OpenAI 설명 생성
+6. 검증
+7. 발행
+
+# 주석
+# 생성과 발행을 분리하면 생성 실패 시 재처리가 쉽다.
+# 스케줄러 중복 실행 방지를 위해 ShedLock 또는 DB 잠금을 권장한다.
+
+
+============================================================
+18. 오류 처리 정책
+============================================================
+
+외부 API 실패
+- 재시도
+- 마지막 정상값 사용 여부 판단
+- DATA_STS = STALE 또는 ERROR
+- TB_API_LOG 저장
+- TB_ERR_LOG 저장
+
+OpenAI 실패
+- Java 계산요약으로 임시 본문 구성
+- BRF_STS = FAILED 또는 GENERATED_WITH_FALLBACK 확장 검토
+- 기존 정상 브리핑 유지
+- 재시도 가능
+
+일부 항목 실패
+- 해당 TB_BRF_ITEM.ITEM_STS = FAILED
+- 전체 브리핑은 PARTIAL 데이터 상태로 생성 가능
+- 실패항목은 계산요약만 노출 가능
+
+# 주석
+# OpenAI 실패가 투자판단 실패로 이어지면 안 된다.
+# 계산결과는 항상 별도로 조회 가능해야 한다.
+
+
+============================================================
+19. 로그 보관 정책
+============================================================
+
+권장 보관기간
+
+TB_BRF
+- 장기 보관
+
+TB_BRF_ITEM
+- 장기 보관
+
+TB_API_LOG
+- 90일~180일
+- 실패 로그는 더 오래 보관 가능
+
+TB_SCH_LOG
+- 1년
+
+TB_ERR_LOG
+- 최소 1년
+- 해결된 INFO/WARN은 단축 가능
+
+# 주석
+# 대용량 응답 본문은 별도 파일스토리지 또는 압축 저장을 검토한다.
+# 개인정보와 인증정보는 보관하지 않는다.
+
+
+============================================================
+20. 권장 Flyway 파일명
+============================================================
+
+V025__create_tb_sch_log.sql
+V026__create_tb_brf.sql
+V027__create_tb_brf_item.sql
+V028__create_tb_api_log.sql
+V029__add_tb_api_log_scheduler_fk.sql
+V030__create_tb_err_log.sql
+
+
+============================================================
+21. PART 07 완료 체크리스트
+============================================================
+
+[ ] 14개 브리핑 항목 코드 확정
+[ ] 브리핑 유형 확정
+[ ] 브리핑 범위 확정
+[ ] 생성·검토·발행 상태 확정
+[ ] OpenAI 프롬프트 버전관리 방식 확정
+[ ] 원천 JSON 저장범위 확정
+[ ] API 로그 마스킹 규칙 확정
+[ ] 응답본문 크기 제한 확정
+[ ] 로그 보관기간 확정
+[ ] 스케줄러 중복실행 방지 방식 확정
+
+[ ] TB_BRF DDL 실행
+[ ] TB_BRF_ITEM DDL 실행
+[ ] TB_API_LOG DDL 실행
+[ ] TB_SCH_LOG DDL 실행
+[ ] TB_ERR_LOG DDL 실행
+[ ] 모든 COMMENT 확인
+[ ] JSONB 인덱스 확인
+
+[ ] 일일 브리핑 생성 테스트
+[ ] 14개 항목 순서 테스트
+[ ] 한국시장 마감요약 데이터 테스트
+[ ] OpenAI 성공 처리 테스트
+[ ] OpenAI 실패 대체처리 테스트
+[ ] 일부 항목 실패 테스트
+[ ] 브리핑 재생성 테스트
+[ ] LATEST_YN 단일성 테스트
+[ ] 발행 상태 테스트
+[ ] API 로그 마스킹 테스트
+[ ] 스케줄러 성공·실패 테스트
+[ ] 오류 해결 처리 테스트
+
+
+============================================================
+22. PART 08 진행 예정
+============================================================
+
+PART 08에서는 지금까지 정의한 테이블을 실제 Spring Boot 프로젝트에
+구현하기 위한 Java 패키지와 공통 코드를 작성한다.
+
+대상 내용
+1. 공통 BaseEntity
+2. JPA Auditing
+3. Enum 전체 정리
+4. Entity 전체 구현순서
+5. Repository 전체 구현순서
+6. QueryDSL 설정
+7. Request DTO
+8. Response DTO
+9. Mapper
+10. 예외처리
+11. Validation
+12. 공통 API 응답
+13. 페이징 조회
+14. 논리삭제 처리
+15. 테스트 구조
+
+※ PART 08에서는 실제 소스파일 단위로 패키지명과 클래스명을 확정한다.

@@ -1,0 +1,1876 @@
+﻿투자 브리핑 Spring Boot 백엔드 설계
+PART 08. 공통기반·JPA·QueryDSL·DTO·예외처리 구현설계
+============================================================
+
+문서 목적
+------------------------------------------------------------
+이 문서는 PART 01~07에서 정의한 데이터베이스와 업무구조를
+Spring Boot 프로젝트에 실제 구현하기 위한 공통기반과
+Java 패키지·클래스 구조를 상세 설계한다.
+
+주요 대상
+1. 공통 BaseEntity
+2. JPA Auditing
+3. Enum 전체 정리
+4. Entity 구현순서
+5. Repository 구현순서
+6. QueryDSL 설정
+7. Request DTO
+8. Response DTO
+9. Mapper
+10. 예외처리
+11. Validation
+12. 공통 API 응답
+13. 페이징 조회
+14. 논리삭제 처리
+15. 테스트 구조
+
+기술 기준
+- Java 21
+- Spring Boot 3.5.7
+- Gradle Groovy
+- PostgreSQL
+- Spring Data JPA
+- QueryDSL
+- Bean Validation
+- Lombok
+- MapStruct
+- Flyway
+- JUnit 5
+- Testcontainers
+
+※ 본 문서는 실제 소스파일 단위로 패키지와 클래스명을 확정한다.
+※ Entity 클래스명은 사용자 선호에 따라 Tb 접두사를 유지한다.
+※ 논리삭제, Auditing, 예외응답, 페이징은 모든 도메인에서 공통 사용한다.
+
+
+============================================================
+1. 권장 프로젝트 패키지 구조
+============================================================
+
+루트 패키지 예시
+
+com.nanum.investment
+
+권장 구조
+
+com.nanum.investment
+ ├─ InvestmentApplication
+ ├─ config
+ │   ├─ JpaConfig
+ │   ├─ QuerydslConfig
+ │   ├─ JacksonConfig
+ │   ├─ OpenApiConfig
+ │   └─ SchedulingConfig
+ │
+ ├─ common
+ │   ├─ entity
+ │   │   ├─ BaseEntity
+ │   │   └─ SoftDeleteEntity
+ │   ├─ enumtype
+ │   │   ├─ UseYn
+ │   │   ├─ DeleteYn
+ │   │   └─ DataStatus
+ │   ├─ exception
+ │   │   ├─ BusinessException
+ │   │   ├─ ErrorCode
+ │   │   ├─ GlobalExceptionHandler
+ │   │   └─ ValidationError
+ │   ├─ response
+ │   │   ├─ ApiResponse
+ │   │   ├─ PageResponse
+ │   │   └─ ErrorResponse
+ │   ├─ util
+ │   │   ├─ BigDecimalUtils
+ │   │   ├─ DateUtils
+ │   │   └─ TraceIdUtils
+ │   └─ validation
+ │       ├─ YnValue
+ │       └─ YnValueValidator
+ │
+ ├─ account
+ │   ├─ entity
+ │   │   └─ TbAcct
+ │   ├─ repository
+ │   │   ├─ TbAcctRepository
+ │   │   └─ custom
+ │   │       ├─ TbAcctRepositoryCustom
+ │   │       └─ TbAcctRepositoryImpl
+ │   ├─ dto
+ │   │   ├─ request
+ │   │   └─ response
+ │   ├─ mapper
+ │   ├─ service
+ │   ├─ controller
+ │   └─ exception
+ │
+ ├─ stock
+ ├─ index
+ ├─ holding
+ ├─ regularbuy
+ ├─ cash
+ ├─ market
+ ├─ decision
+ ├─ rebalance
+ ├─ briefing
+ ├─ scheduler
+ ├─ integration
+ └─ admin
+
+# 주석
+# 도메인 단위 패키지를 권장한다.
+# entity, repository, dto, mapper, service, controller를 도메인 아래 배치한다.
+# 공통기능만 common 패키지로 분리한다.
+
+
+============================================================
+2. Gradle 기본 의존성
+============================================================
+
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.7'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.nanum'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
+    annotationProcessor 'com.querydsl:querydsl-apt:5.1.0:jakarta'
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+
+    implementation 'org.mapstruct:mapstruct:1.6.3'
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+
+============================================================
+3. JPA Auditing 설정
+============================================================
+
+3.1 JpaConfig
+------------------------------------------------------------
+
+package com.nanum.investment.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+
+@Configuration
+@EnableJpaAuditing
+public class JpaConfig {
+}
+
+
+3.2 AuditorAware 구현
+------------------------------------------------------------
+
+package com.nanum.investment.common.entity;
+
+import java.util.Optional;
+import org.springframework.data.domain.AuditorAware;
+import org.springframework.stereotype.Component;
+
+@Component
+public class SecurityAuditorAware implements AuditorAware<String> {
+
+    @Override
+    public Optional<String> getCurrentAuditor() {
+        // 인증 연동 전 기본값
+        return Optional.of("SYSTEM");
+
+        // Spring Security 연동 후
+        // Authentication authentication =
+        //     SecurityContextHolder.getContext().getAuthentication();
+        //
+        // if (authentication == null || !authentication.isAuthenticated()) {
+        //     return Optional.of("SYSTEM");
+        // }
+        //
+        // return Optional.of(authentication.getName());
+    }
+}
+
+
+============================================================
+4. BaseEntity 설계
+============================================================
+
+4.1 BaseEntity
+------------------------------------------------------------
+
+package com.nanum.investment.common.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.EntityListeners;
+import jakarta.persistence.MappedSuperclass;
+import java.time.OffsetDateTime;
+import lombok.Getter;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+@Getter
+@MappedSuperclass
+@EntityListeners(AuditingEntityListener.class)
+public abstract class BaseEntity {
+
+    @CreatedDate
+    @Column(name = "CRT_DTTM", nullable = false, updatable = false)
+    private OffsetDateTime createdDateTime;
+
+    @CreatedBy
+    @Column(name = "CRT_USR_ID", length = 50, updatable = false)
+    private String createdUserId;
+
+    @LastModifiedDate
+    @Column(name = "UPD_DTTM", nullable = false)
+    private OffsetDateTime updatedDateTime;
+
+    @LastModifiedBy
+    @Column(name = "UPD_USR_ID", length = 50)
+    private String updatedUserId;
+}
+
+# 주석
+# 생성·수정 공통 컬럼이 모두 있는 테이블만 BaseEntity를 상속한다.
+# 로그성 테이블처럼 UPD_DTTM이 없는 경우 별도 엔티티로 작성한다.
+
+
+4.2 SoftDeleteEntity
+------------------------------------------------------------
+
+package com.nanum.investment.common.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.MappedSuperclass;
+import lombok.Getter;
+
+@Getter
+@MappedSuperclass
+public abstract class SoftDeleteEntity extends BaseEntity {
+
+    @Column(name = "USE_YN", nullable = false, length = 1)
+    private String useYn = "Y";
+
+    @Column(name = "DEL_YN", nullable = false, length = 1)
+    private String deleteYn = "N";
+
+    public void activate() {
+        this.useYn = "Y";
+    }
+
+    public void deactivate() {
+        this.useYn = "N";
+    }
+
+    public void softDelete() {
+        this.deleteYn = "Y";
+        this.useYn = "N";
+    }
+
+    public boolean isDeleted() {
+        return "Y".equals(this.deleteYn);
+    }
+}
+
+# 주석
+# 공통 @Where는 Hibernate 버전에 따라 동작과 유지보수성이 달라질 수 있다.
+# 권장안은 Repository 및 QueryDSL에서 DEL_YN = 'N' 조건을 명시한다.
+# 모든 조회에서 논리삭제 조건이 누락되지 않도록 공통 Predicate를 사용한다.
+
+
+============================================================
+5. 공통 Enum 설계
+============================================================
+
+5.1 사용 여부
+------------------------------------------------------------
+
+public enum YnType {
+    Y,
+    N
+}
+
+# 주석
+# Entity에 Enum을 직접 사용할 수도 있지만,
+# 기존 DB 설계가 CHAR(1)이므로 @Enumerated(EnumType.STRING)을 사용한다.
+
+
+5.2 데이터 상태
+------------------------------------------------------------
+
+public enum DataStatus {
+    FRESH,
+    STALE,
+    MISSING,
+    PARTIAL,
+    ERROR
+}
+
+
+5.3 계좌 유형
+------------------------------------------------------------
+
+public enum AccountType {
+    DOMESTIC,
+    OVERSEAS,
+    ISA,
+    PENSION
+}
+
+
+5.4 자산 유형
+------------------------------------------------------------
+
+public enum AssetType {
+    STOCK,
+    ETF,
+    BOND_ETF,
+    COMMODITY_ETF,
+    CASH,
+    MMF,
+    REIT
+}
+
+
+5.5 종목등급
+------------------------------------------------------------
+
+public enum StockGrade {
+    CORE,
+    SATELLITE,
+    THEME
+}
+
+
+5.6 비중상태
+------------------------------------------------------------
+
+public enum WeightStatus {
+    UNDERWEIGHT,
+    NORMAL,
+    OVERWEIGHT,
+    EXCLUDED
+}
+
+
+5.7 시장국면
+------------------------------------------------------------
+
+public enum MarketRegime {
+    OVERHEATED,
+    NORMAL,
+    MILD_CORRECTION,
+    STRONG_CORRECTION,
+    CRASH_RISK
+}
+
+
+5.8 위험등급
+------------------------------------------------------------
+
+public enum RiskGrade {
+    LOW,
+    MEDIUM,
+    HIGH,
+    CRITICAL
+}
+
+
+5.9 행동신호
+------------------------------------------------------------
+
+public enum ActionSignal {
+    PAUSE,
+    REDUCE,
+    KEEP_MINIMUM,
+    INCREASE,
+    ADDITIONAL_BUY,
+    REBUY,
+    REBALANCE_SELL,
+    HOLD
+}
+
+
+5.10 리밸런싱
+------------------------------------------------------------
+
+public enum RebalanceType {
+    WEEKLY,
+    MONTHLY,
+    AD_HOC
+}
+
+public enum RebalanceStatus {
+    DRAFT,
+    CALCULATED,
+    REVIEWED,
+    APPROVED,
+    PARTIALLY_EXECUTED,
+    COMPLETED,
+    CANCELLED
+}
+
+
+5.11 브리핑
+------------------------------------------------------------
+
+public enum BriefingType {
+    DAILY,
+    WEEKLY,
+    MONTHLY,
+    AD_HOC
+}
+
+public enum BriefingStatus {
+    READY,
+    GENERATING,
+    GENERATED,
+    REVIEWED,
+    PUBLISHED,
+    FAILED,
+    CANCELLED
+}
+
+
+============================================================
+6. Entity 구현순서
+============================================================
+
+권장 구현순서
+
+1. TbIdx
+2. TbAcct
+3. TbStk
+4. TbHold
+5. TbRegBuy
+6. TbCashRsv
+7. TbCashHis
+8. TbPrcDay
+9. TbIdxDay
+10. TbExchDay
+11. TbBondDay
+12. TbMktSnap
+13. TbMktSent
+14. TbInvDec
+15. TbStkDec
+16. TbDecChg
+17. TbAddBuy
+18. TbRebuy
+19. TbRebal
+20. TbRebalItem
+21. TbSchLog
+22. TbBrf
+23. TbBrfItem
+24. TbApiLog
+25. TbErrLog
+
+# 주석
+# FK 선행 테이블부터 구현한다.
+# 양방향 연관관계는 최소화한다.
+# 기본 원칙은 ManyToOne 단방향이다.
+# 컬렉션 OneToMany는 조회 필요가 명확할 때만 추가한다.
+
+
+============================================================
+7. Entity 작성 공통규칙
+============================================================
+
+7.1 기본 생성자
+------------------------------------------------------------
+
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+
+권장 이유
+- JPA 프록시 생성 지원
+- 외부에서 무분별한 기본 생성 방지
+
+
+7.2 Setter 제한
+------------------------------------------------------------
+
+Entity 전체 @Setter 사용 비권장
+
+권장 방식
+- 생성 메서드
+- 상태 변경 메서드
+- 업무 의미가 있는 메서드
+
+예시
+
+public void updateCashAmount(BigDecimal cashAmount) {
+    this.cashAmount = cashAmount;
+}
+
+public void pause(String reason) {
+    this.regularBuyStatus = RegularBuyStatus.PAUSED;
+    this.pauseReason = reason;
+}
+
+
+7.3 연관관계
+------------------------------------------------------------
+
+@ManyToOne(fetch = FetchType.LAZY)
+
+기본 원칙
+- 모든 ManyToOne은 LAZY
+- EAGER 사용 금지
+- N+1은 QueryDSL fetch join으로 해결
+
+
+7.4 BigDecimal
+------------------------------------------------------------
+
+금액
+- precision = 20
+- scale = 4
+
+가격
+- precision = 20
+- scale = 6
+
+수량
+- precision = 20
+- scale = 8
+
+비율
+- precision = 10
+- scale = 4
+
+
+7.5 equals / hashCode
+------------------------------------------------------------
+
+Entity 전체 필드를 사용하지 않는다.
+
+권장
+- 식별자 기반
+- 영속화 전 객체 비교가 필요한 경우 별도 비즈니스 키 사용
+
+Lombok @Data 사용 금지
+- 연관관계 순환참조 가능
+- equals/hashCode 문제
+- 불필요한 Setter 생성
+
+
+============================================================
+8. Repository 구현구조
+============================================================
+
+기본 Repository
+
+public interface TbAcctRepository
+        extends JpaRepository<TbAcct, Long>,
+                TbAcctRepositoryCustom {
+}
+
+Custom Interface
+
+public interface TbAcctRepositoryCustom {
+
+    Page<TbAcct> searchAccounts(
+        AccountSearchCondition condition,
+        Pageable pageable
+    );
+}
+
+Custom Implementation
+
+@Repository
+@RequiredArgsConstructor
+public class TbAcctRepositoryImpl
+        implements TbAcctRepositoryCustom {
+
+    private final JPAQueryFactory queryFactory;
+
+    @Override
+    public Page<TbAcct> searchAccounts(
+        AccountSearchCondition condition,
+        Pageable pageable
+    ) {
+        // QueryDSL 구현
+        return Page.empty(pageable);
+    }
+}
+
+
+============================================================
+9. QueryDSL 설정
+============================================================
+
+9.1 QuerydslConfig
+------------------------------------------------------------
+
+package com.nanum.investment.config;
+
+import com.querydsl.jpa.impl.JPAQueryFactory;
+import jakarta.persistence.EntityManager;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class QuerydslConfig {
+
+    @Bean
+    public JPAQueryFactory jpaQueryFactory(
+        EntityManager entityManager
+    ) {
+        return new JPAQueryFactory(entityManager);
+    }
+}
+
+
+9.2 generated 경로
+------------------------------------------------------------
+
+Gradle 생성경로 예시
+
+def querydslDir =
+    layout.buildDirectory.dir("generated/querydsl").get().asFile
+
+sourceSets {
+    main.java.srcDirs += [querydslDir]
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.generatedSourceOutputDirectory = file(querydslDir)
+}
+
+clean {
+    delete file(querydslDir)
+}
+
+
+9.3 공통 BooleanExpression
+------------------------------------------------------------
+
+public final class QuerydslExpressions {
+
+    private QuerydslExpressions() {
+    }
+
+    public static BooleanExpression eqString(
+        StringPath path,
+        String value
+    ) {
+        return value == null || value.isBlank()
+            ? null
+            : path.eq(value);
+    }
+
+    public static BooleanExpression eqLong(
+        NumberPath<Long> path,
+        Long value
+    ) {
+        return value == null
+            ? null
+            : path.eq(value);
+    }
+}
+
+
+9.4 논리삭제 공통조건
+------------------------------------------------------------
+
+private BooleanExpression notDeleted(
+    StringPath deleteYn
+) {
+    return deleteYn.eq("N");
+}
+
+# 주석
+# Repository Custom 조회에는 항상 notDeleted 조건을 넣는다.
+# 실수 방지를 위해 도메인별 공통 Predicate 클래스를 둘 수 있다.
+
+
+============================================================
+10. QueryDSL 페이징 예시
+============================================================
+
+public Page<TbStk> searchStocks(
+    StockSearchCondition condition,
+    Pageable pageable
+) {
+    QTbStk stock = QTbStk.tbStk;
+
+    List<TbStk> content = queryFactory
+        .selectFrom(stock)
+        .where(
+            stock.deleteYn.eq("N"),
+            tickerContains(condition.ticker()),
+            stockNameContains(condition.stockName()),
+            marketCodeEq(condition.marketCode()),
+            stockGradeEq(condition.stockGrade())
+        )
+        .offset(pageable.getOffset())
+        .limit(pageable.getPageSize())
+        .orderBy(stock.stockId.desc())
+        .fetch();
+
+    Long total = queryFactory
+        .select(stock.count())
+        .from(stock)
+        .where(
+            stock.deleteYn.eq("N"),
+            tickerContains(condition.ticker()),
+            stockNameContains(condition.stockName()),
+            marketCodeEq(condition.marketCode()),
+            stockGradeEq(condition.stockGrade())
+        )
+        .fetchOne();
+
+    return new PageImpl<>(
+        content,
+        pageable,
+        total == null ? 0 : total
+    );
+}
+
+
+============================================================
+11. Request DTO 설계원칙
+============================================================
+
+기본 원칙
+- Entity 직접 노출 금지
+- 생성, 수정, 검색 DTO 분리
+- record 사용 권장
+- Validation 명시
+- Enum 사용
+- 금액과 비율 범위 검증
+
+
+11.1 계좌 생성 DTO 예시
+------------------------------------------------------------
+
+public record AccountCreateRequest(
+
+    @NotBlank
+    @Size(max = 30)
+    String accountCode,
+
+    @NotBlank
+    @Size(max = 100)
+    String accountName,
+
+    @NotNull
+    AccountType accountType,
+
+    @NotBlank
+    @Size(max = 30)
+    String brokerCode,
+
+    @NotBlank
+    @Size(max = 100)
+    String brokerName,
+
+    @NotBlank
+    @Size(max = 10)
+    String baseCurrencyCode,
+
+    @NotNull
+    @DecimalMin("0")
+    BigDecimal cashAmount,
+
+    @NotNull
+    @DecimalMin("0")
+    @DecimalMax("100")
+    BigDecimal targetCashWeight
+) {
+}
+
+
+11.2 종목 검색 DTO 예시
+------------------------------------------------------------
+
+public record StockSearchCondition(
+    String ticker,
+    String stockName,
+    String marketCode,
+    StockGrade stockGrade,
+    AssetType assetType,
+    String useYn
+) {
+}
+
+
+11.3 보유종목 수정 DTO 예시
+------------------------------------------------------------
+
+public record HoldingUpdateRequest(
+
+    @NotNull
+    @DecimalMin("0")
+    BigDecimal holdingQuantity,
+
+    @NotNull
+    @DecimalMin("0")
+    BigDecimal averagePrice,
+
+    @DecimalMin("0")
+    BigDecimal currentPrice,
+
+    @NotNull
+    @DecimalMin(value = "0", inclusive = false)
+    BigDecimal exchangeRate,
+
+    @DecimalMin("0")
+    @DecimalMax("100")
+    BigDecimal targetWeight
+) {
+}
+
+
+============================================================
+12. Response DTO 설계원칙
+============================================================
+
+기본 원칙
+- Entity 반환 금지
+- 화면·API 목적에 맞는 구조
+- 연관관계는 필요한 값만 평탄화
+- 날짜는 ISO-8601
+- 금액은 BigDecimal 유지
+
+
+12.1 계좌 응답 DTO
+------------------------------------------------------------
+
+public record AccountResponse(
+    Long accountId,
+    String accountCode,
+    String accountName,
+    AccountType accountType,
+    String brokerCode,
+    String brokerName,
+    String baseCurrencyCode,
+    BigDecimal cashAmount,
+    BigDecimal reserveCashAmount,
+    BigDecimal targetCashWeight,
+    String useYn,
+    OffsetDateTime createdDateTime,
+    OffsetDateTime updatedDateTime
+) {
+}
+
+
+12.2 종목 응답 DTO
+------------------------------------------------------------
+
+public record StockResponse(
+    Long stockId,
+    String stockCode,
+    String ticker,
+    String stockName,
+    String marketCode,
+    String countryCode,
+    String currencyCode,
+    AssetType assetType,
+    StockGrade stockGrade,
+    Long baseIndexId,
+    String baseIndexName,
+    String sectorCode,
+    String sectorName,
+    String useYn
+) {
+}
+
+
+============================================================
+13. MapStruct Mapper
+============================================================
+
+13.1 공통 설정
+------------------------------------------------------------
+
+package com.nanum.investment.config;
+
+import org.mapstruct.MapperConfig;
+import org.mapstruct.MappingConstants;
+import org.mapstruct.ReportingPolicy;
+
+@MapperConfig(
+    componentModel = MappingConstants.ComponentModel.SPRING,
+    unmappedTargetPolicy = ReportingPolicy.ERROR
+)
+public interface MapStructConfig {
+}
+
+
+13.2 AccountMapper 예시
+------------------------------------------------------------
+
+@Mapper(config = MapStructConfig.class)
+public interface AccountMapper {
+
+    @Mapping(
+        target = "reserveCashAmount",
+        source = "reserveCashAmount"
+    )
+    AccountResponse toResponse(TbAcct entity);
+}
+
+
+13.3 수정 매핑
+------------------------------------------------------------
+
+@Mapper(config = MapStructConfig.class)
+public interface HoldingMapper {
+
+    HoldingResponse toResponse(TbHold entity);
+
+    @BeanMapping(
+        nullValuePropertyMappingStrategy =
+            NullValuePropertyMappingStrategy.IGNORE
+    )
+    void updateEntity(
+        HoldingUpdateRequest request,
+        @MappingTarget TbHold entity
+    );
+}
+
+# 주석
+# Entity 생성 시 연관 Entity 조회가 필요하므로
+# 단순 Mapper에 Repository를 주입하지 않는다.
+# Service에서 FK Entity를 조회한 후 Entity 팩토리 메서드로 생성한다.
+
+
+============================================================
+14. 공통 API 응답
+============================================================
+
+14.1 ApiResponse
+------------------------------------------------------------
+
+public record ApiResponse<T>(
+    boolean success,
+    T data,
+    ErrorResponse error,
+    OffsetDateTime timestamp,
+    String traceId
+) {
+
+    public static <T> ApiResponse<T> success(
+        T data,
+        String traceId
+    ) {
+        return new ApiResponse<>(
+            true,
+            data,
+            null,
+            OffsetDateTime.now(),
+            traceId
+        );
+    }
+
+    public static <T> ApiResponse<T> failure(
+        ErrorResponse error,
+        String traceId
+    ) {
+        return new ApiResponse<>(
+            false,
+            null,
+            error,
+            OffsetDateTime.now(),
+            traceId
+        );
+    }
+}
+
+
+14.2 ErrorResponse
+------------------------------------------------------------
+
+public record ErrorResponse(
+    String code,
+    String message,
+    List<ValidationError> validationErrors
+) {
+}
+
+
+14.3 ValidationError
+------------------------------------------------------------
+
+public record ValidationError(
+    String field,
+    Object rejectedValue,
+    String message
+) {
+}
+
+
+============================================================
+15. 페이징 응답
+============================================================
+
+public record PageResponse<T>(
+    List<T> content,
+    int page,
+    int size,
+    long totalElements,
+    int totalPages,
+    boolean first,
+    boolean last
+) {
+
+    public static <T> PageResponse<T> from(Page<T> page) {
+        return new PageResponse<>(
+            page.getContent(),
+            page.getNumber(),
+            page.getSize(),
+            page.getTotalElements(),
+            page.getTotalPages(),
+            page.isFirst(),
+            page.isLast()
+        );
+    }
+}
+
+
+============================================================
+16. ErrorCode 설계
+============================================================
+
+public enum ErrorCode {
+
+    INVALID_REQUEST(
+        HttpStatus.BAD_REQUEST,
+        "COMMON-400-001",
+        "요청값이 올바르지 않습니다."
+    ),
+
+    RESOURCE_NOT_FOUND(
+        HttpStatus.NOT_FOUND,
+        "COMMON-404-001",
+        "대상을 찾을 수 없습니다."
+    ),
+
+    DUPLICATE_RESOURCE(
+        HttpStatus.CONFLICT,
+        "COMMON-409-001",
+        "이미 존재하는 데이터입니다."
+    ),
+
+    ACCOUNT_NOT_FOUND(
+        HttpStatus.NOT_FOUND,
+        "ACCOUNT-404-001",
+        "계좌를 찾을 수 없습니다."
+    ),
+
+    STOCK_NOT_FOUND(
+        HttpStatus.NOT_FOUND,
+        "STOCK-404-001",
+        "종목을 찾을 수 없습니다."
+    ),
+
+    INSUFFICIENT_CASH(
+        HttpStatus.CONFLICT,
+        "CASH-409-001",
+        "사용 가능한 현금이 부족합니다."
+    ),
+
+    INVALID_REBALANCE_STATE(
+        HttpStatus.CONFLICT,
+        "REBAL-409-001",
+        "현재 상태에서는 리밸런싱 작업을 수행할 수 없습니다."
+    ),
+
+    EXTERNAL_API_ERROR(
+        HttpStatus.BAD_GATEWAY,
+        "API-502-001",
+        "외부 API 호출에 실패했습니다."
+    ),
+
+    INTERNAL_SERVER_ERROR(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        "COMMON-500-001",
+        "서버 내부 오류가 발생했습니다."
+    );
+
+    private final HttpStatus httpStatus;
+    private final String code;
+    private final String message;
+
+    ErrorCode(
+        HttpStatus httpStatus,
+        String code,
+        String message
+    ) {
+        this.httpStatus = httpStatus;
+        this.code = code;
+        this.message = message;
+    }
+
+    public HttpStatus getHttpStatus() {
+        return httpStatus;
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+}
+
+
+============================================================
+17. BusinessException
+============================================================
+
+public class BusinessException extends RuntimeException {
+
+    private final ErrorCode errorCode;
+
+    public BusinessException(ErrorCode errorCode) {
+        super(errorCode.getMessage());
+        this.errorCode = errorCode;
+    }
+
+    public BusinessException(
+        ErrorCode errorCode,
+        String message
+    ) {
+        super(message);
+        this.errorCode = errorCode;
+    }
+
+    public ErrorCode getErrorCode() {
+        return errorCode;
+    }
+}
+
+
+============================================================
+18. GlobalExceptionHandler
+============================================================
+
+@RestControllerAdvice
+@Slf4j
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBusinessException(
+        BusinessException exception,
+        HttpServletRequest request
+    ) {
+        ErrorCode errorCode = exception.getErrorCode();
+        String traceId = TraceIdUtils.resolve(request);
+
+        ErrorResponse error = new ErrorResponse(
+            errorCode.getCode(),
+            exception.getMessage(),
+            List.of()
+        );
+
+        return ResponseEntity
+            .status(errorCode.getHttpStatus())
+            .body(ApiResponse.failure(error, traceId));
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<Void>> handleValidationException(
+        MethodArgumentNotValidException exception,
+        HttpServletRequest request
+    ) {
+        String traceId = TraceIdUtils.resolve(request);
+
+        List<ValidationError> validationErrors =
+            exception.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .map(error -> new ValidationError(
+                    error.getField(),
+                    error.getRejectedValue(),
+                    error.getDefaultMessage()
+                ))
+                .toList();
+
+        ErrorResponse error = new ErrorResponse(
+            ErrorCode.INVALID_REQUEST.getCode(),
+            ErrorCode.INVALID_REQUEST.getMessage(),
+            validationErrors
+        );
+
+        return ResponseEntity
+            .badRequest()
+            .body(ApiResponse.failure(error, traceId));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<Void>> handleException(
+        Exception exception,
+        HttpServletRequest request
+    ) {
+        String traceId = TraceIdUtils.resolve(request);
+
+        log.error(
+            "Unhandled exception. traceId={}",
+            traceId,
+            exception
+        );
+
+        ErrorResponse error = new ErrorResponse(
+            ErrorCode.INTERNAL_SERVER_ERROR.getCode(),
+            ErrorCode.INTERNAL_SERVER_ERROR.getMessage(),
+            List.of()
+        );
+
+        return ResponseEntity
+            .status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body(ApiResponse.failure(error, traceId));
+    }
+}
+
+
+============================================================
+19. Validation 공통 처리
+============================================================
+
+19.1 Y/N 검증 Annotation
+------------------------------------------------------------
+
+@Target({
+    ElementType.FIELD,
+    ElementType.PARAMETER,
+    ElementType.RECORD_COMPONENT
+})
+@Retention(RetentionPolicy.RUNTIME)
+@Constraint(validatedBy = YnValueValidator.class)
+public @interface YnValue {
+
+    String message() default "Y 또는 N만 입력할 수 있습니다.";
+
+    Class<?>[] groups() default {};
+
+    Class<? extends Payload>[] payload() default {};
+}
+
+
+19.2 Validator
+------------------------------------------------------------
+
+public class YnValueValidator
+        implements ConstraintValidator<YnValue, String> {
+
+    @Override
+    public boolean isValid(
+        String value,
+        ConstraintValidatorContext context
+    ) {
+        return value == null
+            || "Y".equals(value)
+            || "N".equals(value);
+    }
+}
+
+
+19.3 서비스 검증
+------------------------------------------------------------
+
+Bean Validation으로 처리할 것
+- NULL
+- 길이
+- 숫자 범위
+- 형식
+
+Service에서 처리할 것
+- 중복 계좌
+- 중복 종목
+- 계좌별 목표비중 합계
+- 현금 잔액 부족
+- 실행상태 전이
+- FK 업무 유효성
+- 추천금액 상한
+- 거래제한 여부
+
+
+============================================================
+20. 논리삭제 처리
+============================================================
+
+20.1 Service 예시
+------------------------------------------------------------
+
+@Transactional
+public void deleteStock(Long stockId) {
+    TbStk stock = stockRepository
+        .findById(stockId)
+        .filter(entity -> !"Y".equals(entity.getDeleteYn()))
+        .orElseThrow(
+            () -> new BusinessException(
+                ErrorCode.STOCK_NOT_FOUND
+            )
+        );
+
+    stock.softDelete();
+}
+
+
+20.2 Repository 조회
+------------------------------------------------------------
+
+Optional<TbStk> findByStockIdAndDeleteYn(
+    Long stockId,
+    String deleteYn
+);
+
+권장 호출
+
+findByStockIdAndDeleteYn(stockId, "N")
+
+
+20.3 물리삭제 제한
+------------------------------------------------------------
+
+물리삭제 허용 대상
+- 테스트 데이터
+- 완전히 미사용인 기준정보
+- 운영정책상 별도 승인된 데이터
+
+물리삭제 금지 대상
+- 보유종목
+- 현금이력
+- 투자판단
+- 리밸런싱
+- 브리핑
+- 로그
+
+
+============================================================
+21. Service 구현구조
+============================================================
+
+Interface
+
+public interface AccountService {
+
+    AccountResponse create(AccountCreateRequest request);
+
+    AccountResponse get(Long accountId);
+
+    PageResponse<AccountResponse> search(
+        AccountSearchCondition condition,
+        Pageable pageable
+    );
+
+    AccountResponse update(
+        Long accountId,
+        AccountUpdateRequest request
+    );
+
+    void delete(Long accountId);
+}
+
+
+Implementation
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class AccountServiceImpl
+        implements AccountService {
+
+    private final TbAcctRepository accountRepository;
+    private final AccountMapper accountMapper;
+
+    @Override
+    @Transactional
+    public AccountResponse create(
+        AccountCreateRequest request
+    ) {
+        validateDuplicate(request.accountCode());
+
+        TbAcct account = TbAcct.create(
+            request.accountCode(),
+            request.accountName(),
+            request.accountType(),
+            request.brokerCode(),
+            request.brokerName(),
+            request.baseCurrencyCode(),
+            request.cashAmount(),
+            request.targetCashWeight()
+        );
+
+        return accountMapper.toResponse(
+            accountRepository.save(account)
+        );
+    }
+
+    @Override
+    public AccountResponse get(Long accountId) {
+        return accountMapper.toResponse(
+            getActiveAccount(accountId)
+        );
+    }
+
+    private TbAcct getActiveAccount(Long accountId) {
+        return accountRepository
+            .findByAccountIdAndDeleteYn(accountId, "N")
+            .orElseThrow(
+                () -> new BusinessException(
+                    ErrorCode.ACCOUNT_NOT_FOUND
+                )
+            );
+    }
+
+    private void validateDuplicate(String accountCode) {
+        if (accountRepository.existsByAccountCodeAndDeleteYn(
+            accountCode,
+            "N"
+        )) {
+            throw new BusinessException(
+                ErrorCode.DUPLICATE_RESOURCE,
+                "이미 등록된 계좌 코드입니다."
+            );
+        }
+    }
+}
+
+
+============================================================
+22. Controller 구현구조
+============================================================
+
+@RestController
+@RequestMapping("/api/accounts")
+@RequiredArgsConstructor
+public class AccountController {
+
+    private final AccountService accountService;
+
+    @PostMapping
+    public ResponseEntity<ApiResponse<AccountResponse>> create(
+        @Valid @RequestBody AccountCreateRequest request,
+        HttpServletRequest servletRequest
+    ) {
+        String traceId = TraceIdUtils.resolve(servletRequest);
+
+        AccountResponse response =
+            accountService.create(request);
+
+        return ResponseEntity
+            .status(HttpStatus.CREATED)
+            .body(ApiResponse.success(response, traceId));
+    }
+
+    @GetMapping("/{accountId}")
+    public ApiResponse<AccountResponse> get(
+        @PathVariable Long accountId,
+        HttpServletRequest servletRequest
+    ) {
+        return ApiResponse.success(
+            accountService.get(accountId),
+            TraceIdUtils.resolve(servletRequest)
+        );
+    }
+}
+
+
+============================================================
+23. Trace ID 처리
+============================================================
+
+권장 헤더
+- X-Trace-Id
+
+TraceIdFilter 예시
+
+@Component
+public class TraceIdFilter extends OncePerRequestFilter {
+
+    private static final String TRACE_ID_HEADER = "X-Trace-Id";
+
+    @Override
+    protected void doFilterInternal(
+        HttpServletRequest request,
+        HttpServletResponse response,
+        FilterChain filterChain
+    ) throws ServletException, IOException {
+
+        String traceId = Optional
+            .ofNullable(request.getHeader(TRACE_ID_HEADER))
+            .filter(value -> !value.isBlank())
+            .orElse(UUID.randomUUID().toString());
+
+        MDC.put("traceId", traceId);
+        response.setHeader(TRACE_ID_HEADER, traceId);
+
+        try {
+            filterChain.doFilter(request, response);
+        } finally {
+            MDC.remove("traceId");
+        }
+    }
+}
+
+
+============================================================
+24. BigDecimal 공통 유틸
+============================================================
+
+public final class BigDecimalUtils {
+
+    public static final BigDecimal ZERO =
+        BigDecimal.ZERO;
+
+    private BigDecimalUtils() {
+    }
+
+    public static BigDecimal defaultZero(
+        BigDecimal value
+    ) {
+        return value == null
+            ? BigDecimal.ZERO
+            : value;
+    }
+
+    public static BigDecimal dividePercent(
+        BigDecimal numerator,
+        BigDecimal denominator
+    ) {
+        if (numerator == null
+            || denominator == null
+            || denominator.compareTo(BigDecimal.ZERO) == 0) {
+            return null;
+        }
+
+        return numerator
+            .divide(
+                denominator,
+                8,
+                RoundingMode.HALF_UP
+            )
+            .multiply(BigDecimal.valueOf(100))
+            .setScale(4, RoundingMode.HALF_UP);
+    }
+
+    public static BigDecimal min(
+        BigDecimal... values
+    ) {
+        return Arrays.stream(values)
+            .filter(Objects::nonNull)
+            .min(BigDecimal::compareTo)
+            .orElse(BigDecimal.ZERO);
+    }
+}
+
+
+============================================================
+25. 테스트 구조
+============================================================
+
+src/test/java/com/nanum/investment
+ ├─ common
+ ├─ account
+ │   ├─ AccountServiceTest
+ │   ├─ AccountRepositoryTest
+ │   └─ AccountControllerTest
+ ├─ holding
+ ├─ decision
+ ├─ rebalance
+ └─ briefing
+
+
+25.1 단위 테스트
+------------------------------------------------------------
+
+대상
+- 계산 서비스
+- Entity 상태변경
+- Validation
+- Mapper
+- 우선순위 계산
+- 금액 상한 계산
+
+도구
+- JUnit 5
+- AssertJ
+- Mockito
+
+
+25.2 Repository 테스트
+------------------------------------------------------------
+
+@DataJpaTest
+@Import(QuerydslConfig.class)
+
+검증
+- 논리삭제 조건
+- 페이징
+- 동적 조건
+- fetch join
+- 정렬
+- UNIQUE 제약
+
+
+25.3 통합 테스트
+------------------------------------------------------------
+
+@SpringBootTest
+@Testcontainers
+
+PostgreSQLContainer 사용
+
+검증
+- Flyway
+- 실제 PostgreSQL 타입
+- JSONB
+- NUMERIC 정밀도
+- FK
+- 트랜잭션
+- 낙관적 잠금
+
+
+25.4 Controller 테스트
+------------------------------------------------------------
+
+@WebMvcTest
+
+검증
+- Validation 오류
+- HTTP 상태코드
+- 공통 ApiResponse
+- traceId
+- ErrorCode
+
+
+============================================================
+26. Testcontainers 설정 예시
+============================================================
+
+@Testcontainers
+@SpringBootTest
+public abstract class IntegrationTestSupport {
+
+    @Container
+    static PostgreSQLContainer<?> postgres =
+        new PostgreSQLContainer<>("postgres:16")
+            .withDatabaseName("investment")
+            .withUsername("investment")
+            .withPassword("investment");
+
+    @DynamicPropertySource
+    static void registerProperties(
+        DynamicPropertyRegistry registry
+    ) {
+        registry.add(
+            "spring.datasource.url",
+            postgres::getJdbcUrl
+        );
+        registry.add(
+            "spring.datasource.username",
+            postgres::getUsername
+        );
+        registry.add(
+            "spring.datasource.password",
+            postgres::getPassword
+        );
+    }
+}
+
+
+============================================================
+27. application.yml 기본 예시
+============================================================
+
+spring:
+  application:
+    name: investment-briefing
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/investment
+    username: investment
+    password: investment
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 100
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+    locations: classpath:db/migration
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+logging:
+  pattern:
+    level: "%5p [traceId:%X{traceId}]"
+
+
+============================================================
+28. 구현 우선순위
+============================================================
+
+1단계 공통기반
+- JpaConfig
+- QuerydslConfig
+- BaseEntity
+- SoftDeleteEntity
+- ApiResponse
+- PageResponse
+- ErrorCode
+- BusinessException
+- GlobalExceptionHandler
+- TraceIdFilter
+
+2단계 기준정보
+- TbIdx
+- TbAcct
+- TbStk
+- Repository
+- DTO
+- Mapper
+- Service
+- Controller
+
+3단계 보유·현금
+- TbHold
+- TbRegBuy
+- TbCashRsv
+- TbCashHis
+
+4단계 시장데이터
+- TbPrcDay
+- TbIdxDay
+- TbExchDay
+- TbBondDay
+- TbMktSnap
+- TbMktSent
+
+5단계 판단엔진
+- TbInvDec
+- TbStkDec
+- TbDecChg
+- TbAddBuy
+- TbRebuy
+
+6단계 리밸런싱
+- TbRebal
+- TbRebalItem
+
+7단계 브리핑·로그
+- TbSchLog
+- TbBrf
+- TbBrfItem
+- TbApiLog
+- TbErrLog
+
+
+============================================================
+29. PART 08 완료 체크리스트
+============================================================
+
+[ ] 루트 패키지 확정
+[ ] 도메인별 패키지 구조 확정
+[ ] Java 21 적용 확인
+[ ] Spring Boot 3.5.7 적용 확인
+[ ] QueryDSL QClass 생성 확인
+[ ] MapStruct 생성 확인
+[ ] Flyway 실행 확인
+
+[ ] BaseEntity 구현
+[ ] SoftDeleteEntity 구현
+[ ] JpaConfig 구현
+[ ] AuditorAware 구현
+[ ] QuerydslConfig 구현
+[ ] TraceIdFilter 구현
+
+[ ] 공통 Enum 구현
+[ ] ApiResponse 구현
+[ ] ErrorResponse 구현
+[ ] PageResponse 구현
+[ ] ErrorCode 구현
+[ ] BusinessException 구현
+[ ] GlobalExceptionHandler 구현
+
+[ ] 기준정보 Entity 구현
+[ ] Repository 및 Custom Repository 구현
+[ ] Request DTO 구현
+[ ] Response DTO 구현
+[ ] Mapper 구현
+[ ] Service 구현
+[ ] Controller 구현
+
+[ ] 논리삭제 테스트
+[ ] Validation 테스트
+[ ] QueryDSL 페이징 테스트
+[ ] JSONB 매핑 테스트
+[ ] PostgreSQL 통합 테스트
+[ ] Testcontainers 테스트
+[ ] 공통 오류응답 테스트
+[ ] traceId 테스트
+
+
+============================================================
+30. PART 09 진행 예정
+============================================================
+
+PART 09에서는 실제 계산엔진 구조를 상세 설계한다.
+
+대상 내용
+1. 시장점수 계산기
+2. 시장국면 판정기
+3. 시장심리 계산기
+4. 계좌 총자산 계산기
+5. 현금비중 계산기
+6. 종목 비중 계산기
+7. 정기매수 배수 계산기
+8. 추천 정기매수금액 계산기
+9. 감액분 계산기
+10. 추가매수 우선순위 계산기
+11. 추가매수 추천금액 계산기
+12. 재매수 조건 계산기
+13. 종목 신호등 계산기
+14. 종합 행동신호 계산기
+15. 계산규칙 버전관리
+16. 단위 테스트 시나리오
+
+※ PART 09에서는 계산식을 Java 클래스와 메서드 단위로 확정한다.
