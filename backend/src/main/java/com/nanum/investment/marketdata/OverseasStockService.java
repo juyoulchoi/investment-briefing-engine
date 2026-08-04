@@ -11,7 +11,9 @@ import org.springframework.web.client.RestClient;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -149,7 +151,7 @@ public class OverseasStockService {
             JsonNode close = arrayValue(quote.path("close"), i);
             if (close == null || close.isNull() || !close.isNumber()) continue;
             LocalDate day = Instant.ofEpochSecond(timestamps.get(i).asLong()).atZone(zone).toLocalDate();
-            if (day.isBefore(from) || day.isAfter(to)) continue;
+            if (day.isBefore(from) || day.isAfter(to) || !isCompletedTradingDay(day, zone)) continue;
             jdbc.sql("""
                 INSERT INTO "TB_PRC_DAY"
                   ("STK_ID","MKT_CD","STK_CD","TRADE_DT","OPEN_PRC","HIGH_PRC","LOW_PRC",
@@ -172,6 +174,12 @@ public class OverseasStockService {
         return saved;
     }
 
+    private boolean isCompletedTradingDay(LocalDate day, ZoneId exchangeZone) {
+        ZonedDateTime now = ZonedDateTime.now(exchangeZone);
+        return day.isBefore(now.toLocalDate())
+                || day.equals(now.toLocalDate()) && !now.toLocalTime().isBefore(LocalTime.of(16, 15));
+    }
+
     private JsonNode arrayValue(JsonNode array, int index) {
         return array==null || !array.isArray() || index>=array.size() ? null : array.get(index);
     }
@@ -189,8 +197,3 @@ public class OverseasStockService {
     }
     public record HistoryCollectionResult(String symbol, LocalDate from, LocalDate to, int savedCount) {}
 }
-
-
-
-
-
