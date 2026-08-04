@@ -9,8 +9,9 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/investment/buy-plans")
 public class DailyBuyPlanController {
- private final DailyBuyPlanService plans;
- public DailyBuyPlanController(DailyBuyPlanService plans){this.plans=plans;}
+ private final DailyBuyPlanService plans;private final AdditionalBuyViewService additionalBuys;
+ public DailyBuyPlanController(DailyBuyPlanService plans,AdditionalBuyViewService additionalBuys){this.plans=plans;this.additionalBuys=additionalBuys;}
  @PostMapping("/calculate") public DailyBuyPlanResult calculate(@RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate baseDate){return plans.calculateAndSave(baseDate);}
+ @GetMapping("/additional/latest") public AdditionalBuyViewResult latestAdditional(){return additionalBuys.latest();}
  @GetMapping public List<Map<String,Object>> find(@RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate baseDate){return plans.find(baseDate);}
 }
