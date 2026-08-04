@@ -10,12 +10,12 @@ public class MarketSentimentCalculator {
     public Result calculate(MarketSentimentInput i) {
         if (i == null)
             throw new IllegalArgumentException("시장심리 입력은 필수입니다.");
-        BigDecimal score = new BigDecimal("100").subtract(n(i.newsFearScore()).multiply(b("0.20")))
-                .subtract(n(i.aiFatigueScore()).multiply(b("0.10")))
+        BigDecimal score = b("100").subtract(n(i.newsFearScore())).multiply(b("0.20"))
+                .add(b("100").subtract(n(i.aiFatigueScore())).multiply(b("0.10")))
                 .add(n(i.earningsConfidenceScore()).multiply(b("0.20"))).add(n(i.liquidityScore()).multiply(b("0.10")))
-                .add(n(i.flowScore()).multiply(b("0.15"))).subtract(n(i.exchangePressureScore()).multiply(b("0.10")))
-                .subtract(n(i.ratePressureScore()).multiply(b("0.05")))
-                .subtract(n(i.volatilityPressureScore()).multiply(b("0.10")))
+                .add(n(i.flowScore()).multiply(b("0.15"))).add(b("100").subtract(n(i.exchangePressureScore())).multiply(b("0.10")))
+                .add(b("100").subtract(n(i.ratePressureScore())).multiply(b("0.05")))
+                .add(b("100").subtract(n(i.volatilityPressureScore())).multiply(b("0.10")))
                 .max(BigDecimal.ZERO).min(b("100")).setScale(4, RoundingMode.HALF_UP);
         SentimentPhase phase = score.compareTo(b("80")) >= 0 ? SentimentPhase.GREED
                 : score.compareTo(b("65")) >= 0 ? SentimentPhase.OPTIMISM
