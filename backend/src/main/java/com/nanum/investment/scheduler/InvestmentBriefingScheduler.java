@@ -16,7 +16,7 @@ public class InvestmentBriefingScheduler {
     private final InvestmentBriefingService briefingService;
 
     @Scheduled(
-            cron = "${investment.briefing.scheduler.cron:0 30 8 * * MON-FRI}",
+            cron = "${investment.briefing.scheduler.cron:0 20 8 * * MON-FRI}",
             zone = "${investment.briefing.scheduler.zone:Asia/Seoul}")
     public void generateDailyBriefing() {
         try {
