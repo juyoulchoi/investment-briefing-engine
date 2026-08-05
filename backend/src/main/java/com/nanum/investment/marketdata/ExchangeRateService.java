@@ -26,7 +26,6 @@ public class ExchangeRateService {
     AND "BASE_DT" BETWEEN :from AND :to ORDER BY "BASE_DT" DESC
    """).param("base",currency(requestedBase)).param("quote",currency(requestedQuote)).param("from",from).param("to",to).query().listOfRows();
  }
- @Scheduled(cron="${exchange-rate.cron:0 10 7 * * MON-FRI}",zone="Asia/Seoul") public void scheduledCollect(){try{LocalDate today=LocalDate.now();collect(today.minusDays(7),today);}catch(Exception e){log.error("환율 자동 수집 실패: {}",e.getMessage());}}
  private void save(ExchangeRateCollector.Quote value){jdbc.sql("""
   INSERT INTO "TB_EXCH_DAY"("BASE_DT","BASE_CURR_CD","QUOTE_CURR_CD","EXCH_RT","DATA_SRC_CD","DATA_STS")
   VALUES(:day,:base,:quote,:rate,:source,'FRESH') ON CONFLICT("BASE_DT","BASE_CURR_CD","QUOTE_CURR_CD") DO UPDATE SET

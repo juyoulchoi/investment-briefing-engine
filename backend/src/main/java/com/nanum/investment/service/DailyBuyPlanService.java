@@ -38,7 +38,6 @@ public class DailyBuyPlanService {
   SELECT 'ADDITIONAL_BUY' plan_type,a."ADD_BUY_ID" plan_id,a."BASE_DT" base_date,s."STK_CD" stock_code,s."STK_NM" stock_name,a."ELIG_YN" eligible_yn,a."PRIO_NO" priority,a."PRIO_SCR" score,a."RCMD_ADD_AMT" recommended_amount,a."ELIG_RSN" reason,a."EXEC_YN" executed_yn FROM "TB_ADD_BUY" a JOIN "TB_STK" s ON s."STK_ID"=a."STK_ID" WHERE a."BASE_DT"=:day
   UNION ALL SELECT 'REBUY',r."REBUY_ID",r."BASE_DT",s."STK_CD",s."STK_NM",r."ELIG_YN",r."PRIO_NO",r."REBUY_SCR",r."RCMD_REBUY_AMT",r."ELIG_RSN",r."EXEC_YN" FROM "TB_REBUY" r JOIN "TB_STK" s ON s."STK_ID"=r."STK_ID" WHERE r."BASE_DT"=:day ORDER BY plan_type,priority NULLS LAST,stock_code
   """).param("day",date).query().listOfRows();}
- @Scheduled(cron="${daily-buy-plan.cron:0 10 8 * * MON-FRI}",zone="Asia/Seoul") public void scheduledCalculate(){try{calculateAndSave(LocalDate.now(ZoneId.of("Asia/Seoul")));}catch(Exception e){log.error("추가매수·재매수 일일 계산 실패: {}",e.getMessage());}}
 
  private Decision latestDecision(LocalDate date){return jdbc.sql("SELECT \"INV_DEC_ID\",\"MKT_REGIME\",\"RISK_GRADE\" FROM \"TB_INV_DEC\" WHERE \"BASE_DT\"=:day AND \"LATEST_YN\"='Y' AND \"DATA_STS\" IN ('FRESH','PARTIAL') ORDER BY \"CALC_SEQ\" DESC LIMIT 1").param("day",date).query((rs,n)->new Decision(rs.getLong(1),MarketRegime.valueOf(rs.getString(2)),RiskGrade.valueOf(rs.getString(3)))).optional().orElseThrow(()->new IllegalStateException("8단계 최신 투자판단이 없습니다."));}
  private List<Candidate> candidates(Long id,LocalDate date){return jdbc.sql("""

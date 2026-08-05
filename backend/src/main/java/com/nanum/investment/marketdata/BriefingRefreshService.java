@@ -24,7 +24,8 @@ public class BriefingRefreshService {
   boolean sentiment=snapshot&&attempt("7 시장심리 계산",completed,failures,results,()->sentiments.generate(day));
   boolean decision=sentiment&&attempt("8 투자판단 생성",completed,failures,results,()->decisions.generate(day));
   boolean plan=decision&&attempt("9 추가매수·재매수 계산",completed,failures,results,()->plans.calculateAndSave(day));
-  if(plan)attempt("10 브리핑 원천데이터 생성",completed,failures,results,()->rawData.generate(day));
+  boolean rebalance=plan&&attempt("9 리밸런싱 계산",completed,failures,results,()->rebalancing.generate(day));
+  if(rebalance)attempt("10 브리핑 원천데이터 생성",completed,failures,results,()->rawData.generate(day));
   return new BriefingRefreshResult(failures.isEmpty(),day,market.krxBaseDate(),market.krxReceivedCounts(),market.overseasRequestedCount(),market.overseasSuccessCount(),market.overseasSuccessSymbols(),List.copyOf(completed),Map.copyOf(results),List.copyOf(failures));
  }
  private boolean attempt(String name,List<String> completed,List<String> failures,Map<String,Object> results,Step step){try{results.put(name,step.run());completed.add(name);return true;}catch(Exception e){failures.add(name+": "+rootMessage(e));return false;}}

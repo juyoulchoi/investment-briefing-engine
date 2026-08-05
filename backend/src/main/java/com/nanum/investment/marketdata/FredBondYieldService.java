@@ -21,7 +21,6 @@ public class FredBondYieldService {
    "CHG_BP" change_basis_points,"DATA_SRC_CD" data_source_code,"DATA_STS" data_status
   FROM "TB_BOND_DAY" WHERE "BASE_DT" BETWEEN :from AND :to ORDER BY "BASE_DT" DESC,"BOND_CD"
   """).param("from",from).param("to",to).query().listOfRows();}
- @Scheduled(cron="${fred.bonds.cron:0 20 7 * * MON-FRI}",zone="America/New_York") public void scheduledCollect(){try{collect(LocalDate.now().minusDays(7),LocalDate.now());}catch(Exception e){log.error("FRED 채권금리 자동 수집 실패: {}",e.getMessage());}}
  private void save(BondYieldCollector.Yield value){BigDecimal previous=jdbc.sql("SELECT \"YLD_RT\" FROM \"TB_BOND_DAY\" WHERE \"BOND_CD\"=:code AND \"BASE_DT\"<:day ORDER BY \"BASE_DT\" DESC LIMIT 1").param("code",value.bondCode()).param("day",value.baseDate()).query(BigDecimal.class).optional().orElse(null);BigDecimal bp=previous==null?null:value.yieldRate().subtract(previous).multiply(new BigDecimal("100")).setScale(4,RoundingMode.HALF_UP);jdbc.sql("""
   INSERT INTO "TB_BOND_DAY"("BASE_DT","BOND_CD","BOND_NM","CNTRY_CD","MATURITY_MON","YLD_RT","PREV_YLD_RT","CHG_BP","DATA_SRC_CD","DATA_STS")
   VALUES(:day,:code,:name,:country,:months,:rate,:previous,:bp,'FRED','FRESH')

@@ -23,7 +23,6 @@ public class MarketSentimentGenerationService {
   List<SnapshotInput> inputs=inputs(baseDate);if(inputs.size()<2)throw new IllegalStateException("KR_MARKET·US_MARKET 스냅샷이 모두 필요합니다.");
   return new MarketSentimentGenerationResult(baseDate,inputs.stream().map(this::calculateAndSave).toList());
  }
- @Scheduled(cron="${market-sentiment.cron:0 45 7 * * MON-FRI}",zone="Asia/Seoul") public void scheduledGenerate(){try{generate(LocalDate.now(ZoneId.of("Asia/Seoul")));}catch(Exception e){log.error("시장심리 자동 생성 실패: {}",e.getMessage());}}
 
  private List<SnapshotInput> inputs(LocalDate day){return jdbc.sql("""
   SELECT s."BASE_DT",s."MKT_SNAP_CD",s."MKT_BREADTH_RT",s."LIQD_SCR",s."FRGN_NET_AMT",s."INST_NET_AMT",

@@ -26,8 +26,6 @@ public class AutomaticInvestmentDecisionService {
   return new AutomaticInvestmentDecisionResult(baseDate,List.of("KR_MARKET","US_MARKET"),positions.size(),reservedCash,decision);
  }
 
- @Scheduled(cron="${investment-decision.cron:0 0 8 * * MON-FRI}",zone="Asia/Seoul") public void scheduledGenerate(){try{generate(LocalDate.now(ZoneId.of("Asia/Seoul")));}catch(Exception e){log.error("자동 투자판단 생성 실패: {}",e.getMessage());}}
-
  private void ensureSnapshots(LocalDate baseDate){
   List<String> codes=jdbc.sql("SELECT \"MKT_SNAP_CD\" FROM \"TB_MKT_SNAP\" WHERE \"BASE_DT\"=:day AND \"MKT_SNAP_CD\" IN ('KR_MARKET','US_MARKET') AND \"DATA_STS\" IN ('FRESH','PARTIAL')").param("day",baseDate).query(String.class).list();
   if(!codes.containsAll(List.of("KR_MARKET","US_MARKET")))throw new IllegalStateException("검증 완료된 KR_MARKET·US_MARKET 스냅샷이 모두 필요합니다.");

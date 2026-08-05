@@ -36,7 +36,6 @@ public class BriefingRawDataService {
  }
 
  public Map<String,Object> find(Long briefingId){List<Map<String,Object>> rows=jdbc.sql("SELECT \"BRF_ID\" briefing_id,\"BASE_DT\" base_date,\"CALC_SEQ\" calculation_sequence,\"BRF_STS\" briefing_status,\"DATA_STS\" data_status,\"CONF_RT\" confidence,\"RAW_DATA_JSON\" raw_data FROM \"TB_BRF\" WHERE \"BRF_ID\"=:id").param("id",briefingId).query().listOfRows();if(rows.isEmpty())throw new IllegalArgumentException("브리핑 원천데이터를 찾을 수 없습니다.");return rows.getFirst();}
- @Scheduled(cron="${briefing-raw-data.cron:0 20 8 * * MON-FRI}",zone="Asia/Seoul") public void scheduledGenerate(){try{generate(LocalDate.now(ZoneId.of("Asia/Seoul")));}catch(Exception e){log.error("브리핑 원천데이터 자동 생성 실패: {}",e.getMessage());}}
 
  private LinkedHashMap<String,Object> sections(LocalDate date,Long decisionId){
   LinkedHashMap<String,Object> out=new LinkedHashMap<>();

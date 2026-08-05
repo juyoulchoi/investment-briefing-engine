@@ -34,8 +34,6 @@ public class MarketSnapshotGenerationService {
   FROM "TB_MKT_SNAP" WHERE "BASE_DT"=:day ORDER BY "MKT_SNAP_CD"
   """).param("day",baseDate).query().listOfRows();}
 
- @Scheduled(cron="${market-snapshot.cron:0 35 7 * * MON-FRI}",zone="Asia/Seoul") public void scheduledGenerate(){try{generate(LocalDate.now(ZoneId.of("Asia/Seoul")));}catch(Exception e){log.error("시장 스냅샷 자동 생성 실패: {}",e.getMessage());}}
-
  private SourceSnapshot krSnapshot(LocalDate baseDate,Fx fx){
   IndexPoint index=jdbc.sql("""
    SELECT i."IDX_ID",r.base_date,NULLIF(replace(r.payload->>'CLSPRC_IDX',',',''),'')::numeric,
