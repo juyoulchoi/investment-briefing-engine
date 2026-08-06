@@ -37,6 +37,9 @@ public class TbInvBrf {
     @Builder.Default @Column(name="CALC_SEQ",nullable=false) private Integer calculationSequence=1;
     @Builder.Default @Column(name="LATEST_YN",nullable=false) private String latestYn="Y";
     @Builder.Default @Column(name="PUBL_YN",nullable=false) private String publishedYn="N";
+    @Column(name="PUBL_DTTM") private java.time.OffsetDateTime publishedDateTime;
+    @Column(name="SUMMARY_TXT") private String summaryText;
+    @Column(name="BODY_TXT") private String bodyText;
 
     @Column(name = "CRT_DTTM", nullable = false, insertable = false, updatable = false)
     private LocalDateTime regDt;
@@ -49,6 +52,3 @@ public class TbInvBrf {
         modDt = LocalDateTime.now();
     }
 }
-
-
-

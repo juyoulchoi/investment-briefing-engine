@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface TbBrfDtlRepository extends JpaRepository<TbBrfDtl, Long> {
     List<TbBrfDtl> findByBrfIdOrderByDtlId(Long brfId);
+    void deleteByBrfId(Long brfId);
 }
