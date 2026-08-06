@@ -2,6 +2,7 @@ package com.nanum.investment.service.impl;
 
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.nanum.investment.domain.BriefingType;
 import com.nanum.investment.response.InvestmentBriefingResponse;
 import com.nanum.investment.service.BriefingAiClient;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -79,13 +80,18 @@ public class OpenAiBriefingAiClient implements BriefingAiClient {
     }
 
     @Override
-    public InvestmentBriefingResponse generateBriefing() {
+    public InvestmentBriefingResponse generateBriefing(BriefingType briefingType) {
         if (!StringUtils.hasText(apiKey)) throw new IllegalStateException("OPENAI_API_KEY가 설정되지 않았습니다.");
-        RawBriefing raw=latestRawBriefing();
+        if (briefingType == null) throw new IllegalArgumentException("브리핑 유형이 필요합니다.");
+        RawBriefing raw=latestRawBriefing(briefingType);
         try {
             ObjectNode request=json.createObjectNode();
-            request.put("model",model);request.put("instructions",INSTRUCTIONS);
-            request.put("input","다음 확정 원천데이터만 사용해 브리핑을 작성하라.\nRAW_DATA_JSON:\n"+raw.rawJson());
+            String typeInstructions=briefingType==BriefingType.WEEKLY
+                    ? " 지난 월요일부터 금요일까지의 변화, 반복 신호, 주간 요약을 중심으로 설명하라."
+                    : " 해당 기준일의 일일 상황을 설명하라.";
+            request.put("model",model);request.put("instructions",INSTRUCTIONS+typeInstructions);
+            request.put("input","다음 "+(briefingType==BriefingType.WEEKLY?"주간":"일일")
+                    +" 확정 원천데이터만 사용해 브리핑을 작성하라. briefingDate는 반드시 "+raw.baseDate()+"로 작성하라.\nRAW_DATA_JSON:\n"+raw.rawJson());
             request.put("store",false);request.put("max_output_tokens",12000);
             request.putObject("reasoning").put("effort","medium");
             ObjectNode format=request.putObject("text").putObject("format");
@@ -122,14 +128,14 @@ public class OpenAiBriefingAiClient implements BriefingAiClient {
         }
     }
 
-    private RawBriefing latestRawBriefing(){
+    private RawBriefing latestRawBriefing(BriefingType briefingType){
         return jdbc.sql("""
                 SELECT "BRF_ID","BASE_DT","RAW_DATA_JSON"::text FROM "TB_BRF"
-                WHERE "LATEST_YN"='Y' AND "BRF_TP"='DAILY' AND "SCOPE_TP"='GLOBAL'
+                WHERE "LATEST_YN"='Y' AND "BRF_TP"=:briefingType AND "SCOPE_TP"='GLOBAL'
                   AND "RAW_DATA_JSON" IS NOT NULL AND "BRF_STS" IN ('READY','FAILED')
                 ORDER BY "BASE_DT" DESC,"CALC_SEQ" DESC LIMIT 1
-                """).query((rs,n)->new RawBriefing(rs.getLong(1),rs.getObject(2,LocalDate.class),rs.getString(3)))
-                .optional().orElseThrow(()->new IllegalStateException("10단계 최신 브리핑 원천데이터가 없습니다."));
+                """).param("briefingType",briefingType.name()).query((rs,n)->new RawBriefing(rs.getLong(1),rs.getObject(2,LocalDate.class),rs.getString(3)))
+                .optional().orElseThrow(()->new IllegalStateException(briefingType+" 최신 브리핑 원천데이터가 없습니다."));
     }
 
     private String outputText(JsonNode body){

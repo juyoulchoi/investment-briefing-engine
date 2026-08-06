@@ -33,12 +33,13 @@ public class InvestmentBriefingServiceImpl implements InvestmentBriefingService 
 
     @Override
     @Transactional
-    public Long generateAndSave() {
-        InvestmentBriefingResponse response=briefingAiClient.generateBriefing();
+    public Long generateAndSave(BriefingType briefingType) {
+        InvestmentBriefingResponse response=briefingAiClient.generateBriefing(briefingType);
         validate(response);
         TbInvBrf briefing=briefingRepository
-                .findTopByBaseDateAndLatestYnOrderByCalculationSequenceDesc(response.briefingDate(),"Y")
-                .orElseThrow(()->new IllegalStateException("AI 응답 기준일과 일치하는 10단계 원천 브리핑이 없습니다."));
+                .findTopByBaseDateAndBriefingTypeAndScopeTypeAndLatestYnOrderByCalculationSequenceDesc(
+                        response.briefingDate(),briefingType,BriefingScopeType.GLOBAL,"Y")
+                .orElseThrow(()->new IllegalStateException("AI 응답 기준일·유형과 일치하는 원천 브리핑이 없습니다."));
 
         briefing.setTitle(response.title());
         briefing.setBriefingStatus(BriefingStatus.REVIEWED);

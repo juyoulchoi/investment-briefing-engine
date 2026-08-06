@@ -28,11 +28,12 @@ class InvestmentBriefingServiceImplTest {
         LocalDate date=LocalDate.of(2026,8,7);
         List<BriefingItemResponse> items=CODES.stream()
                 .map(code->new BriefingItemResponse(code,code+" 요약",code+" 내용","NORMAL",false)).toList();
-        when(ai.generateBriefing()).thenReturn(new InvestmentBriefingResponse(date,"오늘의 투자 브리핑",items,
+        when(ai.generateBriefing(BriefingType.DAILY)).thenReturn(new InvestmentBriefingResponse(date,"오늘의 투자 브리핑",items,
                 new BriefingItemResponse("FINAL_JUDGMENT","종합 요약","종합 내용","WATCH",true)));
         TbInvBrf briefing=TbInvBrf.builder().brfId(10L).baseDate(date).title("원천데이터")
                 .briefingStatus(BriefingStatus.READY).build();
-        when(briefings.findTopByBaseDateAndLatestYnOrderByCalculationSequenceDesc(date,"Y"))
+        when(briefings.findTopByBaseDateAndBriefingTypeAndScopeTypeAndLatestYnOrderByCalculationSequenceDesc(
+                date,BriefingType.DAILY,BriefingScopeType.GLOBAL,"Y"))
                 .thenReturn(Optional.of(briefing));
 
         Long id=new InvestmentBriefingServiceImpl(legacy,briefings,details,ai).generateAndSave();
@@ -61,9 +62,10 @@ class InvestmentBriefingServiceImplTest {
         LocalDate aiDate=LocalDate.of(2026,8,8);
         List<BriefingItemResponse> items=CODES.stream()
                 .map(code->new BriefingItemResponse(code,"요약","내용","NORMAL",false)).toList();
-        when(ai.generateBriefing()).thenReturn(new InvestmentBriefingResponse(aiDate,"잘못된 기준일",items,
+        when(ai.generateBriefing(BriefingType.DAILY)).thenReturn(new InvestmentBriefingResponse(aiDate,"잘못된 기준일",items,
                 new BriefingItemResponse("FINAL_JUDGMENT","종합 요약","종합 내용","WATCH",false)));
-        when(briefings.findTopByBaseDateAndLatestYnOrderByCalculationSequenceDesc(aiDate,"Y"))
+        when(briefings.findTopByBaseDateAndBriefingTypeAndScopeTypeAndLatestYnOrderByCalculationSequenceDesc(
+                aiDate,BriefingType.DAILY,BriefingScopeType.GLOBAL,"Y"))
                 .thenReturn(Optional.empty());
 
         org.assertj.core.api.Assertions.assertThatThrownBy(
