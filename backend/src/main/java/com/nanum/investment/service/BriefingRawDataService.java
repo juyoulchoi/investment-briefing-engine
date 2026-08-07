@@ -3,7 +3,6 @@ package com.nanum.investment.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nanum.investment.domain.DataStatus;
-import org.slf4j.*;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -15,9 +14,6 @@ import java.util.*;
 
 @Service
 public class BriefingRawDataService {
- private static final Logger log=LoggerFactory.getLogger(BriefingRawDataService.class);
- private static final LinkedHashMap<String,String> SECTION_NAMES=new LinkedHashMap<>();
- static{SECTION_NAMES.put("MARKET_SNAPSHOTS","시장 스냅샷");SECTION_NAMES.put("EXCHANGE_RATES","환율");SECTION_NAMES.put("BOND_YIELDS","채권금리");SECTION_NAMES.put("MARKET_SENTIMENT","시장심리");SECTION_NAMES.put("INVESTMENT_DECISION","투자판단");SECTION_NAMES.put("STOCK_DECISIONS","종목별 투자판단");SECTION_NAMES.put("ADDITIONAL_BUYS","추가매수 계획");SECTION_NAMES.put("REBUYS","재매수 계획");SECTION_NAMES.put("REBALANCING","리밸런싱 계획");SECTION_NAMES.put("ACCOUNTS","계좌 및 현금");SECTION_NAMES.put("DATA_QUALITY","데이터 품질");}
  private final JdbcClient jdbc;private final ObjectMapper json;
  public BriefingRawDataService(JdbcClient jdbc,ObjectMapper json){this.jdbc=jdbc;this.json=json;}
 
@@ -31,7 +27,6 @@ public class BriefingRawDataService {
    INSERT INTO "TB_BRF"("BASE_DT","CALC_SEQ","BRF_TP","SCOPE_TP","INV_DEC_ID","TITLE","BRF_STS","RAW_DATA_JSON","DATA_STS","CONF_RT","LATEST_YN","PUBL_YN","CRT_USR_ID","UPD_USR_ID")
    VALUES(:day,:sequence,'DAILY','GLOBAL',:decision,:title,'READY',CAST(:raw AS jsonb),:status,:confidence,'Y','N','SYSTEM','SYSTEM') RETURNING "BRF_ID"
    """).param("day",date).param("sequence",sequence).param("decision",decision.id()).param("title",date+" 일일 투자 브리핑").param("raw",rawJson).param("status",status.name()).param("confidence",confidence).query(Long.class).single();
-  int display=1;for(var entry:sections.entrySet())saveItem(briefingId,entry.getKey(),SECTION_NAMES.get(entry.getKey()),display++,entry.getValue(),status,confidence);
   return new BriefingRawDataResult(briefingId,date,sequence,decision.id(),status,confidence,hash,List.copyOf(sections.keySet()));
  }
 
@@ -60,10 +55,6 @@ public class BriefingRawDataService {
  private DecisionRef decision(LocalDate date){return jdbc.sql("SELECT \"INV_DEC_ID\",\"CONF_RT\",\"DATA_STS\" FROM \"TB_INV_DEC\" WHERE \"BASE_DT\"=:day AND \"LATEST_YN\"='Y' ORDER BY \"CALC_SEQ\" DESC LIMIT 1").param("day",date).query((rs,n)->new DecisionRef(rs.getLong(1),rs.getInt(2),DataStatus.valueOf(rs.getString(3)))).optional().orElseThrow(()->new IllegalStateException("8단계 투자판단 결과가 없습니다."));}
  private DataStatus dataStatus(Map<String,Object> sections){for(Object section:sections.values())if(section instanceof List<?> rows)for(Object row:rows)if(row instanceof Map<?,?> map){Object status=map.get("data_status");if(status!=null&&!("FRESH".equals(status)||"PARTIAL".equals(status)))return DataStatus.ERROR;if("PARTIAL".equals(status))return DataStatus.PARTIAL;}return DataStatus.FRESH;}
  private int confidence(DecisionRef decision,Map<String,Object> sections){int value=decision.confidence();Object sentiment=sections.get("MARKET_SENTIMENT");if(sentiment instanceof List<?> rows)for(Object row:rows)if(row instanceof Map<?,?> map&&map.get("confidence") instanceof Number n)value=Math.min(value,n.intValue());return Math.max(0,Math.min(100,value));}
- private void saveItem(Long briefingId,String code,String name,int sequence,Object value,DataStatus status,int confidence){jdbc.sql("""
-  INSERT INTO "TB_BRF_ITEM"("BRF_ID","ITEM_CD","ITEM_NM","DISP_SEQ","ITEM_STS","RAW_DATA_JSON","CALC_SUMMARY","CONF_RT","DATA_STS") VALUES(:briefing,:code,:name,:sequence,'READY',CAST(:raw AS jsonb),:summary,:confidence,:status)
-  """).param("briefing",briefingId).param("code",code).param("name",name).param("sequence",sequence).param("raw",toJson(value)).param("summary",summary(value)).param("confidence",confidence).param("status",status.name()).update();}
- private String summary(Object value){return value instanceof Collection<?> values?values.size()+"건의 확정 원천데이터":"확정 원천데이터";}
  private String toJson(Object value){try{return json.writeValueAsString(value);}catch(JsonProcessingException e){throw new IllegalStateException("브리핑 원천데이터 JSON 생성에 실패했습니다.",e);}}
  private String sha256(String value){try{byte[] bytes=MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));return HexFormat.of().formatHex(bytes);}catch(NoSuchAlgorithmException e){throw new IllegalStateException(e);}}
  private record DecisionRef(Long id,int confidence,DataStatus status){}
