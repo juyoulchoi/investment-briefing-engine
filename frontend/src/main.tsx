@@ -5,6 +5,7 @@ const pageStorageKey="investment-briefing-page";
 const savedPage=()=>{const value=localStorage.getItem(pageStorageKey);return nav.some(([page])=>page===value)?value as Page:"dashboard"};
 type Account={accountId:number;accountType:"DOMESTIC"|"OVERSEAS"|"ISA"|"PENSION";cashAmount:number|null;reservedCashAmount:number|null};
 type Holding={holdingId:number;accountId:number;accountName:string;accountType:Account["accountType"];stockId:number;ticker:string;stockName:string;holdingQuantity:number;averagePrice:number;currentPrice:number;evaluationAmount:number;profitLossRate:number;targetWeight:number|null;currentWeight:number|null;weightStatus:string|null;holdingStatus:string};
+type DashboardData={baseDate:string;marketScore:number;marketRegime:string;sentimentScore:number;sentimentPhase:string;riskGrade:string;overallSignal:string;regularBuyTotal:number;additionalBuyTotal:number;title:string|null;summary:string|null;actionSignals:{stockCode:string;stockName:string;actionSignal:string;recommendedAmount:number|null;reason:string}[];briefingArticles:{itemCode:string;summary:string;content:string;signalCode:string}[]};
 type PageData<T>={content:T[]};type ApiResult<T>={success:boolean;data:T;error?:{message?:string}};
 const accountOrder:Record<Account["accountType"],number>={DOMESTIC:0,OVERSEAS:1,ISA:2,PENSION:3};
 const accountLabel:Record<Account["accountType"],string>={DOMESTIC:"국내주식",OVERSEAS:"해외주식",ISA:"ISA",PENSION:"연금"};
@@ -15,240 +16,24 @@ const overseasName:Record<string,string>={BOTZ:"BOTZ",HYDR:"HYDR",QQQ:"QQQ",SCHD
 async function api<T>(url:string):Promise<T>{const response=await fetch(url);if(!response.ok)throw new Error(`HTTP ${response.status}`);const body=await response.json() as ApiResult<T>;if(!body.success)throw new Error(body.error?.message||"데이터 조회에 실패했습니다.");return body.data;}
 const won=(n:number)=>`${n.toLocaleString("ko-KR")}원`;
 const amount=(n:number,overseas=false)=>n.toLocaleString(overseas?"en-US":"ko-KR",{minimumFractionDigits:overseas?2:0,maximumFractionDigits:overseas?2:0});
-function App(){const[page,setPage]=useState<Page>(savedPage),[brief,setBrief]=useState("오늘"),[history,setHistory]=useState("일일"),[reb,setReb]=useState("주간"),[toast,setToast]=useState(""),[refreshing,setRefreshing]=useState(false),[contentVersion,setContentVersion]=useState(0);const move=(p:Page)=>{localStorage.setItem(pageStorageKey,p);setPage(p);scrollTo({top:0,behavior:"smooth"})},notify=(m:string)=>{setToast(m);setTimeout(()=>setToast(""),2200)},refreshMarketData=async()=>{setRefreshing(true);try{const response=await fetch("/api/market-data/holdings/refresh",{method:"POST"});const result=await response.json() as {success:boolean;krxReceivedCounts:Record<string,number>;overseasRequestedCount:number;overseasSuccessCount:number;completedSteps:string[];failures:string[]};if(!response.ok)throw new Error(`HTTP ${response.status}`);setContentVersion(v=>v+1);const domestic=Object.values(result.krxReceivedCounts||{}).reduce((sum,count)=>sum+count,0);notify(result.success?`1~10단계 ${result.completedSteps.length}개 완료 · 국내·ETF ${domestic.toLocaleString("ko-KR")}건 · 해외 ${result.overseasSuccessCount}/${result.overseasRequestedCount}개`:`일부 갱신 실패: ${result.failures.join(" · ")}`);}catch(e){notify(e instanceof Error?e.message:"시장 데이터 갱신에 실패했습니다.");}finally{setRefreshing(false);}};return <div className="shell"><aside><button className="brand" onClick={()=>move("dashboard")}><b>F</b><span><strong>FINBRIEF</strong><small>Investment OS</small></span></button><nav><p>OVERVIEW</p>{nav.slice(0,1).map(x=><Nav key={x[0]} x={x} active={page===x[0]} go={move}/>)}<p>INVEST</p>{nav.slice(1,5).map(x=><Nav key={x[0]} x={x} active={page===x[0]} go={move}/>)}<p>RECORDS</p>{nav.slice(5).map(x=><Nav key={x[0]} x={x} active={page===x[0]} go={move}/>)}</nav><div className="user"><b>민</b><span><strong>김투자</strong><small>개인 포트폴리오</small></span></div></aside><main key={contentVersion}><header className="top"><div><h1>{nav.find(x=>x[0]===page)?.[1]}</h1><p>2026년 7월 30일 목요일 · 장 마감 기준</p></div><div><span className="latest">● 데이터 최신</span><button className="primary" disabled={refreshing} onClick={refreshMarketData}>{refreshing?"갱신 중...":"↻ 브리핑 갱신"}</button></div></header>{page==="dashboard"&&<Dashboard go={move}/>} {page==="briefing"&&<Briefing period={brief} set={setBrief}/>} {page==="holdings"&&<Holdings/> } {page==="additional"&&<Additional/>} {page==="rebalance"&&<Rebalance period={reb} set={setReb}/>} {page==="history"&&<History period={history} set={setHistory}/>} {page==="reference"&&<ReferenceAdmin notify={notify}/>} {page==="operations"&&<OperationsAdmin notify={notify}/>} {page==="marketadmin"&&<MarketAnalysisAdmin notify={notify}/>} {page==="bondyields"&&<BondYieldPage notify={notify}/>}</main><nav className="mobile">{nav.slice(0,5).map(x=><button key={x[0]} className={page===x[0]?"active":""} onClick={()=>move(x[0])}><b>{x[2]}</b>{x[1]}</button>)}</nav>{toast&&<div className="toast">{toast}</div>}</div>}
+const todayLabel=new Intl.DateTimeFormat("ko-KR",{dateStyle:"full"}).format(new Date());
+function App(){const[page,setPage]=useState<Page>(savedPage),[brief,setBrief]=useState("오늘"),[history,setHistory]=useState("일일"),[reb,setReb]=useState("주간"),[toast,setToast]=useState(""),[refreshing,setRefreshing]=useState(false),[contentVersion,setContentVersion]=useState(0);const move=(p:Page)=>{localStorage.setItem(pageStorageKey,p);setPage(p);scrollTo({top:0,behavior:"smooth"})},notify=(m:string)=>{setToast(m);setTimeout(()=>setToast(""),2200)},refreshMarketData=async()=>{setRefreshing(true);try{const response=await fetch("/api/market-data/holdings/refresh",{method:"POST"});const result=await response.json() as {success:boolean;krxReceivedCounts:Record<string,number>;overseasRequestedCount:number;overseasSuccessCount:number;completedSteps:string[];failures:string[]};if(!response.ok)throw new Error(`HTTP ${response.status}`);setContentVersion(v=>v+1);const domestic=Object.values(result.krxReceivedCounts||{}).reduce((sum,count)=>sum+count,0);notify(result.success?`1~10단계 ${result.completedSteps.length}개 완료 · 국내·ETF ${domestic.toLocaleString("ko-KR")}건 · 해외 ${result.overseasSuccessCount}/${result.overseasRequestedCount}개`:`일부 갱신 실패: ${result.failures.join(" · ")}`);}catch(e){notify(e instanceof Error?e.message:"시장 데이터 갱신에 실패했습니다.");}finally{setRefreshing(false);}};return <div className="shell"><aside><button className="brand" onClick={()=>move("dashboard")}><b>F</b><span><strong>FINBRIEF</strong><small>Investment OS</small></span></button><nav><p>OVERVIEW</p>{nav.slice(0,1).map(x=><Nav key={x[0]} x={x} active={page===x[0]} go={move}/>)}<p>INVEST</p>{nav.slice(1,5).map(x=><Nav key={x[0]} x={x} active={page===x[0]} go={move}/>)}<p>RECORDS</p>{nav.slice(5).map(x=><Nav key={x[0]} x={x} active={page===x[0]} go={move}/>)}</nav><div className="user"><b>민</b><span><strong>김투자</strong><small>개인 포트폴리오</small></span></div></aside><main key={contentVersion}><header className="top"><div><h1>{nav.find(x=>x[0]===page)?.[1]}</h1><p>{todayLabel} · 최신 수집 데이터 기준</p></div><div><span className="latest">● 데이터 최신</span><button className="primary" disabled={refreshing} onClick={refreshMarketData}>{refreshing?"갱신 중...":"↻ 브리핑 갱신"}</button></div></header>{page==="dashboard"&&<Dashboard go={move}/>} {page==="briefing"&&<Briefing period={brief} set={setBrief}/>} {page==="holdings"&&<Holdings/> } {page==="additional"&&<Additional/>} {page==="rebalance"&&<Rebalance period={reb} set={setReb}/>} {page==="history"&&<History period={history} set={setHistory}/>} {page==="reference"&&<ReferenceAdmin notify={notify}/>} {page==="operations"&&<OperationsAdmin notify={notify}/>} {page==="marketadmin"&&<MarketAnalysisAdmin notify={notify}/>} {page==="bondyields"&&<BondYieldPage notify={notify}/>}</main><nav className="mobile">{nav.slice(0,5).map(x=><button key={x[0]} className={page===x[0]?"active":""} onClick={()=>move(x[0])}><b>{x[2]}</b>{x[1]}</button>)}</nav>{toast&&<div className="toast">{toast}</div>}</div>}
 function Nav({x,active,go}:{x:[Page,string,string],active:boolean,go:(p:Page)=>void}){return <button className={`nav ${active?"active":""}`} onClick={()=>go(x[0])}><b>{x[2]}</b>{x[1]}{x[0]==="briefing"&&<i>3</i>}</button>}
-function Dashboard({ go }: { go: (p: Page) => void }) {
-  type AssetAccount = {
-    type: Account["accountType"];
-    value: number;
-    evaluation: number;
-    cost: number;
-    holdingCount: number;
-  };
-  const [assetAccounts, setAssetAccounts] = useState<AssetAccount[]>([]),
-    [assetLoading, setAssetLoading] = useState(true),
-    [assetError, setAssetError] = useState("");
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const accountPage = await api<PageData<Account>>(
-          "/api/v1/accounts?size=100",
-        );
-        const accounts = accountPage.content;
-        const pages = await Promise.all(
-          accounts.map((account) =>
-            api<PageData<Holding>>(
-              `/api/v1/holdings?accountId=${account.accountId}&size=100`,
-            ),
-          ),
-        );
-        const grouped = new Map<
-          Account["accountType"],
-          Omit<AssetAccount, "type">
-        >();
-        accounts.forEach((account, index) => {
-          const holdings = pages[index].content;
-          const current = grouped.get(account.accountType) || {
-            value: 0,
-            evaluation: 0,
-            cost: 0,
-            holdingCount: 0,
-          };
-          const evaluation = holdings.reduce(
-            (sum, holding) => sum + Number(holding.evaluationAmount || 0),
-            0,
-          );
-          const cost = holdings.reduce((sum, holding) => {
-            const value = Number(holding.evaluationAmount || 0);
-            const rate = Number(holding.profitLossRate || 0);
-            return sum + (rate <= -100 ? value : value / (1 + rate / 100));
-          }, 0);
-          grouped.set(account.accountType, {
-            value:
-              current.value +
-              evaluation +
-              Number(account.cashAmount || 0) +
-              Number(account.reservedCashAmount || 0),
-            evaluation: current.evaluation + evaluation,
-            cost: current.cost + cost,
-            holdingCount: current.holdingCount + holdings.length,
-          });
-        });
-        if (alive)
-          setAssetAccounts(
-            accountTypes.map((type) => ({
-              type,
-              ...(grouped.get(type) || {
-                value: 0,
-                evaluation: 0,
-                cost: 0,
-                holdingCount: 0,
-              }),
-            })),
-          );
-      } catch (error) {
-        if (alive)
-          setAssetError(
-            error instanceof Error
-              ? error.message
-              : "계좌 현황을 불러오지 못했습니다.",
-          );
-      } finally {
-        if (alive) setAssetLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const total = assetAccounts.reduce((sum, account) => sum + account.value, 0),
-    totalEvaluation = assetAccounts.reduce(
-      (sum, account) => sum + account.evaluation,
-      0,
-    ),
-    totalCost = assetAccounts.reduce((sum, account) => sum + account.cost, 0),
-    totalRate =
-      totalCost > 0 ? ((totalEvaluation - totalCost) / totalCost) * 100 : 0;
-  const rateText = (account: AssetAccount) =>
-    account.holdingCount === 0
-      ? "대기"
-      : `${account.evaluation - account.cost >= 0 ? "+" : ""}${
-          account.cost > 0
-            ? (
-                ((account.evaluation - account.cost) / account.cost) *
-                100
-              ).toFixed(1)
-            : "0.0"
-        }%`;
-
-  return (
-    <div className="page">
-      <section className="hero">
-        <div>
-          <K>Today's market</K>
-          <h2>
-            시장은 <em>중립</em>, 지금은 선별적으로 움직일 때입니다.
-          </h2>
-          <p>
-            과열 부담은 낮아졌지만 추세 확신은 아직 부족합니다. 정기매수는
-            유지하고 추가매수는 현금의 20% 이내로 제한하세요.
-          </p>
-        </div>
-        <div className="ring">
-          <strong>68</strong>
-          <small>시장점수</small>
-        </div>
-      </section>
-      <section className="metrics">
-        <Metric t="시장심리" v="중립" d="전일 대비 +4" i="◒" />
-        <Metric t="시장국면" v="회복 초기" d="약세 → 회복 전환" i="↗" />
-        <Metric t="행동신호" v="선별 매수" d="4개 종목 중 2개" i="⚑" />
-        <Metric t="현금비중" v="18.6%" d="목표 20% · 1.4%p 부족" i="₩" />
-      </section>
-      <div className="grid">
-        <section className="card">
-          <Head
-            k="MY ASSETS"
-            t="계좌 현황"
-            a="전체보기"
-            click={() => go("holdings")}
-          />
-          {assetLoading ? (
-            <div className="data-state">계좌 현황을 불러오는 중입니다.</div>
-          ) : assetError ? (
-            <div className="data-state error">{assetError}</div>
-          ) : (
-            <>
-              <div className="total">
-                <span>
-                  총 자산<strong>₩ {total.toLocaleString("ko-KR")}</strong>
-                </span>
-                <b className={totalRate >= 0 ? "pos" : "neg"}>
-                  {totalRate >= 0 ? "+" : ""}
-                  {totalRate.toFixed(1)}%<small>총 수익률</small>
-                </b>
-              </div>
-              <div className="alloc">
-                {assetAccounts.map((account) => (
-                  <i
-                    key={account.type}
-                    style={{
-                      width: `${total > 0 ? (account.value / total) * 100 : 25}%`,
-                    }}
-                  />
-                ))}
-              </div>
-              <div className="accounts">
-                {assetAccounts.map((account) => (
-                  <Account
-                    key={account.type}
-                    n={accountLabel[account.type]}
-                    v={won(account.value)}
-                    p={`${(total > 0 ? (account.value / total) * 100 : 0).toFixed(1)}%`}
-                    g={rateText(account)}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </section>
-        <section className="card">
-          <Head
-            k="ACTION SIGNAL"
-            t="오늘의 행동신호"
-            a="상세보기"
-            click={() => go("additional")}
-          />
-          <Signal
-            tag="BUY"
-            n="QQQ 비중 확대"
-            d="목표비중 대비 2.9%p 부족"
-            v="320,000원"
-          />
-          <Signal
-            tag="●"
-            n="Microsoft 정기매수"
-            d="기존 계획대로 실행"
-            v="180,000원"
-          />
-          <Signal tag="●" n="삼성전자 관망" d="수급 반전 확인 필요" v="0원" />
-          <button className="full" onClick={() => go("operations")}>
-            오늘 추천매수 총 500,000원 <span>계획 확인 →</span>
-          </button>
-        </section>
-      </div>
-      <section className="card briefing">
-        <Head
-          k="DAILY BRIEFING"
-          t="오늘 브리핑"
-          a="전체 브리핑 읽기"
-          click={() => go("briefing")}
-        />
-        <div className="columns">
-          <Article
-            no="01"
-            t="금리 불확실성 완화, 성장주에 우호적 환경"
-            d="미국 10년물 금리가 안정 구간에 진입하며 기술주 부담이 낮아졌습니다."
-          />
-          <Article
-            no="02"
-            t="원화 강세 전환 가능성, 환율 분할 대응"
-            d="환율이 1,360원 아래로 내려갈 경우 환전 비중을 늘리세요."
-          />
-          <Article
-            no="03"
-            t="반도체 실적 시즌, 숫자로 확인할 때"
-            d="기대감보다 실제 가이던스에 따라 종목별 차별화가 커질 전망입니다."
-          />
-        </div>
-      </section>
-    </div>
-  );
+function Dashboard({go}:{go:(p:Page)=>void}){
+ type AssetAccount={type:Account["accountType"];value:number;evaluation:number;cost:number;cash:number;holdingCount:number};
+ const[assetAccounts,setAssetAccounts]=useState<AssetAccount[]>([]),[assetLoading,setAssetLoading]=useState(true),[assetError,setAssetError]=useState("");
+ const[dashboard,setDashboard]=useState<DashboardData|null>(null),[dashboardLoading,setDashboardLoading]=useState(true),[dashboardError,setDashboardError]=useState("");
+ useEffect(()=>{let alive=true;api<DashboardData|null>("/api/v1/dashboard").then(data=>{if(alive)setDashboard(data)}).catch(error=>{if(alive)setDashboardError(error instanceof Error?error.message:"대시보드 최신 데이터를 불러오지 못했습니다.")}).finally(()=>{if(alive)setDashboardLoading(false)});return()=>{alive=false}},[]);
+ useEffect(()=>{let alive=true;(async()=>{try{const accountPage=await api<PageData<Account>>("/api/v1/accounts?size=100"),accounts=accountPage.content,pages=await Promise.all(accounts.map(account=>api<PageData<Holding>>(`/api/v1/holdings?accountId=${account.accountId}&size=100`))),grouped=new Map<Account["accountType"],Omit<AssetAccount,"type">>();accounts.forEach((account,index)=>{const holdings=pages[index].content,current=grouped.get(account.accountType)||{value:0,evaluation:0,cost:0,cash:0,holdingCount:0},evaluation=holdings.reduce((sum,h)=>sum+Number(h.evaluationAmount||0),0),cost=holdings.reduce((sum,h)=>{const value=Number(h.evaluationAmount||0),rate=Number(h.profitLossRate||0);return sum+(rate<=-100?value:value/(1+rate/100))},0),cash=Number(account.cashAmount||0)+Number(account.reservedCashAmount||0);grouped.set(account.accountType,{value:current.value+evaluation+cash,evaluation:current.evaluation+evaluation,cost:current.cost+cost,cash:current.cash+cash,holdingCount:current.holdingCount+holdings.length})});if(alive)setAssetAccounts(accountTypes.map(type=>({type,...(grouped.get(type)||{value:0,evaluation:0,cost:0,cash:0,holdingCount:0})})))}catch(error){if(alive)setAssetError(error instanceof Error?error.message:"계좌 현황을 불러오지 못했습니다.")}finally{if(alive)setAssetLoading(false)}})();return()=>{alive=false}},[]);
+ const total=assetAccounts.reduce((sum,a)=>sum+a.value,0),totalEvaluation=assetAccounts.reduce((sum,a)=>sum+a.evaluation,0),totalCost=assetAccounts.reduce((sum,a)=>sum+a.cost,0),totalCash=assetAccounts.reduce((sum,a)=>sum+a.cash,0),totalRate=totalCost>0?(totalEvaluation-totalCost)/totalCost*100:0,cashRate=total>0?totalCash/total*100:0;
+ const labels:Record<string,string>={GREED:"탐욕",OPTIMISM:"낙관",NEUTRAL:"중립",FATIGUE:"피로",FEAR:"공포",PANIC:"패닉",STRONG_BULL:"강한 상승",BULL:"상승",NORMAL:"정상",MILD_CORRECTION:"완만한 조정",CORRECTION:"조정",BEAR:"약세",KEEP_REGULAR_BUY:"정기매수 유지",INCREASE:"매수 확대",REDUCE:"매수 축소",PAUSE:"매수 중지",HOLD:"관망",LOW:"낮음",MEDIUM:"보통",HIGH:"높음"};
+ const rateText=(a:AssetAccount)=>a.holdingCount===0?"대기":`${a.evaluation-a.cost>=0?"+":""}${(a.cost>0?(a.evaluation-a.cost)/a.cost*100:0).toFixed(1)}%`,short=(text:string,max=105)=>text.length>max?`${text.slice(0,max)}…`:text;
+ return <div className="page">{dashboardError&&<div className="batch-error">{dashboardError}</div>}<section className="hero"><div><K>{dashboard?.baseDate?`${dashboard.baseDate} · LATEST MARKET`:"LATEST MARKET"}</K><h2>{dashboardLoading?"최신 투자 판단을 불러오는 중입니다.":dashboard?.title||"최신 투자 판단 데이터가 없습니다."}</h2><p>{dashboard?.summary||"브리핑 생성이 완료되면 최신 시장 판단이 표시됩니다."}</p></div><div className="ring"><strong>{dashboard?Math.round(Number(dashboard.marketScore||0)):"-"}</strong><small>시장점수</small></div></section>
+ <section className="metrics"><Metric t="시장심리" v={dashboard?labels[dashboard.sentimentPhase]||dashboard.sentimentPhase:"-"} d={dashboard?`심리점수 ${Number(dashboard.sentimentScore||0).toFixed(1)}`:"데이터 없음"} i="◒"/><Metric t="시장국면" v={dashboard?labels[dashboard.marketRegime]||dashboard.marketRegime:"-"} d={dashboard?`위험등급 ${labels[dashboard.riskGrade]||dashboard.riskGrade}`:"데이터 없음"} i="↗"/><Metric t="행동신호" v={dashboard?labels[dashboard.overallSignal]||dashboard.overallSignal:"-"} d={dashboard?`기준일 ${dashboard.baseDate}`:"데이터 없음"} i="⚑"/><Metric t="현금비중" v={assetLoading?"-":`${cashRate.toFixed(1)}%`} d={assetLoading?"계산 중":`현금·대기현금 ${won(totalCash)}`} i="₩"/></section>
+ <div className="grid"><section className="card"><Head k="MY ASSETS" t="계좌 현황" a="전체보기" click={()=>go("holdings")}/>{assetLoading?<div className="data-state">계좌 현황을 불러오는 중입니다.</div>:assetError?<div className="data-state error">{assetError}</div>:<><div className="total"><span>총 자산<strong>₩ {total.toLocaleString("ko-KR")}</strong></span><b className={totalRate>=0?"pos":"neg"}>{totalRate>=0?"+":""}{totalRate.toFixed(1)}%<small>총 수익률</small></b></div><div className="alloc">{assetAccounts.map(a=><i key={a.type} style={{width:`${total>0?a.value/total*100:25}%`}}/>)}</div><div className="accounts">{assetAccounts.map(a=><Account key={a.type} n={accountLabel[a.type]} v={won(a.value)} p={`${(total>0?a.value/total*100:0).toFixed(1)}%`} g={rateText(a)}/>)}</div></>}</section>
+ <section className="card"><Head k="ACTION SIGNAL" t="오늘의 행동신호" a="상세보기" click={()=>go("additional")}/>{dashboardLoading?<div className="data-state">행동신호를 불러오는 중입니다.</div>:dashboard?.actionSignals?.length?dashboard.actionSignals.map(signal=><Signal key={`${signal.stockCode}-${signal.actionSignal}`} tag={signal.actionSignal==="INCREASE"?"BUY":"●"} n={`${signal.stockName} ${labels[signal.actionSignal]||signal.actionSignal}`} d={signal.reason||signal.stockCode} v={won(Number(signal.recommendedAmount||0))}/>):<div className="data-state">최신 행동신호가 없습니다.</div>}<button className="full" onClick={()=>go("operations")}>오늘 추천매수 총 {won(Number(dashboard?.regularBuyTotal||0)+Number(dashboard?.additionalBuyTotal||0))}<span>계획 확인 →</span></button></section></div>
+ <section className="card briefing"><Head k="DAILY BRIEFING" t="오늘 브리핑" a="전체 브리핑 읽기" click={()=>go("briefing")}/><div className="columns">{dashboardLoading?<div className="data-state">최신 브리핑을 불러오는 중입니다.</div>:dashboard?.briefingArticles?.length?dashboard.briefingArticles.map((article,index)=><Article key={article.itemCode} no={`0${index+1}`} t={article.summary} d={short(article.content)}/>):<div className="data-state">발행된 최신 브리핑이 없습니다.</div>}</div></section></div>
 }
-
 const K=({children}:{children:React.ReactNode})=><span className="kicker">{children}</span>;const Head=({k,t,a,click}:{k:string,t:string,a:string,click?:()=>void})=><header className="head"><div><K>{k}</K><h3>{t}</h3></div><button onClick={click}>{a} →</button></header>;
 function Metric({t,v,d,i}:{t:string,v:string,d:string,i:string}){return <article className="metric"><b>{i}</b><span><small>{t}</small><strong>{v}</strong><em>{d}</em></span></article>};function Account({n,v,p,g}:{n:string,v:string,p:string,g:string}){return <div><i/><b>{n}</b><span>{v}</span><small>{p}</small><em className={g[0]==="+"?"pos":g[0]==="-"?"neg":""}>{g}</em></div>};function Signal({tag,n,d,v}:{tag:string,n:string,d:string,v:string}){return <div className="signal"><b>{tag}</b><span><strong>{n}</strong><small>{d}</small></span><em>{v}</em></div>};function Article({no,t,d}:{no:string,t:string,d:string}){return <article><b>{no}</b><span><strong>{t}</strong><p>{d}</p><small>시장 인사이트</small></span></article>}
 function Tabs({vals,active,set}:{vals:string[],active:string,set:(s:string)=>void}){return <div className="tabs">{vals.map(x=><button key={x} className={x===active?"active":""} onClick={()=>set(x)}>{x}</button>)}</div>}
