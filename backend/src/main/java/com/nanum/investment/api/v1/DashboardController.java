@@ -124,8 +124,7 @@ public class DashboardController {
                   FROM "TB_BRF_DTL" x
                   JOIN "TB_BRF" b ON b."BRF_ID"=x."BRF_ID"
                  WHERE b."BASE_DT"=:day AND b."LATEST_YN"='Y' AND b."PUBL_YN"='Y'
-                   AND x."ITEM_CD" IN ('US_STOCK_MKT','KR_STOCK_MKT','MKT_PHASE')
-                 ORDER BY array_position(ARRAY['US_STOCK_MKT','KR_STOCK_MKT','MKT_PHASE'],x."ITEM_CD")
+                 ORDER BY x."DTL_ID"
                 """).param("day", baseDate).query((rs, rowNum) -> new BriefingArticle(
                         rs.getString("ITEM_CD"), rs.getString("ITEM_SUM"),
                         rs.getString("ITEM_CONT"), rs.getString("SIG_CD"))).list();
