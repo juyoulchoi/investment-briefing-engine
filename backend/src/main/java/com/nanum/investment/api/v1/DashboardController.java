@@ -43,7 +43,7 @@ public class DashboardController {
             BigDecimal displayEvaluationAmount, BigDecimal displayCostAmount,
             BigDecimal displayCashAmount) {}
     public record ActionSignal(
-            String stockCode, String stockName, String actionSignal,
+            String accountType, String stockCode, String stockName, String actionSignal,
             BigDecimal recommendedAmount, String reason) {}
 
     public record BriefingArticle(String itemCode, String summary, String content, String signalCode) {}
@@ -106,15 +106,16 @@ public class DashboardController {
     }
     private List<ActionSignal> actions(LocalDate baseDate) {
         return jdbc.sql("""
-                SELECT s."STK_CD",s."STK_NM",x."ACT_SIG",x."REG_BUY_AMT",x."DEC_RSN"
+                SELECT a."ACCT_TP",s."STK_CD",s."STK_NM",x."ACT_SIG",x."REG_BUY_AMT",x."DEC_RSN"
                   FROM "TB_STK_DEC" x
                   JOIN "TB_STK" s ON s."STK_ID"=x."STK_ID"
+                  JOIN "TB_ACCT" a ON a."ACCT_ID"=x."ACCT_ID"
                   JOIN "TB_INV_DEC" d ON d."INV_DEC_ID"=x."INV_DEC_ID"
                  WHERE d."BASE_DT"=:day AND d."LATEST_YN"='Y' AND x."ACT_SIG"<>'HOLD'
                  ORDER BY x."REG_BUY_AMT" DESC NULLS LAST,s."STK_CD"
                  LIMIT 3
                 """).param("day", baseDate).query((rs, rowNum) -> new ActionSignal(
-                        rs.getString("STK_CD"), rs.getString("STK_NM"), rs.getString("ACT_SIG"),
+                        rs.getString("ACCT_TP"), rs.getString("STK_CD"), rs.getString("STK_NM"), rs.getString("ACT_SIG"),
                         rs.getBigDecimal("REG_BUY_AMT"), rs.getString("DEC_RSN"))).list();
     }
 
