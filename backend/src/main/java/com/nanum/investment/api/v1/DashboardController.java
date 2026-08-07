@@ -32,9 +32,14 @@ public class DashboardController {
             BigDecimal additionalBuyTotal,
             String title,
             String summary,
+            List<AccountSummary> accountSummaries,
             List<ActionSignal> actionSignals,
             List<BriefingArticle> briefingArticles) {}
 
+    public record AccountSummary(
+            String accountType, BigDecimal totalAsset, BigDecimal evaluationAmount,
+            BigDecimal costAmount, BigDecimal cashAmount, long holdingCount,
+            LocalDate priceBaseDate) {}
     public record ActionSignal(
             String stockCode, String stockName, String actionSignal,
             BigDecimal recommendedAmount, String reason) {}
@@ -61,11 +66,31 @@ public class DashboardController {
                             rs.getString("RISK_GRADE"), rs.getString("OVR_DEC_SIG"),
                             rs.getBigDecimal("REG_BUY_TOT_AMT"), rs.getBigDecimal("ADD_BUY_TOT_AMT"),
                             rs.getString("TITLE"), rs.getString("SUMMARY_TXT"),
-                            actions(baseDate), articles(baseDate));
+                            accounts(), actions(baseDate), articles(baseDate));
                 }).optional().orElse(null);
         return ApiResponse.success(response, TraceIdUtils.resolve(request));
     }
 
+    private List<AccountSummary> accounts() {
+        return jdbc.sql("""
+                SELECT a."ACCT_TP",
+                       COALESCE(sum(h."EVL_AMT"),0)+a."CASH_AMT"+a."RSV_CASH_AMT" AS total_asset,
+                       COALESCE(sum(h."EVL_AMT"),0) AS evaluation_amount,
+                       COALESCE(sum(h."AVG_PRC"*h."HOLD_QTY"*h."EXCH_RT"),0) AS cost_amount,
+                       a."CASH_AMT"+a."RSV_CASH_AMT" AS cash_amount,
+                       count(h."HOLD_ID") AS holding_count,max(h."PRC_BASE_DT") AS price_base_date
+                  FROM "TB_ACCT" a
+                  LEFT JOIN "TB_HOLD" h ON h."ACCT_ID"=a."ACCT_ID"
+                       AND h."USE_YN"='Y' AND h."DEL_YN"='N'
+                 WHERE a."USE_YN"='Y' AND a."DEL_YN"='N'
+                 GROUP BY a."ACCT_ID",a."ACCT_TP",a."DISP_SEQ",a."CASH_AMT",a."RSV_CASH_AMT"
+                 ORDER BY a."DISP_SEQ"
+                """).query((rs, rowNum) -> new AccountSummary(
+                        rs.getString("ACCT_TP"), rs.getBigDecimal("total_asset"),
+                        rs.getBigDecimal("evaluation_amount"), rs.getBigDecimal("cost_amount"),
+                        rs.getBigDecimal("cash_amount"), rs.getLong("holding_count"),
+                        rs.getObject("price_base_date", LocalDate.class))).list();
+    }
     private List<ActionSignal> actions(LocalDate baseDate) {
         return jdbc.sql("""
                 SELECT s."STK_CD",s."STK_NM",x."ACT_SIG",x."REG_BUY_AMT",x."DEC_RSN"
