@@ -1,9 +1,9 @@
 package com.nanum.investment.domain;
 import jakarta.persistence.*; import lombok.*; import java.math.BigDecimal; import java.time.*;
-@Entity @Table(name="\"TB_REG_BUY\"",uniqueConstraints=@UniqueConstraint(name="UK_TB_REG_BUY_01",columnNames={"ACCT_ID","STK_ID"}))
+@Entity @Table(name="\"TB_REG_BUY\"",uniqueConstraints=@UniqueConstraint(name="UK_TB_REG_BUY_01",columnNames={"ACCT_ID","STK_ID"})) @IdClass(TbRegBuyId.class)
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class TbRegBuy {
- @Id @GeneratedValue(strategy=GenerationType.IDENTITY) @Column(name="REG_BUY_ID") private Long regularBuyId;
+ @Id @Enumerated(EnumType.STRING) @Column(name="ACCT_TP",nullable=false,length=20) private AccountType accountType; @Id @Column(name="STK_CD",nullable=false,length=30) private String stockCode;
  @ManyToOne(fetch=FetchType.LAZY,optional=false) @JoinColumn(name="ACCT_ID",nullable=false) private TbAcct account; @ManyToOne(fetch=FetchType.LAZY,optional=false) @JoinColumn(name="STK_ID",nullable=false) private TbStk stock;
  @Enumerated(EnumType.STRING) @Column(name="BUY_CYCLE",nullable=false,length=20) private BuyCycle buyCycle; @Column(name="BUY_DAY_CD",length=20) private String buyDayCode; @Column(name="BUY_DAY_NO") private Integer buyDayNumber;
  @Builder.Default @Column(name="MIN_BUY_AMT",nullable=false,precision=20,scale=4) private BigDecimal minimumBuyAmount=BigDecimal.ZERO; @Column(name="MAX_BUY_AMT",precision=20,scale=4) private BigDecimal maximumBuyAmount;
@@ -14,3 +14,4 @@ public class TbRegBuy {
  @Column(name="PAUSE_RSN",length=500) private String pauseReason; @Builder.Default @Column(name="USER_PAUSE_YN",nullable=false,length=1) private String userPauseYn="N"; @Builder.Default @Column(name="AUTO_CALC_YN",nullable=false,length=1) private String autoCalculateYn="Y";
  @Column(name="LAST_CALC_DT") private LocalDate lastCalculationDate; @Builder.Default @Column(name="RULE_VER_NO",nullable=false) private Integer ruleVersionNumber=1; @Builder.Default @Column(name="USE_YN",nullable=false,length=1) private String useYn="Y"; @Builder.Default @Column(name="DEL_YN",nullable=false,length=1) private String deleteYn="N";
 }
+
