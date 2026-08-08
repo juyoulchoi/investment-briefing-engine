@@ -102,14 +102,14 @@ public class ReferenceDataController {
     }
 
     private StockApiResponse stock(TbStk s) {
-        return new StockApiResponse(s.getStockId(), s.getStockCode(), s.getTicker(), s.getStockName(),
+        return new StockApiResponse(s.getStockId(), s.getStockCode(), s.getStockName(),
                 s.getMarketCode(), s.getCountryCode(), s.getCurrencyCode(), s.getAssetType(), s.getStockGrade(),
                 s.getSectorName(), s.getUseYn());
     }
 
     private HoldingApiResponse holding(TbHold h) {
         return new HoldingApiResponse(h.getHoldingId(), h.getAccount().getAccountId(),
-                accountName(h.getAccount().getAccountType()), h.getStock().getStockId(), h.getStock().getTicker(),
+                accountName(h.getAccount().getAccountType()), h.getStock().getStockId(), h.getStock().getStockCode(),
                 h.getStock().getStockName(), h.getHoldingQuantity(), h.getAveragePrice(), h.getCurrentPrice(),
                 h.getEvaluationAmount(), h.getProfitLossRate(), h.getTargetWeight(), h.getCurrentWeight(),
                 h.getWeightStatus(), h.getHoldingStatus());
@@ -133,3 +133,4 @@ public class ReferenceDataController {
         return ApiResponse.success(data, TraceIdUtils.resolve(req));
     }
 }
+

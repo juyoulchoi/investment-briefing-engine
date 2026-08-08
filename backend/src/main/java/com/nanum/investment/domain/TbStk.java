@@ -4,11 +4,11 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.time.OffsetDateTime;
 
-@Entity @Table(name="\"TB_STK\"", uniqueConstraints={@UniqueConstraint(name="UK_TB_STK_01",columnNames="STK_CD"),@UniqueConstraint(name="UK_TB_STK_02",columnNames={"TICKER","MKT_CD"})})
+@Entity @Table(name="\"TB_STK\"", uniqueConstraints={@UniqueConstraint(name="UK_TB_STK_01",columnNames="STK_CD")})
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class TbStk {
  @Id @GeneratedValue(strategy=GenerationType.IDENTITY) @Column(name="STK_ID") private Long stockId;
- @Column(name="STK_CD",nullable=false,length=30) private String stockCode; @Column(name="TICKER",nullable=false,length=30) private String ticker;
+ @Column(name="STK_CD",nullable=false,length=30) private String stockCode;
  @Column(name="STK_NM",nullable=false,length=150) private String stockName; @Column(name="STK_NM_EN",length=200) private String stockEnglishName;
  @Column(name="MKT_CD",nullable=false,length=30) private String marketCode; @Column(name="CNTRY_CD",nullable=false,length=10) private String countryCode; @Column(name="CURR_CD",nullable=false,length=10) private String currencyCode;
  @Enumerated(EnumType.STRING) @Column(name="AST_TP",nullable=false,length=30) private AssetType assetType; @Enumerated(EnumType.STRING) @Column(name="STK_GRADE",nullable=false,length=20) private StockGrade stockGrade;
