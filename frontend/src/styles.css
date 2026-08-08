@@ -15,3 +15,5 @@
 
 
 .multi-options{display:flex;flex-wrap:wrap;gap:7px;padding:10px;background:#fafbfc;border:1px solid #d8dee3;border-radius:8px}.multi-options button{min-width:42px;padding:8px 10px;color:#63717d;background:#fff;border:1px solid #d8dee3;border-radius:7px;font-weight:700}.multi-options button.selected{color:#fff;background:#276d50;border-color:#276d50}.month-days button{min-width:38px;padding:7px}
+
+.stock-picker{display:grid;gap:7px}
