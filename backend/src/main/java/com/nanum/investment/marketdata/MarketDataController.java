@@ -66,6 +66,9 @@ public class MarketDataController {
     @PostMapping("/bonds/collect")
     public FredBondYieldService.CollectionResult collectBonds(@RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate from,@RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to){return fredBonds.collect(from,to);}
 
+    @PostMapping("/bonds/refresh")
+    public FredBondYieldService.RefreshResult refreshBonds(){return fredBonds.refreshLatest();}
+
     @GetMapping("/bonds")
     public List<Map<String,Object>> bonds(@RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate from,@RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to){return fredBonds.history(from,to);}
 
