@@ -30,3 +30,11 @@ html{min-width:320px}body{overflow-x:hidden}.shell,.shell>main,.page,.ref-page{m
 @media(min-width:1600px){.page{padding-inline:48px}}
 @media(max-width:900px){.page{width:100%;padding-inline:18px}}
 @media(max-width:640px){.page{padding-inline:12px}.card.table{width:100%}}
+
+/* Inline list edit link */
+.row-edit-link{padding:0;color:#276d50;background:none;border:0;font:inherit;font-weight:700;text-align:left;text-decoration:underline;text-decoration-color:#276d5040;text-underline-offset:3px}.row-edit-link:hover{color:#174c35;text-decoration-color:currentColor}
+
+/* Regular buy detail panel */
+.regular-buy-detail{grid-column:1/-1;margin-top:22px;padding-top:20px;border-top:1px solid #e3e8eb}.regular-buy-detail h4{margin:0 0 13px;color:#263741;font-size:14px}.regular-buy-detail>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.regular-buy-detail dl{min-width:0;margin:0;padding:11px 12px;background:#f6f8f9;border:1px solid #e6eaed;border-radius:8px}.regular-buy-detail dt{margin-bottom:5px;color:#7a8791;font-size:10px;font-weight:700}.regular-buy-detail dd{margin:0;color:#25343e;font-size:12px;font-weight:700;line-height:1.45;overflow-wrap:anywhere}.regular-buy-detail dl:last-child{grid-column:1/-1}
+@media(max-width:640px){.regular-buy-detail>div{grid-template-columns:1fr 1fr}.regular-buy-detail dl:last-child{grid-column:1/-1}}
+@media(max-width:420px){.regular-buy-detail>div{grid-template-columns:1fr}.regular-buy-detail dl:last-child{grid-column:auto}}
