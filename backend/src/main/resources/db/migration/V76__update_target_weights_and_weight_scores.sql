@@ -1,0 +1,155 @@
+-- 사용자가 확정한 계좌별 목표비중과 비중점수를 반영한다.
+-- 목표비중은 화면의 백분율을 0~1 사이 소수로 저장한다.
+
+ALTER TABLE "TB_STK_SET"
+    DROP CONSTRAINT IF EXISTS "CK_STK_SET_03";
+
+ALTER TABLE "TB_STK_SET"
+    ADD CONSTRAINT "CK_STK_SET_03"
+        CHECK ("WGT_SCR" IS NULL OR "WGT_SCR" BETWEEN 1 AND 10);
+
+COMMENT ON COLUMN "TB_STK_SET"."WGT_SCR" IS '비중점수(1~10점)';
+
+CREATE TEMP TABLE TMP_STK_SET_WEIGHT (
+    "ACCT_TP" VARCHAR(20) NOT NULL,
+    "STK_CD" VARCHAR(30) NOT NULL,
+    "TGT_WGT" NUMERIC(10, 6) NOT NULL,
+    "WGT_SCR" INTEGER NOT NULL,
+    PRIMARY KEY ("ACCT_TP", "STK_CD")
+) ON COMMIT DROP;
+
+INSERT INTO TMP_STK_SET_WEIGHT ("ACCT_TP", "STK_CD", "TGT_WGT", "WGT_SCR") VALUES
+    ('DOMESTIC', '007340', 0.0690, 8),
+    ('DOMESTIC', '105560', 0.0690, 8),
+    ('DOMESTIC', '010120', 0.0776, 9),
+    ('DOMESTIC', '001440', 0.0345, 4),
+    ('DOMESTIC', '034020', 0.0603, 7),
+    ('DOMESTIC', '058470', 0.0776, 9),
+    ('DOMESTIC', '083650', 0.0690, 8),
+    ('DOMESTIC', '028050', 0.0603, 7),
+    ('DOMESTIC', '005930', 0.0862, 10),
+    ('DOMESTIC', '032820', 0.0345, 4),
+    ('DOMESTIC', '000100', 0.0690, 8),
+    ('DOMESTIC', '014680', 0.0690, 8),
+    ('DOMESTIC', '000720', 0.0603, 7),
+    ('DOMESTIC', '298040', 0.0776, 9),
+    ('DOMESTIC', '000660', 0.0862, 10),
+
+    ('OVERSEAS', 'BOTZ', 0.0251, 7),
+    ('OVERSEAS', 'HYDR', 0.0143, 4),
+    ('OVERSEAS', 'QQQ', 0.0358, 10),
+    ('OVERSEAS', 'SCHD', 0.0323, 9),
+    ('OVERSEAS', 'SMH', 0.0323, 9),
+    ('OVERSEAS', 'SPY', 0.0358, 10),
+    ('OVERSEAS', 'VIG', 0.0323, 9),
+    ('OVERSEAS', 'XLF', 0.0287, 8),
+    ('OVERSEAS', 'XLI', 0.0287, 8),
+    ('OVERSEAS', 'XLV', 0.0287, 8),
+    ('OVERSEAS', 'GEV', 0.0287, 8),
+    ('OVERSEAS', 'MSFT', 0.0358, 10),
+    ('OVERSEAS', 'BAC', 0.0215, 6),
+    ('OVERSEAS', 'BRK.B', 0.0287, 8),
+    ('OVERSEAS', 'VRT', 0.0287, 8),
+    ('OVERSEAS', 'AVGO', 0.0323, 9),
+    ('OVERSEAS', 'VST', 0.0287, 8),
+    ('OVERSEAS', 'V', 0.0287, 8),
+    ('OVERSEAS', 'SPCX', 0.0143, 4),
+    ('OVERSEAS', 'ANET', 0.0287, 8),
+    ('OVERSEAS', 'AMZN', 0.0323, 9),
+    ('OVERSEAS', 'IONQ', 0.0143, 4),
+    ('OVERSEAS', 'GOOGL', 0.0323, 9),
+    ('OVERSEAS', 'ABBV', 0.0251, 7),
+    ('OVERSEAS', 'AAPL', 0.0323, 9),
+    ('OVERSEAS', 'NVDA', 0.0358, 10),
+    ('OVERSEAS', 'WMT', 0.0323, 9),
+    ('OVERSEAS', 'INTC', 0.0215, 6),
+    ('OVERSEAS', 'LLY', 0.0251, 7),
+    ('OVERSEAS', 'JPM', 0.0287, 8),
+    ('OVERSEAS', 'JNJ', 0.0287, 8),
+    ('OVERSEAS', 'CAT', 0.0251, 7),
+    ('OVERSEAS', 'COST', 0.0287, 8),
+    ('OVERSEAS', 'CEG', 0.0287, 8),
+    ('OVERSEAS', 'PLTR', 0.0251, 7),
+    ('OVERSEAS', 'PLUG', 0.0143, 4),
+
+    ('ISA', '411060', 0.0543, 10),
+    ('ISA', '069500', 0.0543, 10),
+    ('ISA', '305720', 0.0217, 4),
+    ('ISA', '471990', 0.0543, 10),
+    ('ISA', '117700', 0.0380, 7),
+    ('ISA', '487230', 0.0489, 9),
+    ('ISA', '379800', 0.0543, 10),
+    ('ISA', '144600', 0.0435, 8),
+    ('ISA', '266420', 0.0435, 8),
+    ('ISA', '161510', 0.0543, 10),
+    ('ISA', '0023A0', 0.0163, 3),
+    ('ISA', '139270', 0.0435, 8),
+    ('ISA', '227550', 0.0435, 8),
+    ('ISA', '160580', 0.0435, 8),
+    ('ISA', '464310', 0.0435, 8),
+    ('ISA', '329200', 0.0380, 7),
+    ('ISA', '458730', 0.0543, 10),
+    ('ISA', '0183J0', 0.0380, 7),
+    ('ISA', '305080', 0.0543, 10),
+    ('ISA', '0046A0', 0.0543, 10),
+    ('ISA', '381180', 0.0489, 9),
+    ('ISA', '466940', 0.0543, 10),
+
+    ('PENSION', '411060', 0.0444, 10),
+    ('PENSION', '069500', 0.0444, 10),
+    ('PENSION', '305720', 0.0178, 4),
+    ('PENSION', '471990', 0.0444, 10),
+    ('PENSION', '117700', 0.0311, 7),
+    ('PENSION', '0089D0', 0.0444, 10),
+    ('PENSION', '360750', 0.0444, 10),
+    ('PENSION', '144600', 0.0356, 8),
+    ('PENSION', '266420', 0.0356, 8),
+    ('PENSION', '161510', 0.0444, 10),
+    ('PENSION', '455890', 0.0400, 9),
+    ('PENSION', '0023A0', 0.0133, 3),
+    ('PENSION', '0051G0', 0.0400, 9),
+    ('PENSION', '139270', 0.0356, 8),
+    ('PENSION', '227550', 0.0356, 8),
+    ('PENSION', '463250', 0.0311, 7),
+    ('PENSION', '160580', 0.0356, 8),
+    ('PENSION', '464310', 0.0356, 8),
+    ('PENSION', '329200', 0.0311, 7),
+    ('PENSION', '458730', 0.0444, 10),
+    ('PENSION', '0183J0', 0.0311, 7),
+    ('PENSION', '305080', 0.0444, 10),
+    ('PENSION', '0046A0', 0.0444, 10),
+    ('PENSION', '381180', 0.0400, 9),
+    ('PENSION', '241180', 0.0311, 7),
+    ('PENSION', '494670', 0.0356, 8),
+    ('PENSION', '302190', 0.0444, 10);
+
+DO $$
+DECLARE
+    V_INPUT_COUNT INTEGER;
+    V_MATCH_COUNT INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO V_INPUT_COUNT FROM TMP_STK_SET_WEIGHT;
+    IF V_INPUT_COUNT <> 100 THEN
+        RAISE EXCEPTION 'Expected 100 target-weight rows, found %', V_INPUT_COUNT;
+    END IF;
+
+    SELECT COUNT(*)
+      INTO V_MATCH_COUNT
+      FROM TMP_STK_SET_WEIGHT I
+      JOIN "TB_STK_SET" S
+        ON S."ACCT_TP" = I."ACCT_TP"
+       AND S."STK_CD" = I."STK_CD";
+
+    IF V_MATCH_COUNT <> V_INPUT_COUNT THEN
+        RAISE EXCEPTION 'Only % of % account/stock targets exist in TB_STK_SET',
+            V_MATCH_COUNT, V_INPUT_COUNT;
+    END IF;
+END $$;
+
+UPDATE "TB_STK_SET" S
+   SET "TGT_WGT" = I."TGT_WGT",
+       "WGT_SCR" = I."WGT_SCR",
+       "MOD_DT" = CURRENT_TIMESTAMP
+  FROM TMP_STK_SET_WEIGHT I
+ WHERE S."ACCT_TP" = I."ACCT_TP"
+   AND S."STK_CD" = I."STK_CD";
