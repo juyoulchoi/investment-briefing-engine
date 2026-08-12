@@ -63,7 +63,7 @@ public class AutomaticInvestmentDecisionService {
   FROM "TB_REG_BUY" r JOIN "TB_ACCT" a ON a."ACCT_ID"=r."ACCT_ID" JOIN "TB_STK" s ON s."STK_ID"=r."STK_ID"
   LEFT JOIN "TB_HOLD" h ON h."ACCT_ID"=a."ACCT_ID" AND h."STK_ID"=s."STK_ID" AND h."USE_YN"='Y' AND h."DEL_YN"='N'
   LEFT JOIN LATERAL(SELECT "DD_HIGH_RT" FROM "TB_PRC_DAY" d WHERE d."STK_ID"=s."STK_ID" AND d."TRADE_DT"<=:day ORDER BY d."TRADE_DT" DESC LIMIT 1)p ON true
-  WHERE r."USE_YN"='Y' AND r."DEL_YN"='N' AND a."USE_YN"='Y' AND a."DEL_YN"='N' AND s."USE_YN"='Y' AND s."DEL_YN"='N'
+  WHERE r."DEL_YN"='N' AND a."USE_YN"='Y' AND a."DEL_YN"='N' AND s."USE_YN"='Y' AND s."DEL_YN"='N'
   ORDER BY a."DISP_SEQ",s."STK_CD"
   """).param("day",baseDate).query((rs,n)->new StockPosition(rs.getString(1),rs.getString(2),rs.getString(3),amount(rs.getBigDecimal(4)),amount(rs.getBigDecimal(5)),number(rs.getBigDecimal(6)),number(rs.getBigDecimal(7)),number(rs.getBigDecimal(8)),weight(rs.getBigDecimal(9)),weight(rs.getBigDecimal(10)),number(rs.getBigDecimal(11)),number(rs.getBigDecimal(12)),number(rs.getBigDecimal(13)),rs.getBoolean(14))).list();}
 

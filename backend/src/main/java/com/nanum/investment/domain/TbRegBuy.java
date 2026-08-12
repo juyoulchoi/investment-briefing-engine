@@ -14,6 +14,6 @@ public class TbRegBuy {
  @Column(name="BASE_BUY_AMT",precision=20,scale=4) private BigDecimal baseBuyAmount; @Column(name="RCMD_BUY_AMT",precision=20,scale=4) private BigDecimal recommendedBuyAmount; @Column(name="SAVED_AMT",precision=20,scale=4) private BigDecimal savedAmount;
  @Column(name="ACT_SIG",length=30) private String actionSignal; @Enumerated(EnumType.STRING) @Builder.Default @Column(name="BUY_STS",nullable=false,length=20) private RegularBuyStatus buyStatus=RegularBuyStatus.ACTIVE;
  @Column(name="PAUSE_RSN",length=500) private String pauseReason; @Builder.Default @Column(name="USER_PAUSE_YN",nullable=false,length=1) private String userPauseYn="N"; @Builder.Default @Column(name="AUTO_CALC_YN",nullable=false,length=1) private String autoCalculateYn="Y";
- @Column(name="LAST_CALC_DT") private LocalDate lastCalculationDate; @Builder.Default @Column(name="RULE_VER_NO",nullable=false) private Integer ruleVersionNumber=1; @Builder.Default @Column(name="USE_YN",nullable=false,length=1) private String useYn="Y"; @Builder.Default @Column(name="DEL_YN",nullable=false,length=1) private String deleteYn="N";
+ @Column(name="LAST_CALC_DT") private LocalDate lastCalculationDate; @Builder.Default @Column(name="RULE_VER_NO",nullable=false) private Integer ruleVersionNumber=1; @Builder.Default @Column(name="DEL_YN",nullable=false,length=1) private String deleteYn="N";
 }
 
