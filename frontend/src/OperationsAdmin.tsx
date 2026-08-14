@@ -256,7 +256,6 @@ const config: Record<
         key: "pauseReason",
         label: "일시정지 사유",
         type: "select",
-        wide: true,
         options: [
           ["", "선택 안 함"],
           ["기본 설정", "기본 설정"],

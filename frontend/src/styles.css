@@ -43,5 +43,5 @@ html{min-width:320px}body{overflow-x:hidden}.shell,.shell>main,.page,.ref-page{m
 .regular-buy-form{grid-template-columns:repeat(6,minmax(0,1fr))}
 .regular-buy-form>.regular-buy-field{grid-column:span 3}
 .regular-buy-form>.regular-buy-field.wide{grid-column:1/-1}
-.regular-buy-form>.regular-buy-field-buyBasis,.regular-buy-form>.regular-buy-field-minimumBuyAmount,.regular-buy-form>.regular-buy-field-buyCycle{grid-column:span 2}
+.regular-buy-form>.regular-buy-field-buyBasis,.regular-buy-form>.regular-buy-field-minimumBuyAmount,.regular-buy-form>.regular-buy-field-buyCycle,.regular-buy-form>.regular-buy-field-appliedAmount,.regular-buy-form>.regular-buy-field-appliedCycle,.regular-buy-form>.regular-buy-field-appliedMonthDay,.regular-buy-form>.regular-buy-field-buyStatus,.regular-buy-form>.regular-buy-field-userPauseYn,.regular-buy-form>.regular-buy-field-pauseReason{grid-column:span 2}
 @media(max-width:720px){.regular-buy-form{grid-template-columns:1fr}.regular-buy-form>.regular-buy-field,.regular-buy-form>.regular-buy-field.wide{grid-column:auto}}
