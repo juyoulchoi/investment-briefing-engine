@@ -207,7 +207,6 @@ const config: Record<
           ["WEEKLY", "매주"],
           ["MONTHLY", "매월"],
           ["PAUSED", "적용 중지"],
-          ["MANUAL", "사용자 지정"],
         ],
       },
       {
@@ -217,9 +216,10 @@ const config: Record<
         wide: true,
       },
       {
-        key: "appliedMonthDay",
-        label: "적용 매수일",
-        type: "number",
+        key: "appliedMonthDays",
+        label: "현재 매수일",
+        help: "복수 선택 가능",
+        type: "monthdays",
         wide: true,
       },
       {
@@ -267,7 +267,6 @@ const config: Record<
           ["사용자 일시정지", "사용자 일시정지"],
           ["매수 조건 미충족", "매수 조건 미충족"],
           ["투자 전략 변경", "투자 전략 변경"],
-          ["기타", "기타"],
         ],
       },
       { key: "memo", label: "비고", wide: true },
@@ -445,7 +444,7 @@ export default function OperationsAdmin({
           appliedSchedule: schedule(
             r.appliedCycle,
             r.appliedWeekDays,
-            r.appliedMonthDay,
+            r.appliedMonthDays,
           ),
           baseValue: r.baseAmount,
           recommendedValue: r.recommendedAmount,
@@ -548,7 +547,7 @@ export default function OperationsAdmin({
     appliedSchedule: schedule(
       form.appliedCycle,
       form.appliedWeekDays,
-      form.appliedMonthDay,
+      form.appliedMonthDays,
     ),
     appliedValue: form.appliedAmount,
   };
@@ -900,7 +899,7 @@ export default function OperationsAdmin({
                         form.buyCycle === "MONTHLY") &&
                       (f.key !== "appliedWeekDays" ||
                         form.appliedCycle === "WEEKLY") &&
-                      (f.key !== "appliedMonthDay" ||
+                      (f.key !== "appliedMonthDays" ||
                         form.appliedCycle === "MONTHLY") &&
                       (![
                         "minimumBuyAmount",
