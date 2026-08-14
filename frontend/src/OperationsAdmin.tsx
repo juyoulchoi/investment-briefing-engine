@@ -153,7 +153,22 @@ const config: Record<
         label: "투자등급",
         help: "공통코드 INVESTMENT_GRADE",
         type: "investmentGrade",
-        wide: true,
+      },
+      {
+        key: "buyBasis",
+        label: "매수 기준",
+        type: "select",
+        required: true,
+        options: [
+          ["AMOUNT", "금액 기준"],
+          ["QUANTITY", "수량 기준"],
+        ],
+      },
+      {
+        key: "minimumBuyAmount",
+        label: "기준금액",
+        type: "number",
+        required: true,
       },
       {
         key: "buyCycle",
@@ -180,22 +195,7 @@ const config: Record<
         type: "monthdays",
         wide: true,
       },
-      {
-        key: "buyBasis",
-        label: "매수 기준",
-        type: "select",
-        required: true,
-        options: [
-          ["AMOUNT", "금액 기준"],
-          ["QUANTITY", "수량 기준"],
-        ],
-      },
-      {
-        key: "minimumBuyAmount",
-        label: "기준금액",
-        type: "number",
-        required: true,
-      },
+      { key: "appliedAmount", label: "현재 적용금액", type: "number" },
       {
         key: "appliedCycle",
         label: "현재 적용주기",
@@ -216,7 +216,6 @@ const config: Record<
         wide: true,
       },
       { key: "appliedMonthDay", label: "현재 적용일", type: "number" },
-      { key: "appliedAmount", label: "현재 적용금액", type: "number" },
       {
         key: "baseBuyQuantity",
         label: "기본 매수 수량",
@@ -526,11 +525,10 @@ export default function OperationsAdmin({
                       : Number(v).toLocaleString("ko-KR")
                   : labels[String(v)] || String(v ?? "-");
   const regularBuyDetails: [string, string][] = [
-    ["recommendedValue", "추천금액"],
     ["stockGrade", "종목등급"],
     ["benchmarkName", "기준지수"],
     ["targetWeight", "목표비중"],
-    ["weightScore", "비중점수"],
+    ["recommendedValue", "추천금액"],
   ];
   const regularBuyDetailRow: Row = {
     ...form,
@@ -885,7 +883,9 @@ export default function OperationsAdmin({
                 ×
               </button>
             </header>
-            <div className="ref-form">
+            <div
+              className={`ref-form ${kind === "regular-buys" ? "regular-buy-form" : ""}`}
+            >
               {config[kind].fields
                 .filter(
                   (f) =>
@@ -907,7 +907,17 @@ export default function OperationsAdmin({
                         form.buyBasis === "QUANTITY")),
                 )
                 .map((f) => (
-                  <label key={f.key} className={f.wide ? "wide" : ""}>
+                  <label
+                    key={f.key}
+                    className={[
+                      f.wide ? "wide" : "",
+                      kind === "regular-buys"
+                        ? `regular-buy-field regular-buy-field-${f.key}`
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
                     <span>
                       {f.label}
                       {f.required && <b> *</b>}
