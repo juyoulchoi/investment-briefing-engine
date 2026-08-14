@@ -147,12 +147,14 @@ const config: Record<
         label: "우선순위",
         help: "큰 숫자가 높은 우선순위",
         type: "number",
+        required: true,
       },
       {
         key: "investmentGrade",
         label: "투자등급",
         help: "공통코드 INVESTMENT_GRADE",
         type: "investmentGrade",
+        required: true,
       },
       {
         key: "buyBasis",
