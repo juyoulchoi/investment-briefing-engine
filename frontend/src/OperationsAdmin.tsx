@@ -119,7 +119,6 @@ const config: Record<
     id: "regularBuyKey",
     columns: [
       ["accountType", "계좌"],
-      ["priority", "우선순위"],
       ["stockCode", "종목코드"],
       ["stockName", "종목명"],
       ["stockGrade", "종목등급"],
@@ -142,13 +141,6 @@ const config: Record<
     fields: [
       { key: "accountId", label: "계좌", type: "account", required: true },
       { key: "stockId", label: "종목", type: "stock", required: true },
-      {
-        key: "priority",
-        label: "우선순위",
-        help: "큰 숫자가 높은 우선순위",
-        type: "number",
-        required: true,
-      },
       {
         key: "investmentGrade",
         label: "투자등급",
