@@ -41,8 +41,8 @@ class InvestmentCalculationEngineTest {
  @Test void additionalBuyAllocationNeverExceedsBudget(){
   var allocator=new AdditionalBuyAllocator();
   var allocations=allocator.allocate(bd("100"),List.of(
-   new AdditionalBuyAllocator.Candidate(1L,true,bd("90"),bd("80"),bd("70")),
-   new AdditionalBuyAllocator.Candidate(2L,true,bd("80"),bd("80"),bd("80"))));
+   new AdditionalBuyAllocator.Candidate(1L,true,20,bd("90"),"AAA",bd("80"),bd("70")),
+   new AdditionalBuyAllocator.Candidate(2L,true,10,bd("80"),"BBB",bd("80"),bd("80"))));
   assertThat(allocations.stream().map(AdditionalBuyAllocator.Allocation::amount).reduce(BigDecimal.ZERO,BigDecimal::add)).isEqualByComparingTo("100");
   assertThat(allocations.getFirst().stockId()).isEqualTo(1L);
  }

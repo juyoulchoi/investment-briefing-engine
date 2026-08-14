@@ -13,7 +13,11 @@ public class AdditionalBuyAllocator {
         List<Allocation> out = new ArrayList<>();
         List<Candidate> sorted = candidates == null ? List.of()
                 : candidates.stream().filter(Candidate::eligible)
-                        .sorted(Comparator.comparing(Candidate::priorityScore).reversed()).toList();
+                        .sorted(Comparator.comparing(Candidate::regularBuyPriority,
+                                        Comparator.nullsLast(Comparator.reverseOrder()))
+                                .thenComparing(Candidate::recommendationScore, Comparator.reverseOrder())
+                                .thenComparing(Candidate::stockCode))
+                        .toList();
         for (Candidate c : sorted) {
             BigDecimal amount = min(nonNegative(c.maximumAmount()), nonNegative(c.weightGapAmount()), remaining);
             out.add(new Allocation(c.stockId(), amount));
@@ -30,7 +34,8 @@ public class AdditionalBuyAllocator {
         return Arrays.stream(v).min(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
     }
 
-    public record Candidate(Long stockId, boolean eligible, BigDecimal priorityScore, BigDecimal maximumAmount,
+    public record Candidate(Long stockId, boolean eligible, Integer regularBuyPriority,
+            BigDecimal recommendationScore, String stockCode, BigDecimal maximumAmount,
             BigDecimal weightGapAmount) {
     }
 

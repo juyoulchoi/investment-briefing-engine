@@ -72,7 +72,7 @@ function Additional(){
  return <div className="page">
   <div className="tabs account-tabs">{accountTypes.map(type=><button key={type} className={accountType===type?"active":""} onClick={()=>setAccountType(type)}>{accountLabel[type]}</button>)}</div>
   <section className="cash"><div><small>전체 계좌 추가매수 확보현금</small><strong>{won(data.reserveAmount)}</strong><p>{data.baseDate?`${data.baseDate} 계산 기준`:"계산된 추가매수 계획 없음"} · 전체 최대 사용 권장액 {won(data.recommendedTotal)}</p></div><div><i><b style={{width:`${Math.min(100,data.usageRate)}%`}}/></i><span>전체 확보현금 사용 권장률 <strong>{data.usageRate.toFixed(1)}%</strong></span></div></section>
-  <section className="card recommends">{rows.length===0?<p className="data-state">선택한 계좌의 추가매수 평가 결과가 없습니다.</p>:rows.map((r,i)=><article key={r.additionalBuyId} className={r.eligibleYn==="Y"?"":"muted-row"}><b>{r.eligibleYn==="Y"?String(r.priority??i+1).padStart(2,"0"):"-"}</b><span><strong>{r.stockName||r.stockCode}</strong></span><em>{r.eligibleYn==="Y"?"추천점수 "+Number(r.score).toFixed(0):"제외"}</em><strong>{r.accountType==="OVERSEAS"?usd(Number(r.recommendedAmount)):won(Number(r.recommendedAmount))}</strong></article>)}</section>
+  <section className="card recommends">{rows.length===0?<p className="data-state">선택한 계좌의 추가매수 평가 결과가 없습니다.</p>:rows.map(r=><article key={r.additionalBuyId} className={r.eligibleYn==="Y"?"":"muted-row"}><span><strong>{r.stockName||r.stockCode}</strong></span><em>{r.eligibleYn==="Y"?"추천점수 "+Number(r.score).toFixed(0):"제외"}</em><strong>{r.accountType==="OVERSEAS"?usd(Number(r.recommendedAmount)):won(Number(r.recommendedAmount))}</strong></article>)}</section>
  </div>
 }
 function Rebalance({period,set}:{period:string;set:(s:string)=>void}){
