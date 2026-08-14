@@ -181,7 +181,6 @@ const config: Record<
           ["DAILY", "매일"],
           ["WEEKLY", "매주"],
           ["MONTHLY", "매월"],
-          ["CUSTOM", "사용자 지정"],
         ],
       },
       {
@@ -213,11 +212,16 @@ const config: Record<
       },
       {
         key: "appliedWeekDays",
-        label: "현재 적용요일",
+        label: "적용 매수요일",
         type: "weekdays",
         wide: true,
       },
-      { key: "appliedMonthDay", label: "현재 적용일", type: "number" },
+      {
+        key: "appliedMonthDay",
+        label: "적용 매수일",
+        type: "number",
+        wide: true,
+      },
       {
         key: "baseBuyQuantity",
         label: "기본 매수 수량",
