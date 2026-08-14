@@ -1,0 +1,12 @@
+ALTER TABLE "TB_CD_DTL"
+    DROP CONSTRAINT "CK_CD_DTL_INV_GRD_01";
+
+ALTER TABLE "TB_CD_DTL"
+    ADD CONSTRAINT "CK_CD_DTL_INV_GRD_01" CHECK (
+        "CD_GRP" <> 'INVESTMENT_GRADE'
+        OR (
+            "NUM_VAL" IS NOT NULL
+            AND "NUM_VAL" BETWEEN 0 AND 10
+            AND "NUM_VAL" = TRUNC("NUM_VAL")
+        )
+    );
