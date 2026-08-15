@@ -7,14 +7,15 @@ import java.util.*;
 
 @Service
 public class HoldingMarketDataRefreshService {
- private static final List<KrxDataset> KRX_DATASETS=List.of(KrxDataset.KOSPI_STOCK_DAILY,KrxDataset.KOSDAQ_STOCK_DAILY,KrxDataset.ETF_DAILY);
- private final KrxMarketDataService krx;private final OverseasStockService overseas;private final JdbcClient jdbc;
- public HoldingMarketDataRefreshService(KrxMarketDataService krx,OverseasStockService overseas,JdbcClient jdbc){this.krx=krx;this.overseas=overseas;this.jdbc=jdbc;}
+ private static final List<KrxDataset> KRX_DATASETS=List.of(KrxDataset.KOSPI_STOCK_DAILY,KrxDataset.KOSDAQ_STOCK_DAILY,KrxDataset.ETF_DAILY,KrxDataset.KOSPI_INDEX_DAILY);
+ private final KrxMarketDataService krx;private final OverseasStockService overseas;private final YahooIndexService indices;private final JdbcClient jdbc;
+ public HoldingMarketDataRefreshService(KrxMarketDataService krx,OverseasStockService overseas,YahooIndexService indices,JdbcClient jdbc){this.krx=krx;this.overseas=overseas;this.indices=indices;this.jdbc=jdbc;}
 
  public HoldingMarketDataRefreshResult refresh(){
   List<String> failures=new ArrayList<>();Map<String,Integer> krxCounts=new LinkedHashMap<>();LocalDate krxDate=refreshKrx(krxCounts,failures);
   List<String> symbols=overseasSymbols(),successes=new ArrayList<>();
   for(String symbol:symbols)try{overseas.refresh(symbol);successes.add(symbol);}catch(Exception e){failures.add("해외 "+symbol+": "+e.getMessage());}
+  for(String index:List.of("SP500","VIX"))try{indices.refresh(index);}catch(Exception e){failures.add("지수 "+index+": "+e.getMessage());}
   boolean krxComplete=krxDate!=null&&KRX_DATASETS.stream().allMatch(d->krxCounts.getOrDefault(d.name(),0)>0);
   return new HoldingMarketDataRefreshResult(krxComplete&&failures.isEmpty(),krxDate,Map.copyOf(krxCounts),symbols.size(),successes.size(),List.copyOf(successes),List.copyOf(failures));
  }

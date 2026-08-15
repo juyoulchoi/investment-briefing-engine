@@ -32,6 +32,22 @@ public class InvestmentBriefingScheduler {
     }
 
     @Scheduled(
+            cron = "${investment.briefing.weekly-decision-scheduler.cron:0 20 8 * * SAT}",
+            zone = "${investment.briefing.scheduler.zone:Asia/Seoul}")
+    public void generateWeeklyDecision() {
+        try {
+            BriefingRefreshResult refresh=refreshService.refreshWeeklyDecision();
+            if(!refresh.success()){
+                log.error("주간 투자판단·추천금액 계산 중단. completedSteps={}, failures={}",
+                        refresh.completedSteps(),refresh.failures());
+                return;
+            }
+            log.info("주간 투자판단·추천금액 계산 완료. baseDate={}, completedSteps={}",
+                    refresh.baseDate(),refresh.completedSteps());
+        }catch(Exception e){log.error("주간 투자판단·추천금액 계산 실패",e);}
+    }
+
+    @Scheduled(
             cron = "${investment.briefing.weekly-scheduler.cron:0 20 8 * * SUN}",
             zone = "${investment.briefing.scheduler.zone:Asia/Seoul}")
     public void generateWeeklyBriefing() {

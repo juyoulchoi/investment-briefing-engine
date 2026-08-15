@@ -17,7 +17,7 @@ public class MarketDataConsistencyService {
 
  public MarketDataValidationResult validate(LocalDate baseDate){
   if(baseDate==null)throw new IllegalArgumentException("검증 기준일이 필요합니다.");
-  List<MarketDataValidationResult.ComponentResult> components=List.of(validateKrx(baseDate),validateOverseas(baseDate),validateExchange(baseDate),validateBonds(baseDate));
+  List<MarketDataValidationResult.ComponentResult> components=List.of(validateKrx(baseDate),validateIndices(baseDate),validateOverseas(baseDate),validateExchange(baseDate),validateBonds(baseDate));
   List<String> errors=new ArrayList<>(),warnings=new ArrayList<>();
   for(var component:components){component.errors().forEach(x->errors.add("["+component.name()+"] "+x));component.warnings().forEach(x->warnings.add("["+component.name()+"] "+x));}
   validateDateAlignment(components,errors,warnings);
@@ -53,6 +53,30 @@ public class MarketDataConsistencyService {
     AND (d."HIGH_PRC"<d."LOW_PRC" OR d."HIGH_PRC"<d."OPEN_PRC" OR d."HIGH_PRC"<d."CLS_PRC" OR d."LOW_PRC">d."OPEN_PRC" OR d."LOW_PRC">d."CLS_PRC" OR d."VOL"<0)
    """).param("day",baseDate).query(Long.class).single();if(invalidOhlc>0)errors.add("OHLC 또는 거래량 정합성이 잘못된 종목이 "+invalidOhlc+"건입니다.");
   if(stocks.isEmpty())errors.add("검증할 활성 해외종목이 없습니다.");return component("OVERSEAS_MARKET","해외시장",latest,stocks.size(),errors,warnings);
+ }
+
+ private MarketDataValidationResult.ComponentResult validateIndices(LocalDate baseDate){
+  List<String> errors=new ArrayList<>(),warnings=new ArrayList<>();List<LatestRow> rows=new ArrayList<>();
+  LatestRow kospi=jdbc.sql("""
+   SELECT 'KOSPI',base_date,NULLIF(replace(payload->>'CLSPRC_IDX',',',''),'')::numeric,NULL::numeric,'FRESH'
+   FROM tb_krx_data_row WHERE dataset_code='KOSPI_INDEX_DAILY' AND base_date<=:day
+    AND payload->>'IDX_NM' IN ('코스피','KOSPI') ORDER BY base_date DESC LIMIT 1
+   """).param("day",baseDate).query((rs,n)->new LatestRow(rs.getString(1),rs.getObject(2,LocalDate.class),rs.getBigDecimal(3),rs.getBigDecimal(4),rs.getString(5))).optional().orElse(null);
+  if(kospi!=null)rows.add(kospi);
+  rows.addAll(jdbc.sql("""
+   SELECT i."IDX_CD",d."TRADE_DT",d."CLS_VAL",d."CHG_RT",d."DATA_STS" FROM "TB_IDX" i
+   LEFT JOIN LATERAL(SELECT "TRADE_DT","CLS_VAL","CHG_RT","DATA_STS" FROM "TB_IDX_DAY" x
+    WHERE x."IDX_ID"=i."IDX_ID" AND x."TRADE_DT"<=:day ORDER BY x."TRADE_DT" DESC LIMIT 1)d ON true
+   WHERE i."IDX_CD" IN ('SP500','VIX') ORDER BY i."IDX_CD"
+   """).param("day",baseDate).query((rs,n)->new LatestRow(rs.getString(1),rs.getObject(2,LocalDate.class),rs.getBigDecimal(3),rs.getBigDecimal(4),rs.getString(5))).list());
+  for(String code:List.of("KOSPI","SP500","VIX")){
+   LatestRow row=rows.stream().filter(x->code.equals(x.code())).findFirst().orElse(null);
+   if(row==null||row.date()==null){errors.add(code+" 대표지수가 없습니다.");continue;}
+   long age=age(row.date(),baseDate);if(age>5)errors.add(code+" 대표지수가 "+age+"일 지연되었습니다.");else if(age>3)warnings.add(code+" 대표지수가 "+age+"일 지연되었습니다.");
+   if(row.value()==null||row.value().signum()<=0)errors.add(code+" 대표지수 값이 유효하지 않습니다.");
+  }
+  LocalDate latest=rows.stream().map(LatestRow::date).filter(Objects::nonNull).max(LocalDate::compareTo).orElse(null);
+  return component("REPRESENTATIVE_INDEX","대표지수",latest,rows.stream().filter(x->x.date()!=null).count(),errors,warnings);
  }
 
  private MarketDataValidationResult.ComponentResult validateExchange(LocalDate baseDate){

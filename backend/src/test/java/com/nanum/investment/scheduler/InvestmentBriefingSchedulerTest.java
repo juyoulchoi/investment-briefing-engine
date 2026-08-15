@@ -10,6 +10,22 @@ import static org.mockito.Mockito.*;
 
 class InvestmentBriefingSchedulerTest {
     @Test
+    void weeklyDecisionRunsThroughRawDataOnSaturdayAt0820() throws Exception {
+        BriefingRefreshService refresh=mock(BriefingRefreshService.class);
+        WeeklyInvestmentBriefingService weekly=mock(WeeklyInvestmentBriefingService.class);
+        InvestmentBriefingScheduler scheduler=new InvestmentBriefingScheduler(refresh,weekly);
+
+        scheduler.generateWeeklyDecision();
+
+        verify(refresh).refreshWeeklyDecision();
+        verifyNoInteractions(weekly);
+        Scheduled scheduled=InvestmentBriefingScheduler.class.getMethod("generateWeeklyDecision")
+                .getAnnotation(Scheduled.class);
+        assertThat(scheduled.cron()).isEqualTo("${investment.briefing.weekly-decision-scheduler.cron:0 20 8 * * SAT}");
+        assertThat(scheduled.zone()).isEqualTo("${investment.briefing.scheduler.zone:Asia/Seoul}");
+    }
+
+    @Test
     void weeklyBriefingRunsOnlyStepsElevenThroughThirteenOnSundayAt0820() throws Exception {
         BriefingRefreshService daily=mock(BriefingRefreshService.class);
         WeeklyInvestmentBriefingService weekly=mock(WeeklyInvestmentBriefingService.class);

@@ -43,7 +43,7 @@ public class WeeklyInvestmentBriefingService {
 
     private Long prepareWeeklyRawData(LocalDate sunday) {
         LocalDate periodStart=sunday.minusDays(6);
-        LocalDate periodEnd=sunday.minusDays(2);
+        LocalDate periodEnd=sunday.minusDays(1);
         List<DailyRaw> daily=jdbc.sql("""
                 SELECT "BASE_DT","RAW_DATA_JSON"::text,"DATA_STS","CONF_RT"
                 FROM "TB_BRF"
