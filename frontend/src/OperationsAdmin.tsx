@@ -198,7 +198,6 @@ const config: Record<
           ["DAILY", "매일"],
           ["WEEKLY", "매주"],
           ["MONTHLY", "매월"],
-          ["PAUSED", "적용 중지"],
         ],
       },
       {
