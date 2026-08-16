@@ -11,6 +11,3 @@ public class InvestmentBriefingApplication {
     SpringApplication.run(InvestmentBriefingApplication.class, args);
   }
 }
-
-
-

@@ -1,4 +1,57 @@
 package com.nanum.investment.domain;
-import jakarta.persistence.*; import lombok.*; import java.math.BigDecimal; import java.time.*;
-@Entity @Table(name="\"TB_BOND_DAY\"",uniqueConstraints=@UniqueConstraint(name="UK_TB_BOND_DAY_01",columnNames={"BASE_DT","BOND_CD"})) @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class TbBondDay { @Id @GeneratedValue(strategy=GenerationType.IDENTITY) @Column(name="BOND_DAY_ID") private Long bondDayId; @Column(name="BASE_DT",nullable=false) private LocalDate baseDate; @Column(name="BOND_CD",nullable=false,length=30) private String bondCode; @Column(name="BOND_NM",nullable=false,length=100) private String bondName; @Column(name="CNTRY_CD",nullable=false,length=10) private String countryCode; @Column(name="MATURITY_MON") private Integer maturityMonths; @Column(name="YLD_RT",nullable=false,precision=10,scale=6) private BigDecimal yieldRate; @Column(name="PREV_YLD_RT",precision=10,scale=6) private BigDecimal previousYieldRate; @Column(name="CHG_BP",precision=10,scale=4) private BigDecimal changeBasisPoints; @Column(name="DATA_SRC_CD",nullable=false,length=30) private String dataSourceCode; @Enumerated(EnumType.STRING) @Builder.Default @Column(name="DATA_STS",nullable=false,length=20) private DataStatus dataStatus=DataStatus.FRESH; }
+
+import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.*;
+import lombok.*;
+
+@Entity
+@Table(
+    name = "\"TB_BOND_DAY\"",
+    uniqueConstraints =
+        @UniqueConstraint(
+            name = "UK_TB_BOND_DAY_01",
+            columnNames = {"BASE_DT", "BOND_CD"}))
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TbBondDay {
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @Column(name = "BOND_DAY_ID")
+  private Long bondDayId;
+
+  @Column(name = "BASE_DT", nullable = false)
+  private LocalDate baseDate;
+
+  @Column(name = "BOND_CD", nullable = false, length = 30)
+  private String bondCode;
+
+  @Column(name = "BOND_NM", nullable = false, length = 100)
+  private String bondName;
+
+  @Column(name = "CNTRY_CD", nullable = false, length = 10)
+  private String countryCode;
+
+  @Column(name = "MATURITY_MON")
+  private Integer maturityMonths;
+
+  @Column(name = "YLD_RT", nullable = false, precision = 10, scale = 6)
+  private BigDecimal yieldRate;
+
+  @Column(name = "PREV_YLD_RT", precision = 10, scale = 6)
+  private BigDecimal previousYieldRate;
+
+  @Column(name = "CHG_BP", precision = 10, scale = 4)
+  private BigDecimal changeBasisPoints;
+
+  @Column(name = "DATA_SRC_CD", nullable = false, length = 30)
+  private String dataSourceCode;
+
+  @Enumerated(EnumType.STRING)
+  @Builder.Default
+  @Column(name = "DATA_STS", nullable = false, length = 20)
+  private DataStatus dataStatus = DataStatus.FRESH;
+}

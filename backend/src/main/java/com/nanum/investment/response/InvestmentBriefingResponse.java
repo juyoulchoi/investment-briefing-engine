@@ -4,9 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 public record InvestmentBriefingResponse(
-        LocalDate briefingDate,
-        String title,
-        List<BriefingItemResponse> items,
-        BriefingItemResponse finalJudgment
-) {
-}
+    LocalDate briefingDate,
+    String title,
+    List<BriefingItemResponse> items,
+    BriefingItemResponse finalJudgment) {}

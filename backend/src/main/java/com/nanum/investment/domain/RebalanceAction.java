@@ -1,2 +1,12 @@
 package com.nanum.investment.domain;
-public enum RebalanceAction { BUY, SELL, HOLD, PAUSE_REGULAR_BUY, REDUCE_REGULAR_BUY, INCREASE_REGULAR_BUY, RESUME_REGULAR_BUY, EXCLUDE }
+
+public enum RebalanceAction {
+  BUY,
+  SELL,
+  HOLD,
+  PAUSE_REGULAR_BUY,
+  REDUCE_REGULAR_BUY,
+  INCREASE_REGULAR_BUY,
+  RESUME_REGULAR_BUY,
+  EXCLUDE
+}

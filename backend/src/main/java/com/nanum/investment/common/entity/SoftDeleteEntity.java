@@ -6,25 +6,26 @@ import lombok.Getter;
 @Getter
 @MappedSuperclass
 public abstract class SoftDeleteEntity extends BaseEntity {
-    @Column(name = "USE_YN", nullable = false, length = 1)
-    private String useYn = "Y";
-    @Column(name = "DEL_YN", nullable = false, length = 1)
-    private String deleteYn = "N";
+  @Column(name = "USE_YN", nullable = false, length = 1)
+  private String useYn = "Y";
 
-    public void activate() {
-        useYn = "Y";
-    }
+  @Column(name = "DEL_YN", nullable = false, length = 1)
+  private String deleteYn = "N";
 
-    public void deactivate() {
-        useYn = "N";
-    }
+  public void activate() {
+    useYn = "Y";
+  }
 
-    public void softDelete() {
-        deleteYn = "Y";
-        useYn = "N";
-    }
+  public void deactivate() {
+    useYn = "N";
+  }
 
-    public boolean isDeleted() {
-        return "Y".equals(deleteYn);
-    }
+  public void softDelete() {
+    deleteYn = "Y";
+    useYn = "N";
+  }
+
+  public boolean isDeleted() {
+    return "Y".equals(deleteYn);
+  }
 }

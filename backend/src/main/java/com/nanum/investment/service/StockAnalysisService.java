@@ -4,5 +4,5 @@ import com.nanum.investment.request.StockAnalysisInput;
 import com.nanum.investment.response.StockAnalysisResult;
 
 public interface StockAnalysisService {
-    StockAnalysisResult analyze(StockAnalysisInput input);
+  StockAnalysisResult analyze(StockAnalysisInput input);
 }

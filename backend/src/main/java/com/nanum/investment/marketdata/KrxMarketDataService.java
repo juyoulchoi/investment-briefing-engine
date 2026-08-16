@@ -2,88 +2,111 @@ package com.nanum.investment.marketdata;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nanum.investment.service.HoldingPriceSyncService;
 import com.nanum.investment.external.*;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestClient;
+import com.nanum.investment.service.HoldingPriceSyncService;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestClient;
 
 @Service
 public class KrxMarketDataService {
-    private static final Set<KrxDataset> STOCK_DAILY_DATASETS = Set.of(
-            KrxDataset.KOSPI_STOCK_DAILY,
-            KrxDataset.KOSDAQ_STOCK_DAILY,
-            KrxDataset.ETF_DAILY);
+  private static final Set<KrxDataset> STOCK_DAILY_DATASETS =
+      Set.of(KrxDataset.KOSPI_STOCK_DAILY, KrxDataset.KOSDAQ_STOCK_DAILY, KrxDataset.ETF_DAILY);
 
-    private final JdbcClient jdbc;
-    private final ObjectMapper json;
-    private final RestClient client;
-    private final String authKey;
-    private final HoldingPriceSyncService holdingPriceSync;
-    private final ExternalApiRetryExecutor retry;
+  private final JdbcClient jdbc;
+  private final ObjectMapper json;
+  private final RestClient client;
+  private final String authKey;
+  private final HoldingPriceSyncService holdingPriceSync;
+  private final ExternalApiRetryExecutor retry;
 
-    public KrxMarketDataService(JdbcClient jdbc, ObjectMapper json,
-            @Value("${krx.base-url}") String baseUrl, @Value("${krx.auth-key:}") String authKey,
-            HoldingPriceSyncService holdingPriceSync, ExternalRestClientFactory clients, ExternalApiRetryExecutor retry) {
-        this.jdbc = jdbc;
-        this.json = json;
-        this.authKey = authKey;
-        this.holdingPriceSync = holdingPriceSync;
-        this.client = clients.builder(baseUrl).build();
-        this.retry = retry;
-    }
+  public KrxMarketDataService(
+      JdbcClient jdbc,
+      ObjectMapper json,
+      @Value("${krx.base-url}") String baseUrl,
+      @Value("${krx.auth-key:}") String authKey,
+      HoldingPriceSyncService holdingPriceSync,
+      ExternalRestClientFactory clients,
+      ExternalApiRetryExecutor retry) {
+    this.jdbc = jdbc;
+    this.json = json;
+    this.authKey = authKey;
+    this.holdingPriceSync = holdingPriceSync;
+    this.client = clients.builder(baseUrl).build();
+    this.retry = retry;
+  }
 
-    @Transactional
-    public CollectionResult collect(KrxDataset dataset, LocalDate date) {
-        if (!StringUtils.hasText(authKey))
-            throw new IllegalStateException("KRX_AUTH_KEY가 필요합니다.");
-        JsonNode response = retry.execute(() -> client.get().uri(uri -> uri.path(dataset.path())
-                .queryParam("basDd", date.format(DateTimeFormatter.BASIC_ISO_DATE)).build())
-                .header("AUTH_KEY", authKey).retrieve().body(JsonNode.class));
-        JsonNode rows = response == null ? null : response.path("OutBlock_1");
-        if (rows == null || !rows.isArray())
-            throw new IllegalStateException("KRX 응답에 OutBlock_1 배열이 없습니다.");
-        int received = 0;
-        Set<LocalDate> collectedDates = new HashSet<>();
-        for (JsonNode row : rows) {
-            LocalDate rowDate = parseDate(row.path("BAS_DD").asText(), date);
-            collectedDates.add(rowDate);
-            jdbc.sql("""
+  @Transactional
+  public CollectionResult collect(KrxDataset dataset, LocalDate date) {
+    if (!StringUtils.hasText(authKey)) throw new IllegalStateException("KRX_AUTH_KEY가 필요합니다.");
+    JsonNode response =
+        retry.execute(
+            () ->
+                client
+                    .get()
+                    .uri(
+                        uri ->
+                            uri.path(dataset.path())
+                                .queryParam("basDd", date.format(DateTimeFormatter.BASIC_ISO_DATE))
+                                .build())
+                    .header("AUTH_KEY", authKey)
+                    .retrieve()
+                    .body(JsonNode.class));
+    JsonNode rows = response == null ? null : response.path("OutBlock_1");
+    if (rows == null || !rows.isArray())
+      throw new IllegalStateException("KRX 응답에 OutBlock_1 배열이 없습니다.");
+    int received = 0;
+    Set<LocalDate> collectedDates = new HashSet<>();
+    for (JsonNode row : rows) {
+      LocalDate rowDate = parseDate(row.path("BAS_DD").asText(), date);
+      collectedDates.add(rowDate);
+      jdbc.sql(
+              """
                     INSERT INTO tb_krx_data_row(dataset_code, base_date, row_key, payload)
                     VALUES (:dataset, :date, :key, CAST(:payload AS jsonb))
                     ON CONFLICT (dataset_code, base_date, row_key)
                     DO UPDATE SET payload=EXCLUDED.payload, updated_at=CURRENT_TIMESTAMP
-                    """).param("dataset", dataset.name()).param("date", rowDate)
-                    .param("key", rowKey(dataset, row)).param("payload", row.toString()).update();
-            received++;
-        }
-        if (STOCK_DAILY_DATASETS.contains(dataset)) {
-            collectedDates.forEach(collectedDate -> syncStockPrices(dataset, collectedDate));
-            holdingPriceSync.refreshMarket("KO");
-        }
-        return new CollectionResult(dataset.name(), date, received, count(dataset, date));
+                    """)
+          .param("dataset", dataset.name())
+          .param("date", rowDate)
+          .param("key", rowKey(dataset, row))
+          .param("payload", row.toString())
+          .update();
+      received++;
     }
+    if (STOCK_DAILY_DATASETS.contains(dataset)) {
+      collectedDates.forEach(collectedDate -> syncStockPrices(dataset, collectedDate));
+      holdingPriceSync.refreshMarket("KO");
+    }
+    return new CollectionResult(dataset.name(), date, received, count(dataset, date));
+  }
 
-    public List<Map<String, Object>> find(KrxDataset dataset, LocalDate date, int limit) {
-        return jdbc.sql("""
+  public List<Map<String, Object>> find(KrxDataset dataset, LocalDate date, int limit) {
+    return jdbc.sql(
+            """
                 SELECT dataset_code, base_date, row_key, payload, updated_at
                 FROM tb_krx_data_row WHERE dataset_code=:dataset AND base_date=:date
                 ORDER BY row_key LIMIT :limit
-                """).param("dataset", dataset.name()).param("date", date).param("limit", Math.min(limit, 1000))
-                .query().listOfRows();
-    }
+                """)
+        .param("dataset", dataset.name())
+        .param("date", date)
+        .param("limit", Math.min(limit, 1000))
+        .query()
+        .listOfRows();
+  }
 
-    public List<Map<String, Object>> findLatestStocks() {
-        return jdbc.sql("""
+  public List<Map<String, Object>> findLatestStocks() {
+    return jdbc.sql(
+            """
                 WITH latest AS (
                   SELECT max(base_date) AS base_date FROM tb_krx_data_row
                   WHERE dataset_code IN ('KOSPI_STOCK_DAILY', 'KOSDAQ_STOCK_DAILY', 'ETF_DAILY')
@@ -114,16 +137,23 @@ public class KrxMarketDataService {
                 LEFT JOIN prices p ON p.stock_code = s.stock_code
                 WHERE s.active_yn = 'Y' AND s.listing_scope = 'DOMESTIC'
                 ORDER BY s.market_scope, s.asset_type, s.stock_name
-                """).query().listOfRows();
-    }
+                """)
+        .query()
+        .listOfRows();
+  }
 
-    private long count(KrxDataset dataset, LocalDate date) {
-        return jdbc.sql("SELECT count(*) FROM tb_krx_data_row WHERE dataset_code=:dataset AND base_date=:date")
-                .param("dataset", dataset.name()).param("date", date).query(Long.class).single();
-    }
+  private long count(KrxDataset dataset, LocalDate date) {
+    return jdbc.sql(
+            "SELECT count(*) FROM tb_krx_data_row WHERE dataset_code=:dataset AND base_date=:date")
+        .param("dataset", dataset.name())
+        .param("date", date)
+        .query(Long.class)
+        .single();
+  }
 
-    private int syncStockPrices(KrxDataset dataset, LocalDate date) {
-        return jdbc.sql("""
+  private int syncStockPrices(KrxDataset dataset, LocalDate date) {
+    return jdbc.sql(
+            """
                 INSERT INTO "TB_PRC_DAY"
                     ("STK_ID", "MKT_CD", "STK_CD", "TRADE_DT", "OPEN_PRC", "HIGH_PRC", "LOW_PRC",
                      "CLS_PRC", "ADJ_CLS_PRC", "VOL", "PRVDR", "DATA_SRC_CD")
@@ -156,32 +186,27 @@ public class KrxMarketDataService {
                     "DATA_STS" = 'FRESH',
                     "COLLECT_DTTM" = CURRENT_TIMESTAMP,
                     "MOD_DT" = CURRENT_TIMESTAMP
-                """).param("dataset", dataset.name()).param("date", date).update();
-    }
-    private LocalDate parseDate(String value, LocalDate fallback) {
-        return StringUtils.hasText(value) ? LocalDate.parse(value, DateTimeFormatter.BASIC_ISO_DATE) : fallback;
-    }
+                """)
+        .param("dataset", dataset.name())
+        .param("date", date)
+        .update();
+  }
 
-    private String rowKey(KrxDataset dataset, JsonNode row) {
-        for (String key : dataset.keys()) {
-            String value = row.path(key).asText().trim();
-            if (StringUtils.hasText(value))
-                return "IDX_CLSS".equals(key) ? value + "|" + row.path("IDX_NM").asText().trim() : value;
-        }
-        throw new IllegalStateException(dataset + " 행의 고유키가 비어 있습니다: " + json.valueToTree(row));
-    }
+  private LocalDate parseDate(String value, LocalDate fallback) {
+    return StringUtils.hasText(value)
+        ? LocalDate.parse(value, DateTimeFormatter.BASIC_ISO_DATE)
+        : fallback;
+  }
 
-    public record CollectionResult(String dataset, LocalDate baseDate, int receivedCount, long storedCount) {
+  private String rowKey(KrxDataset dataset, JsonNode row) {
+    for (String key : dataset.keys()) {
+      String value = row.path(key).asText().trim();
+      if (StringUtils.hasText(value))
+        return "IDX_CLSS".equals(key) ? value + "|" + row.path("IDX_NM").asText().trim() : value;
     }
+    throw new IllegalStateException(dataset + " 행의 고유키가 비어 있습니다: " + json.valueToTree(row));
+  }
+
+  public record CollectionResult(
+      String dataset, LocalDate baseDate, int receivedCount, long storedCount) {}
 }
-
-
-
-
-
-
-
-
-
-
-

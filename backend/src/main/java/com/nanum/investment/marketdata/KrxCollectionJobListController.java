@@ -1,5 +1,8 @@
 package com.nanum.investment.marketdata;
 
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -7,26 +10,23 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
-
 @RestController
 @RequestMapping("/api/v1/krx")
 public class KrxCollectionJobListController {
-    private final JdbcClient jdbc;
+  private final JdbcClient jdbc;
 
-    public KrxCollectionJobListController(JdbcClient jdbc) {
-        this.jdbc = jdbc;
-    }
+  public KrxCollectionJobListController(JdbcClient jdbc) {
+    this.jdbc = jdbc;
+  }
 
-    @GetMapping("/collection-jobs")
-    public List<Map<String, Object>> findAll(
-            @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate baseDate,
-            @RequestParam(defaultValue = "20") int limit) {
-        int safeLimit = Math.max(1, Math.min(limit, 100));
-        return jdbc.sql("""
+  @GetMapping("/collection-jobs")
+  public List<Map<String, Object>> findAll(
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+          LocalDate baseDate,
+      @RequestParam(defaultValue = "20") int limit) {
+    int safeLimit = Math.max(1, Math.min(limit, 100));
+    return jdbc.sql(
+            """
                 SELECT j.id AS job_id, j.base_date, j.status,
                   CASE
                     WHEN EXISTS (
@@ -48,8 +48,9 @@ public class KrxCollectionJobListController {
                 ORDER BY j.created_at DESC
                 LIMIT :limit
                 """)
-                .param("baseDate", baseDate)
-                .param("limit", safeLimit)
-                .query().listOfRows();
-    }
+        .param("baseDate", baseDate)
+        .param("limit", safeLimit)
+        .query()
+        .listOfRows();
+  }
 }

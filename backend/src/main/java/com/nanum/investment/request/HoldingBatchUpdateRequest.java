@@ -6,5 +6,5 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 public record HoldingBatchUpdateRequest(@NotEmpty List<@Valid Item> updates) {
- public record Item(@NotNull Long holdingId, @NotNull @Valid HoldingUpdateRequest values) {}
+  public record Item(@NotNull Long holdingId, @NotNull @Valid HoldingUpdateRequest values) {}
 }

@@ -5,22 +5,23 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class HoldingPriceSyncService {
-    private final JdbcClient jdbc;
+  private final JdbcClient jdbc;
 
-    public HoldingPriceSyncService(JdbcClient jdbc) {
-        this.jdbc = jdbc;
-    }
+  public HoldingPriceSyncService(JdbcClient jdbc) {
+    this.jdbc = jdbc;
+  }
 
-    public int refreshMarket(String marketCode) {
-        return refresh(marketCode, null);
-    }
+  public int refreshMarket(String marketCode) {
+    return refresh(marketCode, null);
+  }
 
-    public int refreshStock(String marketCode, String stockCode) {
-        return refresh(marketCode, stockCode);
-    }
+  public int refreshStock(String marketCode, String stockCode) {
+    return refresh(marketCode, stockCode);
+  }
 
-    private int refresh(String marketCode, String stockCode) {
-        return jdbc.sql("""
+  private int refresh(String marketCode, String stockCode) {
+    return jdbc.sql(
+            """
                 WITH latest_price AS (
                     SELECT DISTINCT ON ("STK_ID") "STK_ID", "TRADE_DT", "CLS_PRC"
                     FROM "TB_PRC_DAY"
@@ -43,6 +44,9 @@ public class HoldingPriceSyncService {
                   AND h."USE_YN" = 'Y'
                   AND h."DEL_YN" = 'N'
                   AND (h."PRC_BASE_DT" IS NULL OR h."PRC_BASE_DT" <= p."TRADE_DT")
-                """).param("marketCode", marketCode).param("stockCode", stockCode).update();
-    }
+                """)
+        .param("marketCode", marketCode)
+        .param("stockCode", stockCode)
+        .update();
+  }
 }

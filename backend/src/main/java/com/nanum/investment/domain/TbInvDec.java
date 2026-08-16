@@ -1,2 +1,90 @@
-package com.nanum.investment.domain; import jakarta.persistence.*; import lombok.*; import java.math.BigDecimal; import java.time.*;
-@Entity @Table(name="\"TB_INV_DEC\"") @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder public class TbInvDec { @Id @GeneratedValue(strategy=GenerationType.IDENTITY) @Column(name="INV_DEC_ID") private Long investmentDecisionId; @Column(name="BASE_DT",nullable=false) private LocalDate baseDate; @Builder.Default @Column(name="CALC_SEQ",nullable=false) private Integer calculationSequence=1; @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="ACCT_ID") private TbAcct account; @Column(name="MKT_SNAP_CD",nullable=false,length=30) private String marketSnapshotCode; @Column(name="MKT_SCR",nullable=false,precision=10,scale=4) private BigDecimal marketScore; @Enumerated(EnumType.STRING) @Column(name="MKT_REGIME",nullable=false,length=30) private MarketRegime marketRegime; @Column(name="SENT_SCR",precision=10,scale=4) private BigDecimal sentimentScore; @Enumerated(EnumType.STRING) @Column(name="SENT_PHASE",length=20) private SentimentPhase sentimentPhase; @Column(name="RISK_SCR",nullable=false,precision=10,scale=4) private BigDecimal riskScore; @Enumerated(EnumType.STRING) @Column(name="RISK_GRADE",nullable=false,length=20) private RiskGrade riskGrade; @Column(name="CASH_RT",precision=10,scale=4) private BigDecimal cashRate; @Column(name="REG_BUY_TOT_AMT",precision=20,scale=4) private BigDecimal totalRegularBuyAmount; @Column(name="ADD_BUY_TOT_AMT",precision=20,scale=4) private BigDecimal totalAdditionalBuyAmount; @Column(name="RSV_ADD_AMT",precision=20,scale=4) private BigDecimal reserveAddAmount; @Enumerated(EnumType.STRING) @Column(name="OVR_DEC_SIG",nullable=false,length=30) private OverallDecisionSignal overallDecisionSignal; @Builder.Default @Column(name="EXEC_YN",nullable=false,length=1) private String executeYn="N"; @Column(name="CONF_RT",nullable=false,precision=10,scale=4) private BigDecimal confidenceRate; @Enumerated(EnumType.STRING) @Column(name="DATA_STS",nullable=false,length=20) private DataStatus dataStatus; @Builder.Default @Column(name="RULE_VER_NO",nullable=false) private Integer ruleVersionNumber=1; @Builder.Default @Column(name="LATEST_YN",nullable=false,length=1) private String latestYn="Y"; }
+package com.nanum.investment.domain;
+
+import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.*;
+import lombok.*;
+
+@Entity
+@Table(name = "\"TB_INV_DEC\"")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TbInvDec {
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @Column(name = "INV_DEC_ID")
+  private Long investmentDecisionId;
+
+  @Column(name = "BASE_DT", nullable = false)
+  private LocalDate baseDate;
+
+  @Builder.Default
+  @Column(name = "CALC_SEQ", nullable = false)
+  private Integer calculationSequence = 1;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "ACCT_ID")
+  private TbAcct account;
+
+  @Column(name = "MKT_SNAP_CD", nullable = false, length = 30)
+  private String marketSnapshotCode;
+
+  @Column(name = "MKT_SCR", nullable = false, precision = 10, scale = 4)
+  private BigDecimal marketScore;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "MKT_REGIME", nullable = false, length = 30)
+  private MarketRegime marketRegime;
+
+  @Column(name = "SENT_SCR", precision = 10, scale = 4)
+  private BigDecimal sentimentScore;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "SENT_PHASE", length = 20)
+  private SentimentPhase sentimentPhase;
+
+  @Column(name = "RISK_SCR", nullable = false, precision = 10, scale = 4)
+  private BigDecimal riskScore;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "RISK_GRADE", nullable = false, length = 20)
+  private RiskGrade riskGrade;
+
+  @Column(name = "CASH_RT", precision = 10, scale = 4)
+  private BigDecimal cashRate;
+
+  @Column(name = "REG_BUY_TOT_AMT", precision = 20, scale = 4)
+  private BigDecimal totalRegularBuyAmount;
+
+  @Column(name = "ADD_BUY_TOT_AMT", precision = 20, scale = 4)
+  private BigDecimal totalAdditionalBuyAmount;
+
+  @Column(name = "RSV_ADD_AMT", precision = 20, scale = 4)
+  private BigDecimal reserveAddAmount;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "OVR_DEC_SIG", nullable = false, length = 30)
+  private OverallDecisionSignal overallDecisionSignal;
+
+  @Builder.Default
+  @Column(name = "EXEC_YN", nullable = false, length = 1)
+  private String executeYn = "N";
+
+  @Column(name = "CONF_RT", nullable = false, precision = 10, scale = 4)
+  private BigDecimal confidenceRate;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "DATA_STS", nullable = false, length = 20)
+  private DataStatus dataStatus;
+
+  @Builder.Default
+  @Column(name = "RULE_VER_NO", nullable = false)
+  private Integer ruleVersionNumber = 1;
+
+  @Builder.Default
+  @Column(name = "LATEST_YN", nullable = false, length = 1)
+  private String latestYn = "Y";
+}
