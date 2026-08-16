@@ -53,4 +53,5 @@ html{min-width:320px}body{overflow-x:hidden}.shell,.shell>main,.page,.ref-page{m
 .regular-buy-form>.regular-buy-field-buyDayCode .multi-options,.regular-buy-form>.regular-buy-field-appliedWeekDays .multi-options{flex-wrap:nowrap}
 .regular-buy-form>.regular-buy-field-buyDayCode .multi-options button,.regular-buy-form>.regular-buy-field-appliedWeekDays .multi-options button{flex:1 1 0;min-width:0;padding-inline:6px}
 .ref-table tr.user-paused-row td{background:#fff0dc}.ref-table tr.user-paused-row td:nth-child(11){color:#8a3b12;font-weight:800}
+.ref-table tr.buy-stopped-row td{background:#fde8e8}.ref-table tr.buy-stopped-row td:nth-child(10){color:#a42b2b;font-weight:800}
 @media(max-width:720px){.regular-buy-form{grid-template-columns:1fr}.regular-buy-form>.regular-buy-field,.regular-buy-form>.regular-buy-field.wide{grid-column:auto}}

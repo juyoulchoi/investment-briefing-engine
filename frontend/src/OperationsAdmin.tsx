@@ -927,7 +927,9 @@ export default function OperationsAdmin({
                     className={
                       kind === "regular-buys" && r.userPauseYn === "Y"
                         ? "user-paused-row"
-                        : undefined
+                        : kind === "regular-buys" && r.buyStatus === "STOPPED"
+                          ? "buy-stopped-row"
+                          : undefined
                     }
                   >
                     {config[kind].columns.map((c) => (
