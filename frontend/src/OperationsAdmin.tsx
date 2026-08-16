@@ -924,7 +924,16 @@ export default function OperationsAdmin({
                 shown.map((r) => (
                   <tr key={r[config[kind].id]}>
                     {config[kind].columns.map((c) => (
-                      <td key={c[0]}>
+                      <td
+                        key={c[0]}
+                        className={
+                          kind === "regular-buys" &&
+                          c[0] === "userPauseYn" &&
+                          r.userPauseYn === "Y"
+                            ? "user-paused-cell"
+                            : undefined
+                        }
+                      >
                         {kind === "regular-buys" && c[0] === "stockName" ? (
                           <button
                             className="row-edit-link"
