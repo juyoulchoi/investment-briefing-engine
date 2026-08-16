@@ -64,3 +64,8 @@ html{min-width:320px}body{overflow-x:hidden}.shell,.shell>main,.page,.ref-page{m
 .recommends article span strong{overflow-wrap:anywhere}
 .recommends article>strong{white-space:nowrap}
 @media(max-width:640px){.recommends article{grid-template-columns:minmax(0,1fr) auto;gap:8px 12px}.recommends article em{grid-column:1}.recommends article>strong{grid-column:2;grid-row:1/3;text-align:right}}
+
+.holdings-table tr.holding-user-paused-row td{background:#fff0dc}
+.holdings-table tr.holding-buy-stopped-row td{background:#fde8e8}
+.holdings-table tr.holding-buy-paused-row td{background:#e8f0fd}
+.holdings-table tr[class*="holding-"] .inline-edit:disabled{color:#7b858e;background:#ffffff80;border-color:#cbd2d8;cursor:not-allowed}
