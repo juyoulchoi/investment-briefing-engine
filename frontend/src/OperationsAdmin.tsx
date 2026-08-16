@@ -541,15 +541,17 @@ export default function OperationsAdmin({
                 : moneyKeys.has(k)
                   ? v == null
                     ? "-"
-                    : k === "appliedValue"
-                      ? ["ISA", "PENSION"].includes(r.accountType)
-                        ? Number(v).toLocaleString("ko-KR", {
-                            maximumFractionDigits: 8,
-                          })
-                        : `${Number(v).toLocaleString("ko-KR", { maximumFractionDigits: 0 })}원`
-                      : r.accountType === "OVERSEAS"
-                      ? `USD ${Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                      : Number(v).toLocaleString("ko-KR")
+                    : k === "recommendedValue"
+                      ? `${Number(v).toLocaleString("ko-KR", { maximumFractionDigits: 0 })}원`
+                      : k === "appliedValue"
+                        ? ["ISA", "PENSION"].includes(r.accountType)
+                          ? Number(v).toLocaleString("ko-KR", {
+                              maximumFractionDigits: 8,
+                            })
+                          : `${Number(v).toLocaleString("ko-KR", { maximumFractionDigits: 0 })}원`
+                        : r.accountType === "OVERSEAS"
+                          ? `USD ${Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : Number(v).toLocaleString("ko-KR")
                   : labels[String(v)] || String(v ?? "-");
   const regularBuyDetails: [string, string][] = [
     ["stockGrade", "종목등급"],
