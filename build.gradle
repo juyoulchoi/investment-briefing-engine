@@ -57,7 +57,15 @@ spotless {
 
 
 def querydslDir = layout.buildDirectory.dir('generated/querydsl').get().asFile
-sourceSets { main.java.srcDirs += [querydslDir] }
+sourceSets {
+    main {
+        java.setSrcDirs(['backend/src/main/java', querydslDir])
+        resources.setSrcDirs(['backend/src/main/resources'])
+    }
+    test {
+        java.setSrcDirs(['backend/src/test/java'])
+    }
+}
 tasks.withType(JavaCompile).configureEach { options.generatedSourceOutputDirectory = querydslDir }
 clean { delete querydslDir }
 

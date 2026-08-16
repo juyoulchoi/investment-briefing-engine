@@ -1,7 +1,7 @@
 FROM gradle:8.14-jdk21 AS build
 WORKDIR /workspace
 COPY build.gradle settings.gradle ./
-COPY backend/src ./src
+COPY backend/src ./backend/src
 RUN gradle clean bootJar --no-daemon
 
 FROM eclipse-temurin:21-jre-alpine
