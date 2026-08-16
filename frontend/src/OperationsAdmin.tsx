@@ -461,7 +461,9 @@ export default function OperationsAdmin({
           ),
           baseValue: r.baseAmount,
           recommendedValue: r.recommendedAmount,
-          appliedValue: r.appliedAmount,
+          appliedValue: ["ISA", "PENSION"].includes(r.accountType)
+            ? r.appliedQuantity
+            : r.appliedAmount,
         }) as Row,
     ),
     normalizedQuery = query.trim().toLowerCase(),
@@ -540,7 +542,11 @@ export default function OperationsAdmin({
                   ? v == null
                     ? "-"
                     : k === "appliedValue"
-                      ? `${Number(v).toLocaleString("ko-KR", { maximumFractionDigits: 0 })}원`
+                      ? ["ISA", "PENSION"].includes(r.accountType)
+                        ? Number(v).toLocaleString("ko-KR", {
+                            maximumFractionDigits: 8,
+                          })
+                        : `${Number(v).toLocaleString("ko-KR", { maximumFractionDigits: 0 })}원`
                       : r.accountType === "OVERSEAS"
                       ? `USD ${Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                       : Number(v).toLocaleString("ko-KR")
@@ -875,7 +881,13 @@ export default function OperationsAdmin({
             <thead>
               <tr>
                 {config[kind].columns.map((c) => (
-                  <th key={c[0]}>{c[1]}</th>
+                  <th key={c[0]}>
+                    {kind === "regular-buys" &&
+                    c[0] === "appliedValue" &&
+                    ["ISA", "PENSION"].includes(selectedAccount)
+                      ? "현재 매수수량"
+                      : c[1]}
+                  </th>
                 ))}
                 {kind !== "regular-buys" && <th>관리</th>}
               </tr>
