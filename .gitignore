@@ -11,7 +11,8 @@ frontend/dist/
 .gradle/
 **/.gradle/
 **/build/
-backend/bin/
+bin/
+**/bin/
 
 # IDE metadata
 .vscode/
