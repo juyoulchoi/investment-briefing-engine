@@ -56,7 +56,7 @@ public class AutomaticInvestmentDecisionService {
  }
 
  private List<StockPosition> positions(LocalDate baseDate){return jdbc.sql("""
-  SELECT a."ACCT_TP",s."STK_CD",s."STK_NM",r."MIN_BUY_AMT",COALESCE(r."MAX_BUY_AMT",r."MIN_BUY_AMT"*r."MAX_MULT"),r."MAX_MULT",
+  SELECT a."ACCT_TP",s."STK_CD",s."STK_NM",r."MIN_BUY_AMT",r."MIN_BUY_AMT"*3,3,
    COALESCE(h."PL_RT",0),COALESCE(p."DD_HIGH_RT",0),COALESCE(h."TGT_WGT",0),COALESCE(h."CUR_WGT",0),
    CASE WHEN s."FUND_DMG_YN"='Y' THEN 30 ELSE 70 END,50,CASE WHEN s."THEME_RISK_YN"='Y' THEN 80 ELSE 20 END,
    CASE WHEN s."REG_BUY_YN"='Y' AND r."BUY_STS"='ACTIVE' AND r."USER_PAUSE_YN"='N' THEN true ELSE false END

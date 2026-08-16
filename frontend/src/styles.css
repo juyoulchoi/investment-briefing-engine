@@ -40,8 +40,15 @@ html{min-width:320px}body{overflow-x:hidden}.shell,.shell>main,.page,.ref-page{m
 @media(max-width:420px){.regular-buy-detail>div{grid-template-columns:1fr}}
 
 /* Regular buy modal field grouping */
-.regular-buy-form{grid-template-columns:repeat(6,minmax(0,1fr))}
-.regular-buy-form>.regular-buy-field{grid-column:span 3}
+.regular-buy-form{grid-template-columns:repeat(12,minmax(0,1fr))}
+.regular-buy-form>.regular-buy-field{grid-column:span 6}
 .regular-buy-form>.regular-buy-field.wide{grid-column:1/-1}
-.regular-buy-form>.regular-buy-field-accountId,.regular-buy-form>.regular-buy-field-stockId,.regular-buy-form>.regular-buy-field-investmentGrade,.regular-buy-form>.regular-buy-field-buyBasis,.regular-buy-form>.regular-buy-field-minimumBuyAmount,.regular-buy-form>.regular-buy-field-buyCycle,.regular-buy-form>.regular-buy-field-buyStatus,.regular-buy-form>.regular-buy-field-userPauseYn,.regular-buy-form>.regular-buy-field-pauseReason{grid-column:span 2}
+.regular-buy-form>.regular-buy-field-accountId,.regular-buy-form>.regular-buy-field-stockId,.regular-buy-form>.regular-buy-field-investmentGrade,.regular-buy-form>.regular-buy-field-buyStatus,.regular-buy-form>.regular-buy-field-userPauseYn,.regular-buy-form>.regular-buy-field-pauseReason{grid-column:span 4}
+.regular-buy-form>.regular-buy-field-buyBasis{grid-column:1/span 4}
+.regular-buy-form>.regular-buy-field-minimumBuyAmount,.regular-buy-form>.regular-buy-field-baseBuyQuantity,.regular-buy-form>.regular-buy-field-appliedAmount,.regular-buy-form>.regular-buy-field-buyQuantity{grid-column:1/span 3}
+.regular-buy-form>.regular-buy-field-buyCycle,.regular-buy-form>.regular-buy-field-appliedCycle{grid-column:span 3}
+.regular-buy-form>.regular-buy-field-buyDayCode,.regular-buy-form>.regular-buy-field-appliedWeekDays{grid-column:span 6}
+.regular-buy-form>.regular-buy-field-buyDayNumbers,.regular-buy-form>.regular-buy-field-appliedMonthDays{grid-column:1/-1}
+.regular-buy-form>.regular-buy-field-buyDayCode .multi-options,.regular-buy-form>.regular-buy-field-appliedWeekDays .multi-options{flex-wrap:nowrap}
+.regular-buy-form>.regular-buy-field-buyDayCode .multi-options button,.regular-buy-form>.regular-buy-field-appliedWeekDays .multi-options button{flex:1 1 0;min-width:0;padding-inline:6px}
 @media(max-width:720px){.regular-buy-form{grid-template-columns:1fr}.regular-buy-form>.regular-buy-field,.regular-buy-form>.regular-buy-field.wide{grid-column:auto}}

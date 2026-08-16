@@ -3,7 +3,6 @@ package com.nanum.investment.marketdata;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -20,24 +19,6 @@ public class MarketDataController {
         this.overseas = overseas;
         this.yahooIndices = yahooIndices;
         this.fredBonds = fredBonds;
-    }
-
-    @GetMapping("/krx/datasets")
-    public List<String> datasets() {
-        return Arrays.stream(KrxDataset.values()).map(Enum::name).toList();
-    }
-
-    @PostMapping("/krx/{dataset}/collect")
-    public KrxMarketDataService.CollectionResult collect(@PathVariable KrxDataset dataset,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate baseDate) {
-        return krx.collect(dataset, baseDate);
-    }
-
-    @GetMapping("/krx/{dataset}")
-    public List<Map<String, Object>> krxRows(@PathVariable KrxDataset dataset,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate baseDate,
-            @RequestParam(defaultValue = "100") int limit) {
-        return krx.find(dataset, baseDate, limit);
     }
 
     @GetMapping("/indices")

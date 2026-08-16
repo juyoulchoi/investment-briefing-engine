@@ -123,17 +123,19 @@ const config: Record<
       ["stockName", "종목명"],
       ["stockGrade", "종목등급"],
       ["targetWeight", "목표비중"],
+      ["currentWeight", "현재비중"],
       ["buyBasis", "매수단위"],
       ["appliedSchedule", "현재 적용주기"],
       ["appliedValue", "현재 적용금액"],
-      ["pauseReason", "중지사유"],
+      ["buyStatus", "매수상태"],
+      ["userPauseYn", "사용자 일시정지"],
+      ["pauseReason", "일시정지 사유"],
     ],
     defaults: {
       buyCycle: "MONTHLY",
       appliedCycle: "MONTHLY",
       buyBasis: "AMOUNT",
       minimumBuyAmount: 0,
-      maximumMultiplier: 3,
       buyStatus: "ACTIVE",
       userPauseYn: "N",
       autoCalculateYn: "Y",
@@ -165,6 +167,11 @@ const config: Record<
         required: true,
       },
       {
+        key: "baseBuyQuantity",
+        label: "기준 수량",
+        type: "number",
+      },
+      {
         key: "buyCycle",
         label: "기준 매수주기",
         type: "select",
@@ -179,16 +186,19 @@ const config: Record<
         key: "buyDayCode",
         label: "기준 매수요일",
         type: "weekdays",
-        wide: true,
       },
       {
         key: "buyDayNumbers",
         label: "기준 매수일",
         help: "복수 선택 가능",
         type: "monthdays",
-        wide: true,
       },
       { key: "appliedAmount", label: "현재 적용금액", type: "number" },
+      {
+        key: "buyQuantity",
+        label: "현재 매수 수량",
+        type: "number",
+      },
       {
         key: "appliedCycle",
         label: "현재 적용주기",
@@ -202,28 +212,14 @@ const config: Record<
       },
       {
         key: "appliedWeekDays",
-        label: "적용 매수요일",
+        label: "현재 매수요일",
         type: "weekdays",
-        wide: true,
       },
       {
         key: "appliedMonthDays",
         label: "현재 매수일",
         help: "복수 선택 가능",
         type: "monthdays",
-        wide: true,
-      },
-      {
-        key: "baseBuyQuantity",
-        label: "기본 매수 수량",
-        help: "정기매수 계산의 기준 수량",
-        type: "number",
-      },
-      {
-        key: "buyQuantity",
-        label: "매수 수량",
-        help: "주기마다 실제로 매수할 수량",
-        type: "number",
       },
       {
         key: "buyStatus",
@@ -326,6 +322,7 @@ export default function OperationsAdmin({
     [saving, setSaving] = useState(false),
     [query, setQuery] = useState(""),
     [buyStatusFilter, setBuyStatusFilter] = useState(""),
+    [userPauseFilter, setUserPauseFilter] = useState(""),
     [selectedAccount, setSelectedAccount] = useState<string>("DOMESTIC");
   const load = async (k = kind) => {
     setLoading(true);
@@ -360,10 +357,27 @@ export default function OperationsAdmin({
   useEffect(() => {
     load(kind);
   }, [kind]);
+  const fixedAmountRegularBuyBase = {
+    buyBasis: "AMOUNT",
+    minimumBuyAmount: 10000,
+    buyCycle: "WEEKLY",
+    buyDayCode: "TUE",
+    buyDayNumber: null,
+    buyDayNumbers: null,
+    baseBuyQuantity: 1,
+  };
+  const fixedQuantityRegularBuyBase = {
+    buyBasis: "QUANTITY",
+    minimumBuyAmount: 10000,
+    buyCycle: "WEEKLY",
+    buyDayCode: "TUE",
+    buyDayNumber: null,
+    buyDayNumbers: null,
+    baseBuyQuantity: 1,
+  };
   const open = (r?: Row) => {
-    setEditing(r || {});
-    setForm(
-      r
+    const accountType = r?.accountType ?? selectedAccount,
+      initial = r
         ? { ...r }
         : {
             ...config[kind].defaults,
@@ -374,8 +388,16 @@ export default function OperationsAdmin({
                   )?.accountId,
                 }
               : {}),
-          },
-    );
+          };
+    setEditing(r || {});
+    setForm({
+      ...initial,
+      ...(kind === "regular-buys" && !r
+        ? ["ISA", "PENSION"].includes(accountType)
+          ? fixedQuantityRegularBuyBase
+          : fixedAmountRegularBuyBase
+        : {}),
+    });
     setError("");
   };
   const save = async () => {
@@ -451,6 +473,9 @@ export default function OperationsAdmin({
             !buyStatusFilter ||
             r.buyStatus === buyStatusFilter) &&
           (kind !== "regular-buys" ||
+            !userPauseFilter ||
+            r.userPauseYn === userPauseFilter) &&
+          (kind !== "regular-buys" ||
             !normalizedQuery ||
             String(r.stockName ?? "")
               .toLowerCase()
@@ -481,7 +506,6 @@ export default function OperationsAdmin({
       "averagePrice",
       "currentPrice",
       "minimumBuyAmount",
-      "maximumBuyAmount",
       "appliedAmount",
       "reserveAmount",
       "accumulatedAmount",
@@ -494,7 +518,7 @@ export default function OperationsAdmin({
     show = (k: string, v: any, r: Row) =>
       k === "investmentGrade" && !v
         ? "미설정"
-        : k === "targetWeight"
+        : k === "targetWeight" || k === "currentWeight"
           ? v == null
             ? "-"
             : `${Number(v).toFixed(2)}%`
@@ -572,7 +596,16 @@ export default function OperationsAdmin({
       )
       .sort((a, b) =>
         String(a.stockName).localeCompare(String(b.stockName), "ko"),
-      );
+      ),
+    fixedBaseField = (key: string) =>
+      kind === "regular-buys" &&
+      Boolean(selectedAccountType) &&
+      [
+        "minimumBuyAmount",
+        "baseBuyQuantity",
+        "buyCycle",
+        "buyDayCode",
+      ].includes(key);
   const csvValues = (key: string) =>
       String(form[key] || "")
         .split(",")
@@ -592,9 +625,22 @@ export default function OperationsAdmin({
       <select
         disabled={kind === "regular-buys" && Boolean(form.regularBuyKey)}
         value={form[f.key] ?? ""}
-        onChange={(e) =>
-          setForm({ ...form, [f.key]: Number(e.target.value), stockId: null })
-        }
+        onChange={(e) => {
+          const accountId = Number(e.target.value),
+            accountType = accounts.find(
+              (a) => Number(a.accountId) === accountId,
+            )?.accountType;
+          setForm({
+            ...form,
+            accountId,
+            stockId: null,
+            ...(["DOMESTIC", "OVERSEAS"].includes(String(accountType))
+              ? fixedAmountRegularBuyBase
+              : ["ISA", "PENSION"].includes(String(accountType))
+                ? fixedQuantityRegularBuyBase
+                : {}),
+          });
+        }}
       >
         <option value="">계좌 선택</option>
         {accounts
@@ -653,6 +699,7 @@ export default function OperationsAdmin({
           <button
             type="button"
             key={v}
+            disabled={fixedBaseField(f.key)}
             className={csvValues(f.key).includes(v) ? "selected" : ""}
             onClick={() =>
               toggleCsv(f.key, v, ["MON", "TUE", "WED", "THU", "FRI"])
@@ -684,9 +731,13 @@ export default function OperationsAdmin({
     ) : f.type === "select" ? (
       <select
         disabled={
-          kind === "regular-buys" &&
-          f.key === "userPauseYn" &&
-          form.buyStatus !== "ACTIVE"
+          fixedBaseField(f.key) ||
+          (kind === "regular-buys" &&
+            f.key === "userPauseYn" &&
+            form.buyStatus !== "ACTIVE") ||
+          (kind === "regular-buys" &&
+            f.key === "pauseReason" &&
+            form.userPauseYn !== "Y")
         }
         value={form[f.key] ?? ""}
         onChange={(e) => {
@@ -698,7 +749,19 @@ export default function OperationsAdmin({
               userPauseYn: value === "ACTIVE" ? form.userPauseYn : "N",
             });
           else if (kind === "regular-buys" && f.key === "userPauseYn")
-            setForm({ ...form, userPauseYn: value });
+            setForm({
+              ...form,
+              userPauseYn: value,
+              ...(value === "N" ? { pauseReason: null } : {}),
+            });
+          else if (kind === "regular-buys" && f.key === "buyBasis")
+            setForm({
+              ...form,
+              buyBasis: value,
+              ...(value === "AMOUNT"
+                ? { minimumBuyAmount: 10000 }
+                : { baseBuyQuantity: 1 }),
+            });
           else setForm({ ...form, [f.key]: value });
         }}
       >
@@ -711,6 +774,7 @@ export default function OperationsAdmin({
     ) : (
       <input
         type={f.type || "text"}
+        disabled={fixedBaseField(f.key)}
         value={form[f.key] ?? ""}
         onChange={(e) =>
           setForm({
@@ -745,6 +809,7 @@ export default function OperationsAdmin({
               setKind(k);
               setQuery("");
               setBuyStatusFilter("");
+              setUserPauseFilter("");
             }}
           >
             {config[k].title}
@@ -761,6 +826,8 @@ export default function OperationsAdmin({
                 onChange={(e) => {
                   setSelectedAccount(e.target.value);
                   setQuery("");
+                  setBuyStatusFilter("");
+                  setUserPauseFilter("");
                 }}
                 aria-label="계좌 검색"
               >
@@ -782,10 +849,20 @@ export default function OperationsAdmin({
                 onChange={(e) => setBuyStatusFilter(e.target.value)}
                 aria-label="매수 상태 검색"
               >
-                <option value="">전체 매수 상태</option>
+                <option value="">매수 상태</option>
                 <option value="ACTIVE">활성</option>
                 <option value="PAUSED">일시정지</option>
                 <option value="STOPPED">중지</option>
+              </select>
+              <select
+                className="status-filter"
+                value={userPauseFilter}
+                onChange={(e) => setUserPauseFilter(e.target.value)}
+                aria-label="사용자 일시정지 검색"
+              >
+                <option value="">사용자 일시정지</option>
+                <option value="Y">예</option>
+                <option value="N">아니오</option>
               </select>
             </div>
           </header>
@@ -892,11 +969,7 @@ export default function OperationsAdmin({
                         form.appliedCycle === "WEEKLY") &&
                       (f.key !== "appliedMonthDays" ||
                         form.appliedCycle === "MONTHLY") &&
-                      (![
-                        "minimumBuyAmount",
-                        "maximumBuyAmount",
-                        "appliedAmount",
-                      ].includes(f.key) ||
+                      (!["minimumBuyAmount", "appliedAmount"].includes(f.key) ||
                         form.buyBasis === "AMOUNT") &&
                       (!["baseBuyQuantity", "buyQuantity"].includes(f.key) ||
                         form.buyBasis === "QUANTITY")),

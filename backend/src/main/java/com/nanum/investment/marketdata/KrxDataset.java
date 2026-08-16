@@ -1,5 +1,6 @@
 package com.nanum.investment.marketdata;
 
+import java.util.Arrays;
 import java.util.List;
 
 public enum KrxDataset {
@@ -26,5 +27,16 @@ public enum KrxDataset {
 
     public List<String> keys() {
         return keys;
+    }
+
+    public String apiMethod() {
+        return path.substring(path.lastIndexOf('/') + 1);
+    }
+
+    public static KrxDataset fromApiMethod(String apiMethod) {
+        return Arrays.stream(values())
+                .filter(dataset -> dataset.apiMethod().equals(apiMethod))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("지원하지 않는 KRX API 메서드입니다: " + apiMethod));
     }
 }
