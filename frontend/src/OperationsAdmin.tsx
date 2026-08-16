@@ -555,6 +555,7 @@ export default function OperationsAdmin({
     ["stockGrade", "종목등급"],
     ["benchmarkName", "기준지수"],
     ["targetWeight", "목표비중"],
+    ["currentWeight", "현재비중"],
     ["recommendedValue", "추천금액"],
   ];
   const regularBuyDetailRow: Row = {
