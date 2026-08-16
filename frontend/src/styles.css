@@ -52,5 +52,5 @@ html{min-width:320px}body{overflow-x:hidden}.shell,.shell>main,.page,.ref-page{m
 .regular-buy-form>.regular-buy-field-buyDayNumbers,.regular-buy-form>.regular-buy-field-appliedMonthDays{grid-column:1/-1}
 .regular-buy-form>.regular-buy-field-buyDayCode .multi-options,.regular-buy-form>.regular-buy-field-appliedWeekDays .multi-options{flex-wrap:nowrap}
 .regular-buy-form>.regular-buy-field-buyDayCode .multi-options button,.regular-buy-form>.regular-buy-field-appliedWeekDays .multi-options button{flex:1 1 0;min-width:0;padding-inline:6px}
-.ref-table td.user-paused-cell{color:#8a3b12;background:#fff0dc;font-weight:800}
+.ref-table tr.user-paused-row td{background:#fff0dc}.ref-table tr.user-paused-row td:nth-child(11){color:#8a3b12;font-weight:800}
 @media(max-width:720px){.regular-buy-form{grid-template-columns:1fr}.regular-buy-form>.regular-buy-field,.regular-buy-form>.regular-buy-field.wide{grid-column:auto}}
