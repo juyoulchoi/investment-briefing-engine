@@ -56,3 +56,11 @@ html{min-width:320px}body{overflow-x:hidden}.shell,.shell>main,.page,.ref-page{m
 .ref-table tr.buy-stopped-row td{background:#fde8e8}.ref-table tr.buy-stopped-row td:nth-child(10){color:#a42b2b;font-weight:800}
 .ref-table tr.buy-paused-row td{background:#e8f0fd}.ref-table tr.buy-paused-row td:nth-child(10){color:#2457a6;font-weight:800}
 @media(max-width:720px){.regular-buy-form{grid-template-columns:1fr}.regular-buy-form>.regular-buy-field,.regular-buy-form>.regular-buy-field.wide{grid-column:auto}}
+
+/* Additional-buy cards use three children: stock, eligibility, amount. */
+.cash>div:first-child{display:flex;align-items:flex-start;flex-direction:column}
+.recommends article{grid-template-columns:minmax(160px,1fr) auto minmax(110px,auto);gap:18px;padding:18px 12px}
+.recommends article span{min-width:0}
+.recommends article span strong{overflow-wrap:anywhere}
+.recommends article>strong{white-space:nowrap}
+@media(max-width:640px){.recommends article{grid-template-columns:minmax(0,1fr) auto;gap:8px 12px}.recommends article em{grid-column:1}.recommends article>strong{grid-column:2;grid-row:1/3;text-align:right}}
