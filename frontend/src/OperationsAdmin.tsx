@@ -229,7 +229,6 @@ const config: Record<
         required: true,
         options: [
           ["ACTIVE", "활성"],
-          ["PAUSED", "일시정지"],
           ["STOPPED", "중지"],
         ],
       },
@@ -862,7 +861,6 @@ export default function OperationsAdmin({
               >
                 <option value="">매수 상태</option>
                 <option value="ACTIVE">활성</option>
-                <option value="PAUSED">일시정지</option>
                 <option value="STOPPED">중지</option>
               </select>
               <select
