@@ -3,7 +3,8 @@ package com.nanum.investment.common;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.nanum.investment.common.entity.SoftDeleteEntity;
-import com.nanum.investment.common.response.*;
+import com.nanum.investment.common.response.ApiResponse;
+import com.nanum.investment.common.response.PageResponse;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;

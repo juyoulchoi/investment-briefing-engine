@@ -1,0 +1,44 @@
+package com.nanum.investment.holding.domain;
+
+import com.nanum.investment.common.domain.TbAcct;
+import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import lombok.*;
+
+@Entity
+@Table(name = "\"TB_CASH_RSV\"")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TbCashRsv {
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @Column(name = "CASH_RSV_ID")
+  private Long cashReserveId;
+
+  @OneToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "ACCT_ID", nullable = false, unique = true)
+  private TbAcct account;
+
+  @Builder.Default
+  @Column(name = "RSV_AMT", nullable = false, precision = 20, scale = 4)
+  private BigDecimal reserveAmount = BigDecimal.ZERO;
+
+  @Builder.Default
+  @Column(name = "ACCUM_AMT", nullable = false, precision = 20, scale = 4)
+  private BigDecimal accumulatedAmount = BigDecimal.ZERO;
+
+  @Builder.Default
+  @Column(name = "USED_AMT", nullable = false, precision = 20, scale = 4)
+  private BigDecimal usedAmount = BigDecimal.ZERO;
+
+  @Column(name = "LAST_TX_DT")
+  private LocalDate lastTransactionDate;
+
+  @Version
+  @Column(name = "VER_NO", nullable = false)
+  private Long version;
+}
