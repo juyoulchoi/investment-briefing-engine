@@ -539,7 +539,9 @@ export default function OperationsAdmin({
                 : moneyKeys.has(k)
                   ? v == null
                     ? "-"
-                    : r.accountType === "OVERSEAS"
+                    : k === "appliedValue"
+                      ? `${Number(v).toLocaleString("ko-KR", { maximumFractionDigits: 0 })}원`
+                      : r.accountType === "OVERSEAS"
                       ? `USD ${Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                       : Number(v).toLocaleString("ko-KR")
                   : labels[String(v)] || String(v ?? "-");
