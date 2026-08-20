@@ -70,6 +70,16 @@ public class TbInvBrf {
   @Column(name = "BODY_TXT")
   private String bodyText;
 
+  @Column(name = "MKT_RISK_SCR") private Integer marketRiskScore;
+  @Column(name = "MKT_RISK_GRADE", length = 20) private String marketRiskGrade;
+  @Column(name = "MKT_PHASE", length = 30) private String marketPhase;
+  @Column(name = "MKT_DIR_PRED_ID") private Long marketDirectionPredictionId;
+  @Column(name = "MKT_DIR_SCR") private Integer marketDirectionScore;
+  @Column(name = "REG_BUY_SIG", length = 30) private String regularBuySignal;
+  @Column(name = "DAILY_ACT_SIG", length = 30) private String dailyActionSignal;
+  @Column(name = "RCMD_CASH_RT") private Integer recommendedCashRatio;
+  @Column(name = "SOURCE_FIX_DTTM") private java.time.OffsetDateTime sourceFixedDateTime;
+
   @Column(name = "CRT_DTTM", nullable = false, insertable = false, updatable = false)
   private LocalDateTime regDt;
 

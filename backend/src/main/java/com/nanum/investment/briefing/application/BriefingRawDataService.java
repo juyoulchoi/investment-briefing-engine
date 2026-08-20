@@ -35,6 +35,8 @@ public class BriefingRawDataService {
     raw.put("investmentDecisionId", decision.id());
     raw.put("dataStatus", status.name());
     raw.put("confidence", confidence);
+    Map<String, Object> confirmedValues = confirmedValues(date, decision.id());
+    raw.put("confirmedValues", confirmedValues);
     raw.put("sections", sections);
     String rawJson = toJson(raw), hash = sha256(rawJson);
     raw.put("sha256", hash);
@@ -52,8 +54,10 @@ public class BriefingRawDataService {
     Long briefingId =
         jdbc.sql(
                 """
-   INSERT INTO "TB_BRF"("BASE_DT","CALC_SEQ","BRF_TP","SCOPE_TP","INV_DEC_ID","TITLE","BRF_STS","RAW_DATA_JSON","DATA_STS","CONF_RT","LATEST_YN","PUBL_YN","CRT_USR_ID","UPD_USR_ID")
-   VALUES(:day,:sequence,'DAILY','GLOBAL',:decision,:title,'READY',CAST(:raw AS jsonb),:status,:confidence,'Y','N','SYSTEM','SYSTEM') RETURNING "BRF_ID"
+   INSERT INTO "TB_BRF"("BASE_DT","CALC_SEQ","BRF_TP","SCOPE_TP","INV_DEC_ID","TITLE","BRF_STS","RAW_DATA_JSON","DATA_STS","CONF_RT","LATEST_YN","PUBL_YN",
+     "MKT_RISK_SCR","MKT_RISK_GRADE","MKT_PHASE","MKT_DIR_PRED_ID","MKT_DIR_SCR","REG_BUY_SIG","DAILY_ACT_SIG","RCMD_CASH_RT","SOURCE_FIX_DTTM","CRT_USR_ID","UPD_USR_ID")
+   VALUES(:day,:sequence,'DAILY','GLOBAL',:decision,:title,'READY',CAST(:raw AS jsonb),:status,:confidence,'Y','N',
+     :riskScore,:riskGrade,:marketPhase,:directionId,:directionScore,:regularBuySignal,:dailyActionSignal,:cashRatio,CURRENT_TIMESTAMP,'SYSTEM','SYSTEM') RETURNING "BRF_ID"
    """)
             .param("day", date)
             .param("sequence", sequence)
@@ -62,6 +66,14 @@ public class BriefingRawDataService {
             .param("raw", rawJson)
             .param("status", status.name())
             .param("confidence", confidence)
+            .param("riskScore", confirmedValues.get("marketRiskScore"))
+            .param("riskGrade", confirmedValues.get("marketRiskGrade"))
+            .param("marketPhase", confirmedValues.get("marketPhase"))
+            .param("directionId", confirmedValues.get("marketDirectionPredictionId"))
+            .param("directionScore", confirmedValues.get("marketDirectionScore"))
+            .param("regularBuySignal", confirmedValues.get("regularBuySignal"))
+            .param("dailyActionSignal", confirmedValues.get("dailyActionSignal"))
+            .param("cashRatio", confirmedValues.get("recommendedCashRatio"))
             .query(Long.class)
             .single();
     return new BriefingRawDataResult(
@@ -118,6 +130,12 @@ public class BriefingRawDataService {
             "SELECT \"INV_DEC_ID\" investment_decision_id,\"MKT_SCR\" market_score,\"MKT_REGIME\" market_regime,\"SENT_SCR\" sentiment_score,\"SENT_PHASE\" sentiment_phase,\"RISK_SCR\" risk_score,\"RISK_GRADE\" risk_grade,\"REG_BUY_TOT_AMT\" regular_buy_total,\"ADD_BUY_TOT_AMT\" additional_buy_total,\"RSV_ADD_AMT\" newly_reserved_amount,\"OVR_DEC_SIG\" overall_signal,\"CONF_RT\" confidence,\"DATA_STS\" data_status,\"KEY_RSN\" key_reason FROM \"TB_INV_DEC\" WHERE \"INV_DEC_ID\"=:id",
             date,
             decisionId));
+    out.put(
+        "MARKET_DIRECTION",
+        rows(
+            "SELECT \"MKT_DIR_PRED_ID\" prediction_id,\"DIR_SCR\" direction_score,\"UPTREND_RESUME_PROB\" uptrend_resume,\"BOX_RANGE_PROB\" box_range,\"RE_CORRECTION_PROB\" re_correction,\"RETEST_LOW_PROB\" retest_low,\"UPTREND_RESUME_CHG\" uptrend_resume_change,\"BOX_RANGE_CHG\" box_range_change,\"RE_CORRECTION_CHG\" re_correction_change,\"RETEST_LOW_CHG\" retest_low_change,\"INPUT_BASE_DT_JSON\" input_base_dates,\"CALC_BASIS_JSON\" calculation_basis FROM \"TB_MKT_DIR_PRED\" WHERE \"BASE_DT\"=:day AND \"LATEST_YN\"='Y'",
+            date,
+            null));
     out.put(
         "STOCK_DECISIONS",
         rows(
@@ -204,6 +222,37 @@ public class BriefingRawDataService {
       if (data.get(key) instanceof Collection<?> values && values.isEmpty())
         throw new IllegalStateException(key + " 원천데이터가 없습니다.");
     }
+  }
+
+  private Map<String, Object> confirmedValues(LocalDate date, Long decisionId) {
+    Map<String, Object> value = jdbc.sql("""
+        SELECT round(i."RISK_SCR")::int risk_score,i."RISK_GRADE",i."MKT_REGIME",p."MKT_DIR_PRED_ID",
+          p."DIR_SCR",p."UPTREND_RESUME_PROB",p."BOX_RANGE_PROB",p."RE_CORRECTION_PROB",p."RETEST_LOW_PROB",
+          p."UPTREND_RESUME_CHG",p."BOX_RANGE_CHG",p."RE_CORRECTION_CHG",p."RETEST_LOW_CHG",
+          i."OVR_DEC_SIG",round(COALESCE(i."TGT_CASH_RT",i."CASH_RT",0))::int cash_ratio
+        FROM "TB_INV_DEC" i JOIN "TB_MKT_DIR_PRED" p ON p."BASE_DT"=i."BASE_DT" AND p."LATEST_YN"='Y'
+        WHERE i."INV_DEC_ID"=:id
+        """).param("id", decisionId).query().singleRow();
+    LinkedHashMap<String,Object> result = new LinkedHashMap<>();
+    result.put("briefingDate", date);
+    result.put("briefingType", "DAILY");
+    result.put("marketRiskScore", value.get("risk_score"));
+    result.put("marketRiskGrade", value.get("RISK_GRADE"));
+    result.put("marketPhase", value.get("MKT_REGIME"));
+    result.put("marketDirectionPredictionId", value.get("MKT_DIR_PRED_ID"));
+    result.put("marketDirectionScore", value.get("DIR_SCR"));
+    result.put("uptrendResume", value.get("UPTREND_RESUME_PROB"));
+    result.put("boxRange", value.get("BOX_RANGE_PROB"));
+    result.put("reCorrection", value.get("RE_CORRECTION_PROB"));
+    result.put("retestLow", value.get("RETEST_LOW_PROB"));
+    result.put("uptrendResumeChange", value.get("UPTREND_RESUME_CHG"));
+    result.put("boxRangeChange", value.get("BOX_RANGE_CHG"));
+    result.put("reCorrectionChange", value.get("RE_CORRECTION_CHG"));
+    result.put("retestLowChange", value.get("RETEST_LOW_CHG"));
+    result.put("regularBuySignal", value.get("OVR_DEC_SIG"));
+    result.put("dailyActionSignal", value.get("OVR_DEC_SIG"));
+    result.put("recommendedCashRatio", value.get("cash_ratio"));
+    return result;
   }
 
   private DecisionRef decision(LocalDate date) {

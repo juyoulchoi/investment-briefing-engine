@@ -3,6 +3,7 @@ package com.nanum.investment.briefing.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nanum.investment.briefing.domain.BriefingType;
 import com.nanum.investment.marketdata.domain.DataStatus;
 import java.math.BigDecimal;
@@ -96,6 +97,10 @@ public class WeeklyInvestmentBriefingService {
     raw.put("periodEnd", periodEnd);
     raw.put("includedDailyBriefingCount", daily.size());
     raw.put("generatedAt", OffsetDateTime.now(KST));
+    ObjectNode confirmedValues = latestConfirmedValues(daily);
+    confirmedValues.put("briefingDate", sunday.toString());
+    confirmedValues.put("briefingType", "WEEKLY");
+    raw.put("confirmedValues", confirmedValues);
     raw.put("dailyBriefings", days);
 
     jdbc.sql(
@@ -117,9 +122,11 @@ public class WeeklyInvestmentBriefingService {
     return jdbc.sql(
             """
                 INSERT INTO "TB_BRF"("BASE_DT","CALC_SEQ","BRF_TP","SCOPE_TP","TITLE","BRF_STS",
-                  "RAW_DATA_JSON","DATA_STS","CONF_RT","LATEST_YN","PUBL_YN","CRT_USR_ID","UPD_USR_ID")
+                  "RAW_DATA_JSON","DATA_STS","CONF_RT","LATEST_YN","PUBL_YN","MKT_RISK_SCR","MKT_RISK_GRADE",
+                  "MKT_PHASE","MKT_DIR_PRED_ID","MKT_DIR_SCR","REG_BUY_SIG","DAILY_ACT_SIG","RCMD_CASH_RT","SOURCE_FIX_DTTM","CRT_USR_ID","UPD_USR_ID")
                 VALUES(:day,:sequence,'WEEKLY','GLOBAL',:title,'READY',CAST(:raw AS jsonb),:status,:confidence,
-                  'Y','N','SYSTEM','SYSTEM') RETURNING "BRF_ID"
+                  'Y','N',:riskScore,:riskGrade,:marketPhase,:directionId,:directionScore,:regularBuySignal,:dailyActionSignal,
+                  :cashRatio,CURRENT_TIMESTAMP,'SYSTEM','SYSTEM') RETURNING "BRF_ID"
                 """)
         .param("day", sunday)
         .param("sequence", sequence)
@@ -127,8 +134,22 @@ public class WeeklyInvestmentBriefingService {
         .param("raw", toJson(raw))
         .param("status", dataStatus.name())
         .param("confidence", confidence)
+        .param("riskScore", confirmedValues.path("marketRiskScore").asInt())
+        .param("riskGrade", confirmedValues.path("marketRiskGrade").asText())
+        .param("marketPhase", confirmedValues.path("marketPhase").asText())
+        .param("directionId", confirmedValues.path("marketDirectionPredictionId").asLong())
+        .param("directionScore", confirmedValues.path("marketDirectionScore").asInt())
+        .param("regularBuySignal", confirmedValues.path("regularBuySignal").asText())
+        .param("dailyActionSignal", confirmedValues.path("dailyActionSignal").asText())
+        .param("cashRatio", confirmedValues.path("recommendedCashRatio").asInt())
         .query(Long.class)
         .single();
+  }
+
+  private ObjectNode latestConfirmedValues(List<DailyRaw> daily) {
+    JsonNode node = parseJson(daily.getLast().rawJson()).path("confirmedValues");
+    if (!node.isObject()) throw new IllegalStateException("최신 일일 브리핑에 DB 확정값이 없습니다.");
+    return ((ObjectNode) node).deepCopy();
   }
 
   private DataStatus worstStatus(List<DailyRaw> rows) {

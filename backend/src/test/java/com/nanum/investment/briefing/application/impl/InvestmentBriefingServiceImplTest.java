@@ -6,6 +6,9 @@ import static org.mockito.Mockito.*;
 import com.nanum.investment.briefing.api.response.BriefingItemResponse;
 import com.nanum.investment.briefing.api.response.InvestmentBriefingResponse;
 import com.nanum.investment.briefing.application.BriefingAiClient;
+import com.nanum.investment.briefing.application.BriefingItemCatalog;
+import com.nanum.investment.briefing.application.BriefingValidationService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nanum.investment.briefing.domain.BriefingScopeType;
 import com.nanum.investment.briefing.domain.BriefingStatus;
 import com.nanum.investment.briefing.domain.BriefingType;
@@ -21,21 +24,7 @@ import org.mockito.ArgumentCaptor;
 
 class InvestmentBriefingServiceImplTest {
   private static final List<String> CODES =
-      List.of(
-          "US_STOCK_MKT",
-          "US_BOND_MKT",
-          "KR_STOCK_MKT",
-          "FX_RATE_CMDTY",
-          "ECON_SCHEDULE",
-          "MKT_RISK",
-          "MKT_PHASE",
-          "REG_BUY_DEC",
-          "ADD_BUY_DEC",
-          "REBUY_SIG",
-          "ACCT_STRATEGY",
-          "HOLDING_SIGNAL",
-          "TODAY_ACTION",
-          "CAUTION");
+      BriefingItemCatalog.ITEMS.stream().map(BriefingItemCatalog.Item::code).toList();
 
   @Test
   void validatesStoresAndPublishesStructuredBriefing() {
@@ -43,6 +32,7 @@ class InvestmentBriefingServiceImplTest {
     TbInvBrfRepository briefings = mock(TbInvBrfRepository.class);
     TbBrfDtlRepository details = mock(TbBrfDtlRepository.class);
     BriefingAiClient ai = mock(BriefingAiClient.class);
+    BriefingValidationService validation = mock(BriefingValidationService.class);
     LocalDate date = LocalDate.of(2026, 8, 7);
     List<BriefingItemResponse> items =
         CODES.stream()
@@ -53,9 +43,10 @@ class InvestmentBriefingServiceImplTest {
         .thenReturn(
             new InvestmentBriefingResponse(
                 date,
+                "DAILY",
                 "오늘의 투자 브리핑",
-                items,
-                new BriefingItemResponse("FINAL_JUDGMENT", "종합 요약", "종합 내용", "WATCH", true)));
+                new ObjectMapper().createObjectNode(),
+                items));
     TbInvBrf briefing =
         TbInvBrf.builder()
             .brfId(10L)
@@ -68,20 +59,21 @@ class InvestmentBriefingServiceImplTest {
                 date, BriefingType.DAILY, BriefingScopeType.GLOBAL, "Y"))
         .thenReturn(Optional.of(briefing));
 
-    Long id = new InvestmentBriefingServiceImpl(legacy, briefings, details, ai).generateAndSave();
+    Long id = new InvestmentBriefingServiceImpl(legacy, briefings, details, ai, validation).generateAndSave();
 
     assertThat(id).isEqualTo(10L);
     assertThat(briefing.getBriefingStatus()).isEqualTo(BriefingStatus.PUBLISHED);
     assertThat(briefing.getPublishedYn()).isEqualTo("Y");
     assertThat(briefing.getPublishedDateTime()).isNotNull();
-    assertThat(briefing.getSummaryText()).isEqualTo("종합 요약");
+    assertThat(briefing.getSummaryText()).isEqualTo("CONCLUSION 요약");
+    verify(validation).validate(eq(10L), eq(BriefingType.DAILY), any());
     verify(details).deleteByBrfId(10L);
     verify(details).flush();
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<TbBrfDtl>> saved = ArgumentCaptor.forClass(List.class);
     verify(details).saveAll(saved.capture());
     assertThat(saved.getValue()).hasSize(15);
-    assertThat(saved.getValue().getLast().getItemCd()).isEqualTo("FINAL_JUDGMENT");
+    assertThat(saved.getValue().getLast().getItemCd()).isEqualTo("CONCLUSION");
     verify(briefings).save(briefing);
   }
 
@@ -91,6 +83,7 @@ class InvestmentBriefingServiceImplTest {
     TbInvBrfRepository briefings = mock(TbInvBrfRepository.class);
     TbBrfDtlRepository details = mock(TbBrfDtlRepository.class);
     BriefingAiClient ai = mock(BriefingAiClient.class);
+    BriefingValidationService validation = mock(BriefingValidationService.class);
     LocalDate aiDate = LocalDate.of(2026, 8, 8);
     List<BriefingItemResponse> items =
         CODES.stream()
@@ -100,9 +93,10 @@ class InvestmentBriefingServiceImplTest {
         .thenReturn(
             new InvestmentBriefingResponse(
                 aiDate,
+                "DAILY",
                 "잘못된 기준일",
-                items,
-                new BriefingItemResponse("FINAL_JUDGMENT", "종합 요약", "종합 내용", "WATCH", false)));
+                new ObjectMapper().createObjectNode(),
+                items));
     when(briefings
             .findTopByBaseDateAndBriefingTypeAndScopeTypeAndLatestYnOrderByCalculationSequenceDesc(
                 aiDate, BriefingType.DAILY, BriefingScopeType.GLOBAL, "Y"))
@@ -110,7 +104,7 @@ class InvestmentBriefingServiceImplTest {
 
     org.assertj.core.api.Assertions.assertThatThrownBy(
             () ->
-                new InvestmentBriefingServiceImpl(legacy, briefings, details, ai).generateAndSave())
+                new InvestmentBriefingServiceImpl(legacy, briefings, details, ai, validation).generateAndSave())
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("원천 브리핑");
     verifyNoInteractions(details);

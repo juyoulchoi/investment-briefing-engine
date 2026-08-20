@@ -3,6 +3,7 @@ package com.nanum.investment.marketdata.application;
 import com.nanum.investment.briefing.application.AutomaticInvestmentDecisionService;
 import com.nanum.investment.briefing.application.BriefingRawDataService;
 import com.nanum.investment.briefing.application.InvestmentBriefingService;
+import com.nanum.investment.briefing.application.MarketDirectionPredictionService;
 import com.nanum.investment.marketdata.domain.BriefingRefreshResult;
 import com.nanum.investment.marketdata.domain.HoldingMarketDataRefreshResult;
 import com.nanum.investment.rebalance.application.AutomaticRebalanceService;
@@ -23,6 +24,7 @@ public class BriefingRefreshService {
   private final AutomaticInvestmentDecisionService decisions;
   private final RegularBuyRecommendationSyncService recommendations;
   private final DailyBuyPlanService plans;
+  private final MarketDirectionPredictionService directionPredictions;
   private final AutomaticRebalanceService rebalancing;
   private final BriefingRawDataService rawData;
   private final InvestmentBriefingService briefing;
@@ -37,6 +39,7 @@ public class BriefingRefreshService {
       AutomaticInvestmentDecisionService decisions,
       RegularBuyRecommendationSyncService recommendations,
       DailyBuyPlanService plans,
+      MarketDirectionPredictionService directionPredictions,
       AutomaticRebalanceService rebalancing,
       BriefingRawDataService rawData,
       InvestmentBriefingService briefing) {
@@ -49,6 +52,7 @@ public class BriefingRefreshService {
     this.decisions = decisions;
     this.recommendations = recommendations;
     this.plans = plans;
+    this.directionPredictions = directionPredictions;
     this.rebalancing = rebalancing;
     this.rawData = rawData;
     this.briefing = briefing;
@@ -93,14 +97,16 @@ public class BriefingRefreshService {
         recommendation
             && attempt(
                 "9 추가매수·재매수 계산", completed, failures, results, () -> plans.calculateAndSave(day));
+    boolean direction =
+        plan && attempt("9-1 시장방향 예측 계산", completed, failures, results, () -> directionPredictions.calculateAndSave(day));
     boolean rebalance =
-        plan && attempt("9 리밸런싱 계산", completed, failures, results, () -> rebalancing.generate(day));
+        direction && attempt("10 리밸런싱 계산", completed, failures, results, () -> rebalancing.generate(day));
     boolean raw =
         rebalance
             && attempt(
-                "10 브리핑 원천데이터 생성", completed, failures, results, () -> rawData.generate(day));
+                "11 브리핑 원천데이터 생성", completed, failures, results, () -> rawData.generate(day));
     if (raw && publish)
-      attempt("11-13 OpenAI 설명·검증·발행", completed, failures, results, briefing::generateAndSave);
+      attempt("12-14 OpenAI 설명·검증·발행", completed, failures, results, briefing::generateAndSave);
     return new BriefingRefreshResult(
         failures.isEmpty(),
         day,
