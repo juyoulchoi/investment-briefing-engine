@@ -673,8 +673,7 @@ export default function OperationsAdmin({
             ...form,
             accountId,
             stockId: null,
-            wholeSharePurchaseAmount:
-              accountType === "DOMESTIC" ? 0 : null,
+            wholeSharePurchaseAmount: accountType === "DOMESTIC" ? 0 : null,
             fractionalSharePurchaseAmount:
               accountType === "DOMESTIC" ? 0 : null,
             ...(["DOMESTIC", "OVERSEAS"].includes(String(accountType))
@@ -971,8 +970,7 @@ export default function OperationsAdmin({
                         ? "user-paused-row"
                         : kind === "regular-buys" && r.buyStatus === "STOPPED"
                           ? "buy-stopped-row"
-                          : kind === "regular-buys" &&
-                              r.buyStatus === "PAUSED"
+                          : kind === "regular-buys" && r.buyStatus === "PAUSED"
                             ? "buy-paused-row"
                             : undefined
                     }
@@ -1032,8 +1030,7 @@ export default function OperationsAdmin({
                     (!f.domesticOnly ||
                       (form.accountType ??
                         accounts.find(
-                          (a) =>
-                            Number(a.accountId) === Number(form.accountId),
+                          (a) => Number(a.accountId) === Number(form.accountId),
                         )?.accountType) === "DOMESTIC") &&
                     (kind !== "regular-buys" ||
                       ((f.key !== "buyDayCode" || form.buyCycle === "WEEKLY") &&
@@ -1043,7 +1040,9 @@ export default function OperationsAdmin({
                           form.appliedCycle === "WEEKLY") &&
                         (f.key !== "appliedMonthDays" ||
                           form.appliedCycle === "MONTHLY") &&
-                        (!["minimumBuyAmount", "appliedAmount"].includes(f.key) ||
+                        (!["minimumBuyAmount", "appliedAmount"].includes(
+                          f.key,
+                        ) ||
                           form.buyBasis === "AMOUNT") &&
                         (!["baseBuyQuantity", "buyQuantity"].includes(f.key) ||
                           form.buyBasis === "QUANTITY"))),

@@ -5,7 +5,17 @@ import ReferenceAdmin from "./ReferenceAdmin";
 import OperationsAdmin from "./OperationsAdmin";
 import MarketAnalysisAdmin from "./MarketAnalysisAdmin";
 import BondYieldPage from "./BondYieldPage";
-type Page = "dashboard" | "briefing" | "holdings" | "additional" | "rebalance" | "history" | "reference" | "operations" | "marketadmin" | "bondyields";
+type Page =
+  | "dashboard"
+  | "briefing"
+  | "holdings"
+  | "additional"
+  | "rebalance"
+  | "history"
+  | "reference"
+  | "operations"
+  | "marketadmin"
+  | "bondyields";
 const nav: [Page, string, string][] = [
   ["dashboard", "대시보드", "⌂"],
   ["briefing", "투자 브리핑", "▤"],
@@ -107,11 +117,18 @@ const accountLabel: Record<Account["accountType"], string> = {
   ISA: "ISA",
   PENSION: "연금",
 };
-const accountTypes: Account["accountType"][] = ["DOMESTIC", "OVERSEAS", "ISA", "PENSION"];
+const accountTypes: Account["accountType"][] = [
+  "DOMESTIC",
+  "OVERSEAS",
+  "ISA",
+  "PENSION",
+];
 const accountTabStorageKey = "investment-briefing-account-tab";
 const savedAccountTab = () => {
   const value = localStorage.getItem(accountTabStorageKey);
-  return accountTypes.includes(value as Account["accountType"]) ? (value as Account["accountType"]) : "DOMESTIC";
+  return accountTypes.includes(value as Account["accountType"])
+    ? (value as Account["accountType"])
+    : "DOMESTIC";
 };
 const overseasName: Record<string, string> = {
   BOTZ: "BOTZ",
@@ -155,7 +172,8 @@ async function api<T>(url: string): Promise<T> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const body = (await response.json()) as ApiResult<T>;
-  if (!body.success) throw new Error(body.error?.message || "데이터 조회에 실패했습니다.");
+  if (!body.success)
+    throw new Error(body.error?.message || "데이터 조회에 실패했습니다.");
   return body.data;
 }
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
@@ -201,10 +219,19 @@ function App() {
         };
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         setContentVersion((v) => v + 1);
-        const domestic = Object.values(result.krxReceivedCounts || {}).reduce((sum, count) => sum + count, 0);
-        notify(result.success ? `1~10단계 ${result.completedSteps.length}개 완료 · 국내·ETF ${domestic.toLocaleString("ko-KR")}건 · 해외 ${result.overseasSuccessCount}/${result.overseasRequestedCount}개` : `일부 갱신 실패: ${result.failures.join(" · ")}`);
+        const domestic = Object.values(result.krxReceivedCounts || {}).reduce(
+          (sum, count) => sum + count,
+          0,
+        );
+        notify(
+          result.success
+            ? `1~10단계 ${result.completedSteps.length}개 완료 · 국내·ETF ${domestic.toLocaleString("ko-KR")}건 · 해외 ${result.overseasSuccessCount}/${result.overseasRequestedCount}개`
+            : `일부 갱신 실패: ${result.failures.join(" · ")}`,
+        );
       } catch (e) {
-        notify(e instanceof Error ? e.message : "시장 데이터 갱신에 실패했습니다.");
+        notify(
+          e instanceof Error ? e.message : "시장 데이터 갱신에 실패했습니다.",
+        );
       } finally {
         setRefreshing(false);
       }
@@ -248,16 +275,33 @@ function App() {
           </div>
           <div>
             <span className="latest">● 데이터 최신</span>
-            <button className="primary" disabled={refreshing} onClick={refreshMarketData}>
+            <button
+              className="primary"
+              disabled={refreshing}
+              onClick={refreshMarketData}
+            >
               {refreshing ? "갱신 중..." : "↻ 브리핑 갱신"}
             </button>
           </div>
         </header>
-        {page === "dashboard" && <Dashboard go={move} />} {page === "briefing" && <Briefing />} {page === "holdings" && <Holdings />} {page === "additional" && <Additional />} {page === "rebalance" && <Rebalance period={reb} set={setReb} />} {page === "history" && <History period={history} set={setHistory} />} {page === "reference" && <ReferenceAdmin notify={notify} />} {page === "operations" && <OperationsAdmin notify={notify} />} {page === "marketadmin" && <MarketAnalysisAdmin notify={notify} />} {page === "bondyields" && <BondYieldPage notify={notify} />}
+        {page === "dashboard" && <Dashboard go={move} />}{" "}
+        {page === "briefing" && <Briefing />}{" "}
+        {page === "holdings" && <Holdings />}{" "}
+        {page === "additional" && <Additional />}{" "}
+        {page === "rebalance" && <Rebalance period={reb} set={setReb} />}{" "}
+        {page === "history" && <History period={history} set={setHistory} />}{" "}
+        {page === "reference" && <ReferenceAdmin notify={notify} />}{" "}
+        {page === "operations" && <OperationsAdmin notify={notify} />}{" "}
+        {page === "marketadmin" && <MarketAnalysisAdmin notify={notify} />}{" "}
+        {page === "bondyields" && <BondYieldPage notify={notify} />}
       </main>
       <nav className="mobile" aria-label="모바일 전체 메뉴">
         {nav.map((x) => (
-          <button key={x[0]} className={page === x[0] ? "active" : ""} onClick={() => move(x[0])}>
+          <button
+            key={x[0]}
+            className={page === x[0] ? "active" : ""}
+            onClick={() => move(x[0])}
+          >
             <b>{x[2]}</b>
             {x[1]}
           </button>
@@ -267,9 +311,20 @@ function App() {
     </div>
   );
 }
-function Nav({ x, active, go }: { x: [Page, string, string]; active: boolean; go: (p: Page) => void }) {
+function Nav({
+  x,
+  active,
+  go,
+}: {
+  x: [Page, string, string];
+  active: boolean;
+  go: (p: Page) => void;
+}) {
   return (
-    <button className={`nav ${active ? "active" : ""}`} onClick={() => go(x[0])}>
+    <button
+      className={`nav ${active ? "active" : ""}`}
+      onClick={() => go(x[0])}
+    >
       <b>{x[2]}</b>
       {x[1]}
     </button>
@@ -320,7 +375,10 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
       })
       .catch((error) => {
         if (alive) {
-          const message = error instanceof Error ? error.message : "대시보드 최신 데이터를 불러오지 못했습니다.";
+          const message =
+            error instanceof Error
+              ? error.message
+              : "대시보드 최신 데이터를 불러오지 못했습니다.";
           setDashboardError(message);
           setAssetError(message);
         }
@@ -339,7 +397,8 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
     totalEvaluation = assetAccounts.reduce((sum, a) => sum + a.evaluation, 0),
     totalCost = assetAccounts.reduce((sum, a) => sum + a.cost, 0),
     totalCash = assetAccounts.reduce((sum, a) => sum + a.cash, 0),
-    totalRate = totalCost > 0 ? ((totalEvaluation - totalCost) / totalCost) * 100 : 0,
+    totalRate =
+      totalCost > 0 ? ((totalEvaluation - totalCost) / totalCost) * 100 : 0,
     latestAssetDate = assetAccounts
       .map((a) => a.priceBaseDate)
       .filter(Boolean)
@@ -369,32 +428,89 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
     HIGH: "높음",
   };
   const rateText = (a: AssetAccount) => {
-    const evaluation = a.type === "OVERSEAS" ? a.displayEvaluation : a.evaluation,
+    const evaluation =
+        a.type === "OVERSEAS" ? a.displayEvaluation : a.evaluation,
       cost = a.type === "OVERSEAS" ? a.displayCost : a.cost;
-    return a.holdingCount === 0 ? "대기" : `${evaluation - cost >= 0 ? "+" : ""}${(cost > 0 ? ((evaluation - cost) / cost) * 100 : 0).toFixed(1)}%`;
+    return a.holdingCount === 0
+      ? "대기"
+      : `${evaluation - cost >= 0 ? "+" : ""}${(cost > 0 ? ((evaluation - cost) / cost) * 100 : 0).toFixed(1)}%`;
   };
   return (
     <div className="page">
       {dashboardError && <div className="batch-error">{dashboardError}</div>}
       <section className="hero">
         <div>
-          <h2>{dashboardLoading ? "최신 투자 판단을 불러오는 중입니다." : dashboard?.title || "최신 투자 판단 데이터가 없습니다."}</h2>
-          <p>{dashboard?.summary || "브리핑 생성이 완료되면 최신 시장 판단이 표시됩니다."}</p>
+          <h2>
+            {dashboardLoading
+              ? "최신 투자 판단을 불러오는 중입니다."
+              : dashboard?.title || "최신 투자 판단 데이터가 없습니다."}
+          </h2>
+          <p>
+            {dashboard?.summary ||
+              "브리핑 생성이 완료되면 최신 시장 판단이 표시됩니다."}
+          </p>
         </div>
         <div className="ring">
-          <strong>{dashboard ? Math.round(Number(dashboard.marketScore || 0)) : "-"}</strong>
+          <strong>
+            {dashboard ? Math.round(Number(dashboard.marketScore || 0)) : "-"}
+          </strong>
           <small>시장점수</small>
         </div>
       </section>
       <section className="metrics">
-        <Metric t="시장심리" v={dashboard ? labels[dashboard.sentimentPhase] || dashboard.sentimentPhase : "-"} d={dashboard ? `심리점수 ${Number(dashboard.sentimentScore || 0).toFixed(1)}` : "데이터 없음"} i="◒" />
-        <Metric t="시장국면" v={dashboard ? labels[dashboard.marketRegime] || dashboard.marketRegime : "-"} d={dashboard ? `위험등급 ${labels[dashboard.riskGrade] || dashboard.riskGrade}` : "데이터 없음"} i="↗" />
-        <Metric t="행동신호" v={dashboard ? labels[dashboard.overallSignal] || dashboard.overallSignal : "-"} d={dashboard ? `기준일 ${dashboard.baseDate}` : "데이터 없음"} i="⚑" />
-        <Metric t="현금비중" v={assetLoading ? "-" : `${cashRate.toFixed(1)}%`} d={assetLoading ? "계산 중" : `현금·대기현금 ${won(totalCash)}`} i="₩" />
+        <Metric
+          t="시장심리"
+          v={
+            dashboard
+              ? labels[dashboard.sentimentPhase] || dashboard.sentimentPhase
+              : "-"
+          }
+          d={
+            dashboard
+              ? `심리점수 ${Number(dashboard.sentimentScore || 0).toFixed(1)}`
+              : "데이터 없음"
+          }
+          i="◒"
+        />
+        <Metric
+          t="시장국면"
+          v={
+            dashboard
+              ? labels[dashboard.marketRegime] || dashboard.marketRegime
+              : "-"
+          }
+          d={
+            dashboard
+              ? `위험등급 ${labels[dashboard.riskGrade] || dashboard.riskGrade}`
+              : "데이터 없음"
+          }
+          i="↗"
+        />
+        <Metric
+          t="행동신호"
+          v={
+            dashboard
+              ? labels[dashboard.overallSignal] || dashboard.overallSignal
+              : "-"
+          }
+          d={dashboard ? `기준일 ${dashboard.baseDate}` : "데이터 없음"}
+          i="⚑"
+        />
+        <Metric
+          t="현금비중"
+          v={assetLoading ? "-" : `${cashRate.toFixed(1)}%`}
+          d={assetLoading ? "계산 중" : `현금·대기현금 ${won(totalCash)}`}
+          i="₩"
+        />
       </section>
       <div className="grid">
         <section className="card">
-          <Head k="MY ASSETS" t={`계좌 현황${latestAssetDate ? ` · ${latestAssetDate} 기준` : ""}`} a="전체보기" click={() => go("holdings")} />
+          <Head
+            k="MY ASSETS"
+            t={`계좌 현황${latestAssetDate ? ` · ${latestAssetDate} 기준` : ""}`}
+            a="전체보기"
+            click={() => go("holdings")}
+          />
           {assetLoading ? (
             <div className="data-state">계좌 현황을 불러오는 중입니다.</div>
           ) : assetError ? (
@@ -422,29 +538,94 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
               </div>
               <div className="accounts">
                 {assetAccounts.map((a) => (
-                  <Account key={a.type} n={accountLabel[a.type]} v={a.type === "OVERSEAS" ? usd(a.displayValue) : won(a.value)} p={`${(total > 0 ? (a.value / total) * 100 : 0).toFixed(1)}%`} g={rateText(a)} />
+                  <Account
+                    key={a.type}
+                    n={accountLabel[a.type]}
+                    v={
+                      a.type === "OVERSEAS" ? usd(a.displayValue) : won(a.value)
+                    }
+                    p={`${(total > 0 ? (a.value / total) * 100 : 0).toFixed(1)}%`}
+                    g={rateText(a)}
+                  />
                 ))}
               </div>
             </>
           )}
         </section>
         <section className="card">
-          <Head k="ACTION SIGNAL" t="오늘의 행동신호" a="상세보기" click={() => go("additional")} />
-          {dashboardLoading ? <div className="data-state">행동신호를 불러오는 중입니다.</div> : dashboard?.actionSignals?.length ? dashboard.actionSignals.map((signal) => <Signal key={`${signal.stockCode}-${signal.actionSignal}`} tag={signal.actionSignal === "INCREASE" ? "BUY" : "●"} n={`${signal.stockName} ${labels[signal.actionSignal] || signal.actionSignal}`} v={signal.accountType === "OVERSEAS" ? usd(Number(signal.recommendedAmount || 0)) : won(Number(signal.recommendedAmount || 0))} />) : <div className="data-state">최신 행동신호가 없습니다.</div>}
+          <Head
+            k="ACTION SIGNAL"
+            t="오늘의 행동신호"
+            a="상세보기"
+            click={() => go("additional")}
+          />
+          {dashboardLoading ? (
+            <div className="data-state">행동신호를 불러오는 중입니다.</div>
+          ) : dashboard?.actionSignals?.length ? (
+            dashboard.actionSignals.map((signal) => (
+              <Signal
+                key={`${signal.stockCode}-${signal.actionSignal}`}
+                tag={signal.actionSignal === "INCREASE" ? "BUY" : "●"}
+                n={`${signal.stockName} ${labels[signal.actionSignal] || signal.actionSignal}`}
+                v={
+                  signal.accountType === "OVERSEAS"
+                    ? usd(Number(signal.recommendedAmount || 0))
+                    : won(Number(signal.recommendedAmount || 0))
+                }
+              />
+            ))
+          ) : (
+            <div className="data-state">최신 행동신호가 없습니다.</div>
+          )}
           <button className="full" onClick={() => go("operations")}>
-            오늘 추천매수 총 {won(Number(dashboard?.regularBuyTotal || 0) + Number(dashboard?.additionalBuyTotal || 0))}
+            오늘 추천매수 총{" "}
+            {won(
+              Number(dashboard?.regularBuyTotal || 0) +
+                Number(dashboard?.additionalBuyTotal || 0),
+            )}
             <span>계획 확인 →</span>
           </button>
         </section>
       </div>
       <section className="card briefing">
-        <Head k="DAILY BRIEFING" t="오늘 브리핑" a="전체 브리핑 읽기" click={() => go("briefing")} />
-        <div className="columns">{dashboardLoading ? <div className="data-state">최신 브리핑을 불러오는 중입니다.</div> : dashboard?.briefingArticles?.length ? dashboard.briefingArticles.slice(0, 3).map((article, index) => <Article key={article.itemCode} no={`0${index + 1}`} t={article.summary} />) : <div className="data-state">발행된 최신 브리핑이 없습니다.</div>}</div>
+        <Head
+          k="DAILY BRIEFING"
+          t="오늘 브리핑"
+          a="전체 브리핑 읽기"
+          click={() => go("briefing")}
+        />
+        <div className="columns">
+          {dashboardLoading ? (
+            <div className="data-state">최신 브리핑을 불러오는 중입니다.</div>
+          ) : dashboard?.briefingArticles?.length ? (
+            dashboard.briefingArticles
+              .slice(0, 3)
+              .map((article, index) => (
+                <Article
+                  key={article.itemCode}
+                  no={`0${index + 1}`}
+                  t={article.summary}
+                />
+              ))
+          ) : (
+            <div className="data-state">발행된 최신 브리핑이 없습니다.</div>
+          )}
+        </div>
       </section>
     </div>
   );
 }
-const Head = ({ k: _k, t, a, click }: { k: string; t: string; a: string; click?: () => void }) => (
+const Head = ({
+  k: _k,
+  t,
+  a,
+  click,
+}: {
+  k: string;
+  t: string;
+  a: string;
+  click?: () => void;
+}) => (
   <header className="head">
     <div>
       <h3>{t}</h3>
@@ -454,7 +635,17 @@ const Head = ({ k: _k, t, a, click }: { k: string; t: string; a: string; click?:
     </button>
   </header>
 );
-function Metric({ t, v, d, i }: { t: string; v: string; d: string; i: string }) {
+function Metric({
+  t,
+  v,
+  d,
+  i,
+}: {
+  t: string;
+  v: string;
+  d: string;
+  i: string;
+}) {
   return (
     <article className="metric">
       <b>{i}</b>
@@ -466,7 +657,17 @@ function Metric({ t, v, d, i }: { t: string; v: string; d: string; i: string }) 
     </article>
   );
 }
-function Account({ n, v, p, g }: { n: string; v: string; p: string; g: string }) {
+function Account({
+  n,
+  v,
+  p,
+  g,
+}: {
+  n: string;
+  v: string;
+  p: string;
+  g: string;
+}) {
   return (
     <div>
       <i />
@@ -498,11 +699,23 @@ function Article({ no, t }: { no: string; t: string }) {
     </article>
   );
 }
-function Tabs({ vals, active, set }: { vals: string[]; active: string; set: (s: string) => void }) {
+function Tabs({
+  vals,
+  active,
+  set,
+}: {
+  vals: string[];
+  active: string;
+  set: (s: string) => void;
+}) {
   return (
     <div className="tabs">
       {vals.map((x) => (
-        <button key={x} className={x === active ? "active" : ""} onClick={() => set(x)}>
+        <button
+          key={x}
+          className={x === active ? "active" : ""}
+          onClick={() => set(x)}
+        >
           {x}
         </button>
       ))}
@@ -520,7 +733,12 @@ function Briefing() {
         if (alive) setData(value);
       })
       .catch((e) => {
-        if (alive) setError(e instanceof Error ? e.message : "최신 투자 브리핑을 불러오지 못했습니다.");
+        if (alive)
+          setError(
+            e instanceof Error
+              ? e.message
+              : "최신 투자 브리핑을 불러오지 못했습니다.",
+          );
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -532,7 +750,9 @@ function Briefing() {
   if (loading)
     return (
       <div className="page">
-        <section className="card data-state">최신 투자 브리핑을 불러오는 중입니다.</section>
+        <section className="card data-state">
+          최신 투자 브리핑을 불러오는 중입니다.
+        </section>
       </div>
     );
   if (error)
@@ -544,14 +764,18 @@ function Briefing() {
   if (!data?.title || !data.briefingArticles?.length)
     return (
       <div className="page">
-        <section className="card data-state">발행된 최신 투자 브리핑이 없습니다.</section>
+        <section className="card data-state">
+          발행된 최신 투자 브리핑이 없습니다.
+        </section>
       </div>
     );
   return (
     <div className="page">
       <section className="briefHero">
         <h2>{data.baseDate}</h2>
-        <p>{data.summary || "최신 투자 판단을 바탕으로 생성된 브리핑입니다."}</p>
+        <p>
+          {data.summary || "최신 투자 판단을 바탕으로 생성된 브리핑입니다."}
+        </p>
         <div>
           {data.briefingArticles.slice(0, 3).map((item, i) => (
             <article key={item.itemCode}>
@@ -619,7 +843,10 @@ function Holdings() {
       memo: "",
     });
   useEffect(() => {
-    Promise.all([api<AdminAccount[]>("/api/v1/admin/reference/accounts"), api<AdminStock[]>("/api/v1/admin/reference/stocks")])
+    Promise.all([
+      api<AdminAccount[]>("/api/v1/admin/reference/accounts"),
+      api<AdminStock[]>("/api/v1/admin/reference/stocks"),
+    ])
       .then(([a, s]) => {
         setAdminAccounts(a);
         setAdminStocks(s);
@@ -644,7 +871,10 @@ function Holdings() {
           );
       })
       .catch((e) => {
-        if (alive) setError(e instanceof Error ? e.message : "보유종목을 불러오지 못했습니다.");
+        if (alive)
+          setError(
+            e instanceof Error ? e.message : "보유종목을 불러오지 못했습니다.",
+          );
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -656,15 +886,53 @@ function Holdings() {
   const isOverseas = selected === "OVERSEAS",
     isDomestic = selected === "DOMESTIC",
     isWholeWonAccount = selected === "ISA" || selected === "PENSION",
-    holdingEvaluation = (h: Holding) => (isOverseas ? Number(h.currentPrice || 0) * Number(h.holdingQuantity || 0) : Number(h.evaluationAmount || 0)),
+    holdingEvaluation = (h: Holding) =>
+      isOverseas
+        ? Number(h.currentPrice || 0) * Number(h.holdingQuantity || 0)
+        : Number(h.evaluationAmount || 0),
     formatMoney = (n: number) => amount(n, isOverseas),
-    formatHoldingQuantity = (n: number) => n.toLocaleString("ko-KR", isDomestic ? { minimumFractionDigits: 6, maximumFractionDigits: 6 } : undefined);
-  const rows = holdings.filter((h) => h.accountType === selected).sort((a, b) => (sort === "profitAsc" ? Number(a.profitLossRate) - Number(b.profitLossRate) : sort === "profitDesc" ? Number(b.profitLossRate) - Number(a.profitLossRate) : holdingEvaluation(b) - holdingEvaluation(a))),
+    formatHoldingQuantity = (n: number) =>
+      n.toLocaleString(
+        "ko-KR",
+        isDomestic
+          ? { minimumFractionDigits: 6, maximumFractionDigits: 6 }
+          : undefined,
+      );
+  const rows = holdings
+      .filter((h) => h.accountType === selected)
+      .sort((a, b) =>
+        sort === "profitAsc"
+          ? Number(a.profitLossRate) - Number(b.profitLossRate)
+          : sort === "profitDesc"
+            ? Number(b.profitLossRate) - Number(a.profitLossRate)
+            : holdingEvaluation(b) - holdingEvaluation(a),
+      ),
     evaluation = rows.reduce((sum, h) => sum + holdingEvaluation(h), 0),
-    cost = rows.reduce((sum, h) => sum + Number(h.averagePrice || 0) * Number(h.holdingQuantity || 0), 0),
+    cost = rows.reduce(
+      (sum, h) =>
+        sum + Number(h.averagePrice || 0) * Number(h.holdingQuantity || 0),
+      0,
+    ),
     profit = evaluation - cost;
-  const isBuyLocked = (h: Holding) => h.userPauseYn === "Y" || h.buyStatus === "STOPPED" || h.buyStatus === "PAUSED";
-  const rowClass = (h: Holding) => [h.userPauseYn === "Y" ? "holding-user-paused-row" : h.buyStatus === "STOPPED" ? "holding-buy-stopped-row" : h.buyStatus === "PAUSED" ? "holding-buy-paused-row" : "", editMode && changed.some((x) => x.holdingId === h.holdingId) ? "changed-row" : ""].filter(Boolean).join(" ");
+  const isBuyLocked = (h: Holding) =>
+    h.userPauseYn === "Y" ||
+    h.buyStatus === "STOPPED" ||
+    h.buyStatus === "PAUSED";
+  const rowClass = (h: Holding) =>
+    [
+      h.userPauseYn === "Y"
+        ? "holding-user-paused-row"
+        : h.buyStatus === "STOPPED"
+          ? "holding-buy-stopped-row"
+          : h.buyStatus === "PAUSED"
+            ? "holding-buy-paused-row"
+            : "",
+      editMode && changed.some((x) => x.holdingId === h.holdingId)
+        ? "changed-row"
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
   const beginEdit = () => {
     setDrafts(
       Object.fromEntries(
@@ -674,7 +942,9 @@ function Holdings() {
             holdingQuantity: String(h.holdingQuantity),
             averagePrice: String(h.averagePrice),
             wholeSharePurchaseAmount: String(h.wholeSharePurchaseAmount ?? 0),
-            fractionalSharePurchaseAmount: String(h.fractionalSharePurchaseAmount ?? 0),
+            fractionalSharePurchaseAmount: String(
+              h.fractionalSharePurchaseAmount ?? 0,
+            ),
           },
         ]),
       ),
@@ -699,7 +969,21 @@ function Holdings() {
       ...current,
       [id]: { ...current[id], [field]: value },
     }));
-  const changed = rows.filter((h) => !isBuyLocked(h) && drafts[h.holdingId] && (Number(drafts[h.holdingId].holdingQuantity) !== Number(h.holdingQuantity) || (!isDomestic && Number(drafts[h.holdingId].averagePrice) !== Number(h.averagePrice)) || (isDomestic && (Number(drafts[h.holdingId].wholeSharePurchaseAmount) !== Number(h.wholeSharePurchaseAmount) || Number(drafts[h.holdingId].fractionalSharePurchaseAmount) !== Number(h.fractionalSharePurchaseAmount)))));
+  const changed = rows.filter(
+    (h) =>
+      !isBuyLocked(h) &&
+      drafts[h.holdingId] &&
+      (Number(drafts[h.holdingId].holdingQuantity) !==
+        Number(h.holdingQuantity) ||
+        (!isDomestic &&
+          Number(drafts[h.holdingId].averagePrice) !==
+            Number(h.averagePrice)) ||
+        (isDomestic &&
+          (Number(drafts[h.holdingId].wholeSharePurchaseAmount) !==
+            Number(h.wholeSharePurchaseAmount) ||
+            Number(drafts[h.holdingId].fractionalSharePurchaseAmount) !==
+              Number(h.fractionalSharePurchaseAmount)))),
+  );
   const openCreate = () => {
     const account = adminAccounts.find((a) => a.accountType === selected);
     setNewHolding({
@@ -732,7 +1016,8 @@ function Holdings() {
         body: JSON.stringify(newHolding),
       });
       const body = (await response.json()) as ApiResult<any>;
-      if (!response.ok || !body.success) throw new Error(body.error?.message || `HTTP ${response.status}`);
+      if (!response.ok || !body.success)
+        throw new Error(body.error?.message || `HTTP ${response.status}`);
       const r = body.data;
       setHoldings((current) => [
         ...current,
@@ -747,7 +1032,8 @@ function Holdings() {
           holdingQuantity: Number(r.holdingQuantity || 0),
           averagePrice: Number(r.averagePrice || 0),
           wholeSharePurchaseAmount: r.wholeSharePurchaseAmount ?? null,
-          fractionalSharePurchaseAmount: r.fractionalSharePurchaseAmount ?? null,
+          fractionalSharePurchaseAmount:
+            r.fractionalSharePurchaseAmount ?? null,
           currentPrice: Number(r.currentPrice || 0),
           evaluationAmount: Number(r.evaluationAmount || 0),
           profitLossRate: Number(r.profitLossRate || 0),
@@ -760,7 +1046,9 @@ function Holdings() {
       ]);
       setCreateOpen(false);
     } catch (e) {
-      setCreateError(e instanceof Error ? e.message : "보유종목을 등록하지 못했습니다.");
+      setCreateError(
+        e instanceof Error ? e.message : "보유종목을 등록하지 못했습니다.",
+      );
     } finally {
       setCreateSaving(false);
     }
@@ -772,9 +1060,19 @@ function Holdings() {
     }
     for (const h of changed) {
       const d = drafts[h.holdingId],
-        values = isDomestic ? [d.holdingQuantity, d.wholeSharePurchaseAmount, d.fractionalSharePurchaseAmount] : [d.holdingQuantity, d.averagePrice];
+        values = isDomestic
+          ? [
+              d.holdingQuantity,
+              d.wholeSharePurchaseAmount,
+              d.fractionalSharePurchaseAmount,
+            ]
+          : [d.holdingQuantity, d.averagePrice];
       if (values.some((v) => !Number.isFinite(Number(v)) || Number(v) < 0)) {
-        setSaveError(isDomestic ? "보유수량과 정수주·소수점주 매입금액은 0 이상의 숫자로 입력하세요." : "보유수량과 평단가는 0 이상의 숫자로 입력하세요.");
+        setSaveError(
+          isDomestic
+            ? "보유수량과 정수주·소수점주 매입금액은 0 이상의 숫자로 입력하세요."
+            : "보유수량과 평단가는 0 이상의 숫자로 입력하세요.",
+        );
         return;
       }
     }
@@ -792,14 +1090,19 @@ function Holdings() {
             values: {
               holdingQuantity: Number(drafts[h.holdingId].holdingQuantity),
               averagePrice: Number(drafts[h.holdingId].averagePrice),
-              wholeSharePurchaseAmount: isDomestic ? Number(drafts[h.holdingId].wholeSharePurchaseAmount) : null,
-              fractionalSharePurchaseAmount: isDomestic ? Number(drafts[h.holdingId].fractionalSharePurchaseAmount) : null,
+              wholeSharePurchaseAmount: isDomestic
+                ? Number(drafts[h.holdingId].wholeSharePurchaseAmount)
+                : null,
+              fractionalSharePurchaseAmount: isDomestic
+                ? Number(drafts[h.holdingId].fractionalSharePurchaseAmount)
+                : null,
             },
           })),
         }),
       });
       const body = (await response.json()) as ApiResult<Holding[]>;
-      if (!response.ok || !body.success) throw new Error(body.error?.message || `HTTP ${response.status}`);
+      if (!response.ok || !body.success)
+        throw new Error(body.error?.message || `HTTP ${response.status}`);
       const updated = new Map(body.data.map((h) => [h.holdingId, h]));
       setHoldings((current) =>
         current.map((h) =>
@@ -816,7 +1119,9 @@ function Holdings() {
       setEditMode(false);
       setDrafts({});
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "일괄 저장하지 못했습니다.");
+      setSaveError(
+        err instanceof Error ? err.message : "일괄 저장하지 못했습니다.",
+      );
     } finally {
       setSaving(false);
     }
@@ -826,7 +1131,12 @@ function Holdings() {
       <div className="holding-toolbar">
         <div className="tabs account-tabs">
           {accountTypes.map((type) => (
-            <button key={type} className={selected === type ? "active" : ""} onClick={() => selectAccount(type)} disabled={saving}>
+            <button
+              key={type}
+              className={selected === type ? "active" : ""}
+              onClick={() => selectAccount(type)}
+              disabled={saving}
+            >
               {accountLabel[type]}
             </button>
           ))}
@@ -835,7 +1145,11 @@ function Holdings() {
           <span className="latest">단위: {isOverseas ? "USD" : "원"}</span>
           <label className="sort-select">
             <span>정렬</span>
-            <select value={sort} onChange={(e) => setSort(e.target.value)} disabled={editMode}>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+              disabled={editMode}
+            >
               <option value="profitAsc">수익률 낮은순</option>
               <option value="profitDesc">수익률 높은순</option>
               <option value="evaluationDesc">평가금액 많은순</option>
@@ -843,19 +1157,35 @@ function Holdings() {
           </label>
           {editMode ? (
             <>
-              <button className="cancel-button" onClick={cancelEdit} disabled={saving}>
+              <button
+                className="cancel-button"
+                onClick={cancelEdit}
+                disabled={saving}
+              >
                 취소
               </button>
-              <button className="primary" onClick={saveAccount} disabled={saving}>
+              <button
+                className="primary"
+                onClick={saveAccount}
+                disabled={saving}
+              >
                 {saving ? "저장 중..." : `변경 ${changed.length}건 저장`}
               </button>
             </>
           ) : (
             <>
-              <button className="primary" onClick={openCreate} disabled={loading || adminAccounts.length === 0}>
+              <button
+                className="primary"
+                onClick={openCreate}
+                disabled={loading || adminAccounts.length === 0}
+              >
                 + 종목 등록
               </button>
-              <button className="primary" onClick={beginEdit} disabled={loading || rows.length === 0}>
+              <button
+                className="primary"
+                onClick={beginEdit}
+                disabled={loading || rows.length === 0}
+              >
                 수정
               </button>
             </>
@@ -866,7 +1196,21 @@ function Holdings() {
       <Summary evaluation={evaluation} profit={profit} format={formatMoney} />
       <section className="card table holdings-table">
         {error && <div className="data-state error">{error}</div>}
-        <Table heads={["종목", "종목 코드", "보유수량", ...(isDomestic ? ["정수주 매입금액", "소수점주 매입금액"] : []), "평균단가", "현재가", "평가금액", "손익률", "목표비중", "현재비중", "비중상태"]}>
+        <Table
+          heads={[
+            "종목",
+            "종목 코드",
+            "보유수량",
+            ...(isDomestic ? ["정수주 매입금액", "소수점주 매입금액"] : []),
+            "평균단가",
+            "현재가",
+            "평가금액",
+            "손익률",
+            "목표비중",
+            "현재비중",
+            "비중상태",
+          ]}
+        >
           {loading ? (
             <tr>
               <td colSpan={isDomestic ? 12 : 10} className="data-state">
@@ -883,13 +1227,125 @@ function Holdings() {
             rows.map((h) => (
               <tr key={h.holdingId} className={rowClass(h)}>
                 <td>
-                  <strong>{selected === "OVERSEAS" ? overseasName[h.stockCode] || h.stockName : h.stockName}</strong>
+                  <strong>
+                    {selected === "OVERSEAS"
+                      ? overseasName[h.stockCode] || h.stockName
+                      : h.stockName}
+                  </strong>
                 </td>
                 <td>{h.stockCode}</td>
-                <td>{editMode ? <input className="inline-edit" type="number" min="0" step="0.00000001" value={drafts[h.holdingId]?.holdingQuantity ?? ""} disabled={isBuyLocked(h)} title={isBuyLocked(h) ? "투자 설정에서 매수가 정지되어 수정할 수 없습니다." : undefined} onChange={(e) => updateDraft(h.holdingId, "holdingQuantity", e.target.value)} /> : formatHoldingQuantity(Number(h.holdingQuantity))}</td>
-                {isDomestic && <td>{editMode ? <input className="inline-edit price" type="number" min="0" step="0.0001" value={drafts[h.holdingId]?.wholeSharePurchaseAmount ?? ""} disabled={isBuyLocked(h)} onChange={(e) => updateDraft(h.holdingId, "wholeSharePurchaseAmount", e.target.value)} /> : formatMoney(Number(h.wholeSharePurchaseAmount ?? 0))}</td>}
-                {isDomestic && <td>{editMode ? <input className="inline-edit price" type="number" min="0" step="0.0001" value={drafts[h.holdingId]?.fractionalSharePurchaseAmount ?? ""} disabled={isBuyLocked(h)} onChange={(e) => updateDraft(h.holdingId, "fractionalSharePurchaseAmount", e.target.value)} /> : formatMoney(Number(h.fractionalSharePurchaseAmount ?? 0))}</td>}
-                <td>{editMode && !isDomestic ? <input className="inline-edit price" type="number" min="0" step={isWholeWonAccount ? "1" : "0.000001"} value={drafts[h.holdingId]?.averagePrice ?? ""} disabled={isBuyLocked(h)} title={isBuyLocked(h) ? "투자 설정에서 매수가 정지되어 수정할 수 없습니다." : undefined} onChange={(e) => updateDraft(h.holdingId, "averagePrice", e.target.value)} /> : editMode && isDomestic ? formatMoney(Number(drafts[h.holdingId]?.holdingQuantity) > 0 ? (Number(drafts[h.holdingId]?.wholeSharePurchaseAmount) + Number(drafts[h.holdingId]?.fractionalSharePurchaseAmount)) / Number(drafts[h.holdingId]?.holdingQuantity) : 0) : formatMoney(Number(h.averagePrice))}</td>
+                <td>
+                  {editMode ? (
+                    <input
+                      className="inline-edit"
+                      type="number"
+                      min="0"
+                      step="0.00000001"
+                      value={drafts[h.holdingId]?.holdingQuantity ?? ""}
+                      disabled={isBuyLocked(h)}
+                      title={
+                        isBuyLocked(h)
+                          ? "투자 설정에서 매수가 정지되어 수정할 수 없습니다."
+                          : undefined
+                      }
+                      onChange={(e) =>
+                        updateDraft(
+                          h.holdingId,
+                          "holdingQuantity",
+                          e.target.value,
+                        )
+                      }
+                    />
+                  ) : (
+                    formatHoldingQuantity(Number(h.holdingQuantity))
+                  )}
+                </td>
+                {isDomestic && (
+                  <td>
+                    {editMode ? (
+                      <input
+                        className="inline-edit price"
+                        type="number"
+                        min="0"
+                        step="0.0001"
+                        value={
+                          drafts[h.holdingId]?.wholeSharePurchaseAmount ?? ""
+                        }
+                        disabled={isBuyLocked(h)}
+                        onChange={(e) =>
+                          updateDraft(
+                            h.holdingId,
+                            "wholeSharePurchaseAmount",
+                            e.target.value,
+                          )
+                        }
+                      />
+                    ) : (
+                      formatMoney(Number(h.wholeSharePurchaseAmount ?? 0))
+                    )}
+                  </td>
+                )}
+                {isDomestic && (
+                  <td>
+                    {editMode ? (
+                      <input
+                        className="inline-edit price"
+                        type="number"
+                        min="0"
+                        step="0.0001"
+                        value={
+                          drafts[h.holdingId]?.fractionalSharePurchaseAmount ??
+                          ""
+                        }
+                        disabled={isBuyLocked(h)}
+                        onChange={(e) =>
+                          updateDraft(
+                            h.holdingId,
+                            "fractionalSharePurchaseAmount",
+                            e.target.value,
+                          )
+                        }
+                      />
+                    ) : (
+                      formatMoney(Number(h.fractionalSharePurchaseAmount ?? 0))
+                    )}
+                  </td>
+                )}
+                <td>
+                  {editMode && !isDomestic ? (
+                    <input
+                      className="inline-edit price"
+                      type="number"
+                      min="0"
+                      step={isWholeWonAccount ? "1" : "0.000001"}
+                      value={drafts[h.holdingId]?.averagePrice ?? ""}
+                      disabled={isBuyLocked(h)}
+                      title={
+                        isBuyLocked(h)
+                          ? "투자 설정에서 매수가 정지되어 수정할 수 없습니다."
+                          : undefined
+                      }
+                      onChange={(e) =>
+                        updateDraft(h.holdingId, "averagePrice", e.target.value)
+                      }
+                    />
+                  ) : editMode && isDomestic ? (
+                    formatMoney(
+                      Number(drafts[h.holdingId]?.holdingQuantity) > 0
+                        ? (Number(
+                            drafts[h.holdingId]?.wholeSharePurchaseAmount,
+                          ) +
+                            Number(
+                              drafts[h.holdingId]
+                                ?.fractionalSharePurchaseAmount,
+                            )) /
+                            Number(drafts[h.holdingId]?.holdingQuantity)
+                        : 0,
+                    )
+                  ) : (
+                    formatMoney(Number(h.averagePrice))
+                  )}
+                </td>
                 <td>{formatMoney(Number(h.currentPrice))}</td>
                 <td>
                   <strong>{formatMoney(holdingEvaluation(h))}</strong>
@@ -898,23 +1354,41 @@ function Holdings() {
                   {Number(h.profitLossRate) >= 0 ? "+" : ""}
                   {Number(h.profitLossRate).toFixed(2)}%
                 </td>
-                <td>{h.targetWeight == null ? "-" : `${Number(h.targetWeight).toFixed(2)}%`}</td>
-                <td>{h.currentWeight == null ? "-" : `${Number(h.currentWeight).toFixed(2)}%`}</td>
-                <td title={h.weightStatus ?? undefined}>{h.weightStatusName ?? "-"}</td>
+                <td>
+                  {h.targetWeight == null
+                    ? "-"
+                    : `${Number(h.targetWeight).toFixed(2)}%`}
+                </td>
+                <td>
+                  {h.currentWeight == null
+                    ? "-"
+                    : `${Number(h.currentWeight).toFixed(2)}%`}
+                </td>
+                <td title={h.weightStatus ?? undefined}>
+                  {h.weightStatusName ?? "-"}
+                </td>
               </tr>
             ))
           )}
         </Table>
       </section>
       {createOpen && (
-        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setCreateOpen(false)}>
+        <div
+          className="modal-backdrop"
+          onMouseDown={(e) =>
+            e.target === e.currentTarget && setCreateOpen(false)
+          }
+        >
           <section className="edit-modal ref-modal">
             <header>
               <div>
                 <h3>보유종목 등록</h3>
                 <p>{accountLabel[selected]} 계좌에 새 종목을 등록합니다.</p>
               </div>
-              <button className="modal-close" onClick={() => setCreateOpen(false)}>
+              <button
+                className="modal-close"
+                onClick={() => setCreateOpen(false)}
+              >
                 ×
               </button>
             </header>
@@ -931,7 +1405,9 @@ function Holdings() {
                   }
                 >
                   {adminAccounts
-                    .filter((a) => a.useYn === "Y" && a.accountType === selected)
+                    .filter(
+                      (a) => a.useYn === "Y" && a.accountType === selected,
+                    )
                     .map((a) => (
                       <option key={a.accountId} value={a.accountId}>
                         {accountLabel[a.accountType]}
@@ -982,7 +1458,15 @@ function Holdings() {
                   type="number"
                   min="0"
                   step="any"
-                  value={isDomestic ? (Number(newHolding.holdingQuantity) > 0 ? (Number(newHolding.wholeSharePurchaseAmount) + Number(newHolding.fractionalSharePurchaseAmount)) / Number(newHolding.holdingQuantity) : 0) : newHolding.averagePrice}
+                  value={
+                    isDomestic
+                      ? Number(newHolding.holdingQuantity) > 0
+                        ? (Number(newHolding.wholeSharePurchaseAmount) +
+                            Number(newHolding.fractionalSharePurchaseAmount)) /
+                          Number(newHolding.holdingQuantity)
+                        : 0
+                      : newHolding.averagePrice
+                  }
                   disabled={isDomestic}
                   onChange={(e) =>
                     setNewHolding({
@@ -1052,22 +1536,35 @@ function Holdings() {
                   onChange={(e) =>
                     setNewHolding({
                       ...newHolding,
-                      targetWeight: e.target.value === "" ? null : Number(e.target.value),
+                      targetWeight:
+                        e.target.value === "" ? null : Number(e.target.value),
                     })
                   }
                 />
               </label>
               <label className="wide">
                 <span>메모</span>
-                <input value={newHolding.memo} onChange={(e) => setNewHolding({ ...newHolding, memo: e.target.value })} />
+                <input
+                  value={newHolding.memo}
+                  onChange={(e) =>
+                    setNewHolding({ ...newHolding, memo: e.target.value })
+                  }
+                />
               </label>
             </div>
             {createError && <p className="form-error">{createError}</p>}
             <footer>
-              <button className="cancel-button" onClick={() => setCreateOpen(false)}>
+              <button
+                className="cancel-button"
+                onClick={() => setCreateOpen(false)}
+              >
                 취소
               </button>
-              <button className="primary" disabled={createSaving} onClick={saveCreate}>
+              <button
+                className="primary"
+                disabled={createSaving}
+                onClick={saveCreate}
+              >
                 {createSaving ? "저장 중..." : "등록"}
               </button>
             </footer>
@@ -1077,7 +1574,15 @@ function Holdings() {
     </div>
   );
 }
-const Summary = ({ evaluation, profit, format = won }: { evaluation: number; profit: number; format?: (n: number) => string }) => (
+const Summary = ({
+  evaluation,
+  profit,
+  format = won,
+}: {
+  evaluation: number;
+  profit: number;
+  format?: (n: number) => string;
+}) => (
   <section className="summary" style={{ gridTemplateColumns: "repeat(2,1fr)" }}>
     <div>
       <small>평가금액</small>
@@ -1092,8 +1597,20 @@ const Summary = ({ evaluation, profit, format = won }: { evaluation: number; pro
     </div>
   </section>
 );
-const Badge = ({ children, buy }: { children: React.ReactNode; buy?: boolean }) => <span className={`badge ${buy ? "buy" : ""}`}>{children}</span>;
-const Table = ({ heads, children }: { heads: string[]; children: React.ReactNode }) => (
+const Badge = ({
+  children,
+  buy,
+}: {
+  children: React.ReactNode;
+  buy?: boolean;
+}) => <span className={`badge ${buy ? "buy" : ""}`}>{children}</span>;
+const Table = ({
+  heads,
+  children,
+}: {
+  heads: string[];
+  children: React.ReactNode;
+}) => (
   <div className="tablewrap">
     <table>
       <thead>
@@ -1129,7 +1646,8 @@ function Additional() {
   };
   const [data, setData] = useState<Result | null>(null),
     [error, setError] = useState(""),
-    [accountType, setAccountType] = useState<Account["accountType"]>("DOMESTIC");
+    [accountType, setAccountType] =
+      useState<Account["accountType"]>("DOMESTIC");
   useEffect(() => {
     fetch("/api/investment/buy-plans/additional/latest", { cache: "no-store" })
       .then(async (r) => {
@@ -1137,7 +1655,13 @@ function Additional() {
         return r.json() as Promise<Result>;
       })
       .then(setData)
-      .catch((e) => setError(e instanceof Error ? e.message : "추가매수 추천을 불러오지 못했습니다."));
+      .catch((e) =>
+        setError(
+          e instanceof Error
+            ? e.message
+            : "추가매수 추천을 불러오지 못했습니다.",
+        ),
+      );
   }, []);
   if (error)
     return (
@@ -1160,7 +1684,11 @@ function Additional() {
     <div className="page">
       <div className="tabs account-tabs">
         {accountTypes.map((type) => (
-          <button key={type} className={accountType === type ? "active" : ""} onClick={() => setAccountType(type)}>
+          <button
+            key={type}
+            className={accountType === type ? "active" : ""}
+            onClick={() => setAccountType(type)}
+          >
             {accountLabel[type]}
           </button>
         ))}
@@ -1170,7 +1698,10 @@ function Additional() {
           <small>전체 계좌 추가매수 확보현금</small>
           <strong>{won(data.reserveAmount)}</strong>
           <p>
-            {data.baseDate ? `${data.baseDate} 계산 기준` : "계산된 추가매수 계획 없음"} · 전체 최대 사용 권장액 {won(data.recommendedTotal)}
+            {data.baseDate
+              ? `${data.baseDate} 계산 기준`
+              : "계산된 추가매수 계획 없음"}{" "}
+            · 전체 최대 사용 권장액 {won(data.recommendedTotal)}
           </p>
         </div>
         <div>
@@ -1178,21 +1709,35 @@ function Additional() {
             <b style={{ width: `${Math.min(100, data.usageRate)}%` }} />
           </i>
           <span>
-            전체 확보현금 사용 권장률 <strong>{data.usageRate.toFixed(1)}%</strong>
+            전체 확보현금 사용 권장률{" "}
+            <strong>{data.usageRate.toFixed(1)}%</strong>
           </span>
         </div>
       </section>
       <section className="card recommends">
         {rows.length === 0 ? (
-          <p className="data-state">선택한 계좌의 추가매수 평가 결과가 없습니다.</p>
+          <p className="data-state">
+            선택한 계좌의 추가매수 평가 결과가 없습니다.
+          </p>
         ) : (
           rows.map((r) => (
-            <article key={r.additionalBuyId} className={r.eligibleYn === "Y" ? "" : "muted-row"}>
+            <article
+              key={r.additionalBuyId}
+              className={r.eligibleYn === "Y" ? "" : "muted-row"}
+            >
               <span>
                 <strong>{r.stockName || r.stockCode}</strong>
               </span>
-              <em>{r.eligibleYn === "Y" ? "추천점수 " + Number(r.score).toFixed(0) : "제외"}</em>
-              <strong>{r.accountType === "OVERSEAS" ? usd(Number(r.recommendedAmount)) : won(Number(r.recommendedAmount))}</strong>
+              <em>
+                {r.eligibleYn === "Y"
+                  ? "추천점수 " + Number(r.score).toFixed(0)
+                  : "제외"}
+              </em>
+              <strong>
+                {r.accountType === "OVERSEAS"
+                  ? usd(Number(r.recommendedAmount))
+                  : won(Number(r.recommendedAmount))}
+              </strong>
             </article>
           ))
         )}
@@ -1200,7 +1745,13 @@ function Additional() {
     </div>
   );
 }
-function Rebalance({ period, set }: { period: string; set: (s: string) => void }) {
+function Rebalance({
+  period,
+  set,
+}: {
+  period: string;
+  set: (s: string) => void;
+}) {
   type Item = {
     rebalanceItemId: number;
     accountType: Account["accountType"];
@@ -1219,17 +1770,26 @@ function Rebalance({ period, set }: { period: string; set: (s: string) => void }
   type Result = { baseDate: string | null; type: string; items: Item[] };
   const [data, setData] = useState<Result | null>(null),
     [error, setError] = useState(""),
-    [accountType, setAccountType] = useState<Account["accountType"]>("DOMESTIC");
+    [accountType, setAccountType] =
+      useState<Account["accountType"]>("DOMESTIC");
   useEffect(() => {
     setData(null);
     setError("");
-    fetch(`/api/investment/rebalancing/latest?type=${period === "주간" ? "WEEKLY" : "MONTHLY"}`)
+    fetch(
+      `/api/investment/rebalancing/latest?type=${period === "주간" ? "WEEKLY" : "MONTHLY"}`,
+    )
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<Result>;
       })
       .then(setData)
-      .catch((e) => setError(e instanceof Error ? e.message : "리밸런싱 계산안을 불러오지 못했습니다."));
+      .catch((e) =>
+        setError(
+          e instanceof Error
+            ? e.message
+            : "리밸런싱 계산안을 불러오지 못했습니다.",
+        ),
+      );
   }, [period]);
   const rows = (data?.items || []).filter((r) => r.accountType === accountType);
   return (
@@ -1238,33 +1798,66 @@ function Rebalance({ period, set }: { period: string; set: (s: string) => void }
         <Tabs vals={["주간", "월간"]} active={period} set={set} />
         <div className="tabs account-tabs">
           {accountTypes.map((type) => (
-            <button key={type} className={accountType === type ? "active" : ""} onClick={() => setAccountType(type)}>
+            <button
+              key={type}
+              className={accountType === type ? "active" : ""}
+              onClick={() => setAccountType(type)}
+            >
               {accountLabel[type]}
             </button>
           ))}
         </div>
       </div>
       <section className="card rebalance">
-        <p>{data?.baseDate ? `${data.baseDate} 자동 계산 결과` : "계산된 리밸런싱 계획이 없습니다."}</p>
+        <p>
+          {data?.baseDate
+            ? `${data.baseDate} 자동 계산 결과`
+            : "계산된 리밸런싱 계획이 없습니다."}
+        </p>
         {error ? (
           <p className="data-state">{error}</p>
         ) : !data ? (
           <p className="data-state">불러오는 중입니다.</p>
         ) : rows.length === 0 ? (
-          <p className="data-state">선택한 계좌의 리밸런싱 평가 결과가 없습니다.</p>
+          <p className="data-state">
+            선택한 계좌의 리밸런싱 평가 결과가 없습니다.
+          </p>
         ) : (
           rows.map((r) => {
-            const money = (value: number) => `${value.toLocaleString("ko-KR", { maximumFractionDigits: 0 })}원`,
-              before = period === "주간" ? money(Number(r.currentRegularBuyAmount)) : `${Number(r.currentWeight).toFixed(1)}%`,
-              after = period === "주간" ? money(Number(r.newRegularBuyAmount)) : `${Number(r.targetWeight).toFixed(1)}%`,
-              change = period === "주간" ? `${Number(r.changeAmount) >= 0 ? "+" : ""}${money(Number(r.changeAmount))}` : `${Number(r.targetWeight - r.currentWeight) >= 0 ? "+" : ""}${Number(r.targetWeight - r.currentWeight).toFixed(1)}%p`;
+            const money = (value: number) =>
+                `${value.toLocaleString("ko-KR", { maximumFractionDigits: 0 })}원`,
+              before =
+                period === "주간"
+                  ? money(Number(r.currentRegularBuyAmount))
+                  : `${Number(r.currentWeight).toFixed(1)}%`,
+              after =
+                period === "주간"
+                  ? money(Number(r.newRegularBuyAmount))
+                  : `${Number(r.targetWeight).toFixed(1)}%`,
+              change =
+                period === "주간"
+                  ? `${Number(r.changeAmount) >= 0 ? "+" : ""}${money(Number(r.changeAmount))}`
+                  : `${Number(r.targetWeight - r.currentWeight) >= 0 ? "+" : ""}${Number(r.targetWeight - r.currentWeight).toFixed(1)}%p`;
             return (
-              <article key={r.rebalanceItemId} className={r.action === "HOLD" ? "muted-row" : ""}>
+              <article
+                key={r.rebalanceItemId}
+                className={r.action === "HOLD" ? "muted-row" : ""}
+              >
                 <strong>{r.stockName}</strong>
                 <span>{before}</span>
                 <b>→</b>
                 <span>{after}</span>
-                <em className={Number(r.changeAmount) > 0 ? "pos" : Number(r.changeAmount) < 0 ? "neg" : ""}>{r.action === "HOLD" ? "유지" : change}</em>
+                <em
+                  className={
+                    Number(r.changeAmount) > 0
+                      ? "pos"
+                      : Number(r.changeAmount) < 0
+                        ? "neg"
+                        : ""
+                  }
+                >
+                  {r.action === "HOLD" ? "유지" : change}
+                </em>
               </article>
             );
           })
@@ -1273,7 +1866,13 @@ function Rebalance({ period, set }: { period: string; set: (s: string) => void }
     </div>
   );
 }
-function History({ period, set }: { period: string; set: (s: string) => void }) {
+function History({
+  period,
+  set,
+}: {
+  period: string;
+  set: (s: string) => void;
+}) {
   type Row = {
     briefingId: number;
     baseDate: string;
@@ -1308,7 +1907,8 @@ function History({ period, set }: { period: string; set: (s: string) => void }) 
     [error, setError] = useState(""),
     [detail, setDetail] = useState<Detail | null>(null),
     [detailLoading, setDetailLoading] = useState(false);
-  const type = period === "일일" ? "DAILY" : period === "주간" ? "WEEKLY" : "MONTHLY";
+  const type =
+    period === "일일" ? "DAILY" : period === "주간" ? "WEEKLY" : "MONTHLY";
   useEffect(() => {
     let alive = true;
     setDetail(null);
@@ -1319,7 +1919,12 @@ function History({ period, set }: { period: string; set: (s: string) => void }) 
         if (alive) setRows(data);
       })
       .catch((e) => {
-        if (alive) setError(e instanceof Error ? e.message : "브리핑 이력을 불러오지 못했습니다.");
+        if (alive)
+          setError(
+            e instanceof Error
+              ? e.message
+              : "브리핑 이력을 불러오지 못했습니다.",
+          );
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -1333,7 +1938,11 @@ function History({ period, set }: { period: string; set: (s: string) => void }) 
     setError("");
     api<Detail>(`/api/v1/briefings/${id}`)
       .then(setDetail)
-      .catch((e) => setError(e instanceof Error ? e.message : "브리핑 상세를 불러오지 못했습니다."))
+      .catch((e) =>
+        setError(
+          e instanceof Error ? e.message : "브리핑 상세를 불러오지 못했습니다.",
+        ),
+      )
       .finally(() => setDetailLoading(false));
   };
   const statusLabel: Record<string, string> = {
@@ -1353,7 +1962,9 @@ function History({ period, set }: { period: string; set: (s: string) => void }) 
         </button>
         <section className="briefHero">
           <h2>{detail.baseDate}</h2>
-          <p>{detail.summary || detail.body || "저장된 브리핑 요약이 없습니다."}</p>
+          <p>
+            {detail.summary || detail.body || "저장된 브리핑 요약이 없습니다."}
+          </p>
         </section>
         <section className="card briefing-sections">
           {detail.items.length ? (
@@ -1386,7 +1997,11 @@ function History({ period, set }: { period: string; set: (s: string) => void }) 
           rows.map((r) => (
             <article key={r.briefingId}>
               <span>
-                <button className="history-title" onClick={() => openDetail(r.briefingId)} disabled={detailLoading}>
+                <button
+                  className="history-title"
+                  onClick={() => openDetail(r.briefingId)}
+                  disabled={detailLoading}
+                >
                   {r.baseDate}
                 </button>
               </span>
@@ -1399,8 +2014,14 @@ function History({ period, set }: { period: string; set: (s: string) => void }) 
                   </>
                 )}
               </em>
-              <Badge buy={r.publishedYn === "Y"}>{statusLabel[r.status] || r.status}</Badge>
-              <button className="history-arrow" onClick={() => openDetail(r.briefingId)} disabled={detailLoading}>
+              <Badge buy={r.publishedYn === "Y"}>
+                {statusLabel[r.status] || r.status}
+              </Badge>
+              <button
+                className="history-arrow"
+                onClick={() => openDetail(r.briefingId)}
+                disabled={detailLoading}
+              >
                 →
               </button>
             </article>
