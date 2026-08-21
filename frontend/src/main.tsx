@@ -1,4 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 import ReferenceAdmin from "./ReferenceAdmin";
@@ -105,69 +111,57 @@ type DashboardData = {
 };
 type PageData<T> = { content: T[] };
 type ApiResult<T> = { success: boolean; data: T; error?: { message?: string } };
-const accountOrder: Record<Account["accountType"], number> = {
-  DOMESTIC: 0,
-  OVERSEAS: 1,
-  ISA: 2,
-  PENSION: 3,
+type CommonCode = {
+  code: string;
+  name: string;
+  description: string | null;
+  displayOrder: number;
 };
-const accountLabel: Record<Account["accountType"], string> = {
-  DOMESTIC: "국내주식",
-  OVERSEAS: "해외주식",
-  ISA: "ISA",
-  PENSION: "연금",
+type AccountTypeContextValue = {
+  accountTypes: Account["accountType"][];
+  accountLabel: (type: Account["accountType"]) => string;
 };
-const accountTypes: Account["accountType"][] = [
-  "DOMESTIC",
-  "OVERSEAS",
-  "ISA",
-  "PENSION",
-];
+const accountTypeContext = createContext<AccountTypeContextValue>({
+  accountTypes: [],
+  accountLabel: (type) => type,
+});
+const isAccountType = (code: string): code is Account["accountType"] =>
+  ["DOMESTIC", "OVERSEAS", "ISA", "PENSION"].includes(code);
+const useAccountTypes = () => useContext(accountTypeContext);
 const accountTabStorageKey = "investment-briefing-account-tab";
 const savedAccountTab = () => {
   const value = localStorage.getItem(accountTabStorageKey);
-  return accountTypes.includes(value as Account["accountType"])
-    ? (value as Account["accountType"])
-    : "DOMESTIC";
+  return value && isAccountType(value) ? value : "DOMESTIC";
 };
-const overseasName: Record<string, string> = {
-  BOTZ: "BOTZ",
-  HYDR: "HYDR",
-  QQQ: "QQQ",
-  SCHD: "SCHD",
-  SMH: "SMH",
-  SPY: "SPY",
-  VIG: "VIG",
-  XLF: "XLF",
-  XLI: "XLI",
-  XLV: "XLV",
-  GEV: "GE 버노바",
-  MSFT: "마이크로소프트",
-  BAC: "뱅크오브아메리카",
-  "BRK.B": "버크셔 해서웨이 B",
-  VRT: "버티브 홀딩스",
-  AVGO: "브로드컴",
-  VST: "비스트라 에너지",
-  V: "비자",
-  SPCX: "스페이스X",
-  ANET: "아리스타 네트웍스",
-  AMZN: "아마존닷컴",
-  IONQ: "아이온큐",
-  GOOGL: "알파벳A",
-  ABBV: "애브비",
-  AAPL: "애플",
-  NVDA: "엔비디아",
-  WMT: "월마트",
-  INTC: "인텔",
-  LLY: "일라이 릴리",
-  JPM: "제이피모간체이스",
-  JNJ: "존슨앤드존슨",
-  CAT: "캐터필러",
-  COST: "코스트코 홀세일",
-  CEG: "콘스텔레이션 에너지",
-  PLTR: "팔란티어",
-  PLUG: "플러그파워",
-};
+function AccountTypeProvider({ children }: { children: React.ReactNode }) {
+  const [codes, setCodes] = useState<CommonCode[]>([]);
+  useEffect(() => {
+    fetch("/api/v1/common-codes/ACCOUNT_TYPE")
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json() as Promise<CommonCode[]>;
+      })
+      .then(setCodes)
+      .catch(() => setCodes([]));
+  }, []);
+  const value = useMemo<AccountTypeContextValue>(() => {
+    const activeCodes = codes.filter((code) => isAccountType(code.code));
+    const labels = Object.fromEntries(
+      activeCodes.map((code) => [code.code, code.name]),
+    ) as Partial<Record<Account["accountType"], string>>;
+    return {
+      accountTypes: activeCodes.map(
+        (code) => code.code as Account["accountType"],
+      ),
+      accountLabel: (type) => labels[type] ?? type,
+    };
+  }, [codes]);
+  return (
+    <accountTypeContext.Provider value={value}>
+      {children}
+    </accountTypeContext.Provider>
+  );
+}
 async function api<T>(url: string): Promise<T> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -331,6 +325,7 @@ function Nav({
   );
 }
 function Dashboard({ go }: { go: (p: Page) => void }) {
+  const { accountLabel } = useAccountTypes();
   type AssetAccount = {
     type: Account["accountType"];
     value: number;
@@ -540,7 +535,7 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
                 {assetAccounts.map((a) => (
                   <Account
                     key={a.type}
-                    n={accountLabel[a.type]}
+                    n={accountLabel(a.type)}
                     v={
                       a.type === "OVERSEAS" ? usd(a.displayValue) : won(a.value)
                     }
@@ -800,6 +795,7 @@ function Briefing() {
   );
 }
 function Holdings() {
+  const { accountTypes, accountLabel } = useAccountTypes();
   type Draft = {
     holdingQuantity: string;
     averagePrice: string;
@@ -864,7 +860,7 @@ function Holdings() {
               .filter((h) => h.useYn !== "N")
               .map((h) => ({
                 ...h,
-                accountName: accountLabel[h.accountType],
+                accountName: accountLabel(h.accountType),
                 currentWeight: h.currentWeight ?? null,
                 weightStatus: h.weightStatus ?? null,
               })),
@@ -1024,7 +1020,7 @@ function Holdings() {
         {
           holdingId: r.holdingId,
           accountId: r.accountId,
-          accountName: accountLabel[r.accountType as Account["accountType"]],
+          accountName: accountLabel(r.accountType as Account["accountType"]),
           accountType: r.accountType,
           stockId: r.stockId,
           stockCode: r.stockCode,
@@ -1137,7 +1133,7 @@ function Holdings() {
               onClick={() => selectAccount(type)}
               disabled={saving}
             >
-              {accountLabel[type]}
+              {accountLabel(type)}
             </button>
           ))}
         </div>
@@ -1227,11 +1223,7 @@ function Holdings() {
             rows.map((h) => (
               <tr key={h.holdingId} className={rowClass(h)}>
                 <td>
-                  <strong>
-                    {selected === "OVERSEAS"
-                      ? overseasName[h.stockCode] || h.stockName
-                      : h.stockName}
-                  </strong>
+                  <strong>{h.stockName}</strong>
                 </td>
                 <td>{h.stockCode}</td>
                 <td>
@@ -1383,7 +1375,7 @@ function Holdings() {
             <header>
               <div>
                 <h3>보유종목 등록</h3>
-                <p>{accountLabel[selected]} 계좌에 새 종목을 등록합니다.</p>
+                <p>{accountLabel(selected)} 계좌에 새 종목을 등록합니다.</p>
               </div>
               <button
                 className="modal-close"
@@ -1410,7 +1402,7 @@ function Holdings() {
                     )
                     .map((a) => (
                       <option key={a.accountId} value={a.accountId}>
-                        {accountLabel[a.accountType]}
+                        {accountLabel(a.accountType)}
                         {a.brokerName ? ` · ${a.brokerName}` : ""}
                       </option>
                     ))}
@@ -1625,6 +1617,7 @@ const Table = ({
   </div>
 );
 function Additional() {
+  const { accountTypes, accountLabel } = useAccountTypes();
   type Candidate = {
     additionalBuyId: number;
     accountType: Account["accountType"];
@@ -1689,7 +1682,7 @@ function Additional() {
             className={accountType === type ? "active" : ""}
             onClick={() => setAccountType(type)}
           >
-            {accountLabel[type]}
+            {accountLabel(type)}
           </button>
         ))}
       </div>
@@ -1752,6 +1745,7 @@ function Rebalance({
   period: string;
   set: (s: string) => void;
 }) {
+  const { accountTypes, accountLabel } = useAccountTypes();
   type Item = {
     rebalanceItemId: number;
     accountType: Account["accountType"];
@@ -1803,7 +1797,7 @@ function Rebalance({
               className={accountType === type ? "active" : ""}
               onClick={() => setAccountType(type)}
             >
-              {accountLabel[type]}
+              {accountLabel(type)}
             </button>
           ))}
         </div>
@@ -2031,4 +2025,8 @@ function History({
     </div>
   );
 }
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <AccountTypeProvider>
+    <App />
+  </AccountTypeProvider>,
+);
