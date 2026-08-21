@@ -120,10 +120,12 @@ type CommonCode = {
 type AccountTypeContextValue = {
   accountTypes: Account["accountType"][];
   accountLabel: (type: Account["accountType"]) => string;
+  dashboardLabel: (code: string) => string;
 };
 const accountTypeContext = createContext<AccountTypeContextValue>({
   accountTypes: [],
   accountLabel: (type) => type,
+  dashboardLabel: (code) => code,
 });
 const isAccountType = (code: string): code is Account["accountType"] =>
   ["DOMESTIC", "OVERSEAS", "ISA", "PENSION"].includes(code);
@@ -134,28 +136,37 @@ const savedAccountTab = () => {
   return value && isAccountType(value) ? value : "DOMESTIC";
 };
 function AccountTypeProvider({ children }: { children: React.ReactNode }) {
-  const [codes, setCodes] = useState<CommonCode[]>([]);
+  const [accountCodes, setAccountCodes] = useState<CommonCode[]>([]);
+  const [dashboardCodes, setDashboardCodes] = useState<CommonCode[]>([]);
   useEffect(() => {
-    fetch("/api/v1/common-codes/ACCOUNT_TYPE")
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.json() as Promise<CommonCode[]>;
-      })
-      .then(setCodes)
-      .catch(() => setCodes([]));
+    const loadCodes = async (group: string) => {
+      const response = await fetch(`/api/v1/common-codes/${group}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json() as Promise<CommonCode[]>;
+    };
+    loadCodes("ACCOUNT_TYPE")
+      .then(setAccountCodes)
+      .catch(() => setAccountCodes([]));
+    loadCodes("DASHBOARD_LABEL")
+      .then(setDashboardCodes)
+      .catch(() => setDashboardCodes([]));
   }, []);
   const value = useMemo<AccountTypeContextValue>(() => {
-    const activeCodes = codes.filter((code) => isAccountType(code.code));
+    const activeCodes = accountCodes.filter((code) => isAccountType(code.code));
     const labels = Object.fromEntries(
       activeCodes.map((code) => [code.code, code.name]),
     ) as Partial<Record<Account["accountType"], string>>;
+    const dashboardLabels = Object.fromEntries(
+      dashboardCodes.map((code) => [code.code, code.name]),
+    ) as Record<string, string>;
     return {
       accountTypes: activeCodes.map(
         (code) => code.code as Account["accountType"],
       ),
       accountLabel: (type) => labels[type] ?? type,
+      dashboardLabel: (code) => dashboardLabels[code] ?? code,
     };
-  }, [codes]);
+  }, [accountCodes, dashboardCodes]);
   return (
     <accountTypeContext.Provider value={value}>
       {children}
@@ -325,7 +336,7 @@ function Nav({
   );
 }
 function Dashboard({ go }: { go: (p: Page) => void }) {
-  const { accountLabel } = useAccountTypes();
+  const { accountLabel, dashboardLabel } = useAccountTypes();
   type AssetAccount = {
     type: Account["accountType"];
     value: number;
@@ -400,28 +411,6 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
       .sort()
       .at(-1),
     cashRate = total > 0 ? (totalCash / total) * 100 : 0;
-  const labels: Record<string, string> = {
-    GREED: "탐욕",
-    OPTIMISM: "낙관",
-    NEUTRAL: "중립",
-    FATIGUE: "피로",
-    FEAR: "공포",
-    PANIC: "패닉",
-    STRONG_BULL: "강한 상승",
-    BULL: "상승",
-    NORMAL: "정상",
-    MILD_CORRECTION: "완만한 조정",
-    CORRECTION: "조정",
-    BEAR: "약세",
-    KEEP_REGULAR_BUY: "정기매수 유지",
-    INCREASE: "매수 확대",
-    REDUCE: "매수 축소",
-    PAUSE: "매수 중지",
-    HOLD: "관망",
-    LOW: "낮음",
-    MEDIUM: "보통",
-    HIGH: "높음",
-  };
   const rateText = (a: AssetAccount) => {
     const evaluation =
         a.type === "OVERSEAS" ? a.displayEvaluation : a.evaluation,
@@ -455,11 +444,7 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
       <section className="metrics">
         <Metric
           t="시장심리"
-          v={
-            dashboard
-              ? labels[dashboard.sentimentPhase] || dashboard.sentimentPhase
-              : "-"
-          }
+          v={dashboard ? dashboardLabel(dashboard.sentimentPhase) : "-"}
           d={
             dashboard
               ? `심리점수 ${Number(dashboard.sentimentScore || 0).toFixed(1)}`
@@ -469,25 +454,17 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
         />
         <Metric
           t="시장국면"
-          v={
-            dashboard
-              ? labels[dashboard.marketRegime] || dashboard.marketRegime
-              : "-"
-          }
+          v={dashboard ? dashboardLabel(dashboard.marketRegime) : "-"}
           d={
             dashboard
-              ? `위험등급 ${labels[dashboard.riskGrade] || dashboard.riskGrade}`
+              ? `위험등급 ${dashboardLabel(dashboard.riskGrade)}`
               : "데이터 없음"
           }
           i="↗"
         />
         <Metric
           t="행동신호"
-          v={
-            dashboard
-              ? labels[dashboard.overallSignal] || dashboard.overallSignal
-              : "-"
-          }
+          v={dashboard ? dashboardLabel(dashboard.overallSignal) : "-"}
           d={dashboard ? `기준일 ${dashboard.baseDate}` : "데이터 없음"}
           i="⚑"
         />
@@ -561,7 +538,7 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
               <Signal
                 key={`${signal.stockCode}-${signal.actionSignal}`}
                 tag={signal.actionSignal === "INCREASE" ? "BUY" : "●"}
-                n={`${signal.stockName} ${labels[signal.actionSignal] || signal.actionSignal}`}
+                n={`${signal.stockName} ${dashboardLabel(signal.actionSignal)}`}
                 v={
                   signal.accountType === "OVERSEAS"
                     ? usd(Number(signal.recommendedAmount || 0))
