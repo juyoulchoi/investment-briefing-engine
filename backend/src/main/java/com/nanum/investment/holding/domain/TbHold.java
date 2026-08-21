@@ -41,6 +41,12 @@ public class TbHold {
   @Column(name = "AVG_PRC", nullable = false, precision = 20, scale = 6)
   private BigDecimal averagePrice = BigDecimal.ZERO;
 
+  @Column(name = "WHOLE_BUY_AMT", precision = 20, scale = 4)
+  private BigDecimal wholeSharePurchaseAmount;
+
+  @Column(name = "FRAC_BUY_AMT", precision = 20, scale = 4)
+  private BigDecimal fractionalSharePurchaseAmount;
+
   @Column(name = "CUR_PRC", precision = 20, scale = 6)
   private BigDecimal currentPrice;
 

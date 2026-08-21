@@ -1,5 +1,6 @@
 package com.nanum.investment.common.api;
 
+import com.nanum.investment.common.application.CommonCodeLookupService;
 import com.nanum.investment.common.domain.AccountType;
 import com.nanum.investment.common.domain.TbAcct;
 import com.nanum.investment.common.domain.TbStk;
@@ -9,9 +10,12 @@ import com.nanum.investment.common.infrastructure.repository.TbAcctRepository;
 import com.nanum.investment.common.infrastructure.repository.TbStkRepository;
 import com.nanum.investment.common.response.ApiResponse;
 import com.nanum.investment.common.web.TraceIdUtils;
+import com.nanum.investment.holding.application.HoldingValuationService;
+import com.nanum.investment.holding.application.PortfolioWeightRefreshService;
 import com.nanum.investment.holding.domain.HoldingStatus;
 import com.nanum.investment.holding.domain.TbCashRsv;
 import com.nanum.investment.holding.domain.TbHold;
+import com.nanum.investment.holding.domain.WeightStatus;
 import com.nanum.investment.holding.infrastructure.repository.TbCashRsvRepository;
 import com.nanum.investment.holding.infrastructure.repository.TbHoldRepository;
 import com.nanum.investment.regularbuy.domain.BuyCycle;
@@ -25,6 +29,7 @@ import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -42,6 +47,9 @@ public class OperationalDataAdminController {
   private final TbAcctRepository accounts;
   private final TbStkRepository stocks;
   private final JdbcClient jdbc;
+  private final CommonCodeLookupService commonCodes;
+  private final HoldingValuationService holdingValuations;
+  private final PortfolioWeightRefreshService portfolioWeights;
 
   public OperationalDataAdminController(
       TbHoldRepository holdings,
@@ -49,13 +57,19 @@ public class OperationalDataAdminController {
       TbCashRsvRepository cashReserves,
       TbAcctRepository accounts,
       TbStkRepository stocks,
-      JdbcClient jdbc) {
+      JdbcClient jdbc,
+      CommonCodeLookupService commonCodes,
+      HoldingValuationService holdingValuations,
+      PortfolioWeightRefreshService portfolioWeights) {
     this.holdings = holdings;
     this.regularBuys = regularBuys;
     this.cashReserves = cashReserves;
     this.accounts = accounts;
     this.stocks = stocks;
     this.jdbc = jdbc;
+    this.commonCodes = commonCodes;
+    this.holdingValuations = holdingValuations;
+    this.portfolioWeights = portfolioWeights;
   }
 
   public record HoldingRequest(
@@ -63,6 +77,8 @@ public class OperationalDataAdminController {
       @NotNull Long stockId,
       @NotNull @DecimalMin("0") BigDecimal holdingQuantity,
       @NotNull @DecimalMin("0") BigDecimal averagePrice,
+      @DecimalMin("0") BigDecimal wholeSharePurchaseAmount,
+      @DecimalMin("0") BigDecimal fractionalSharePurchaseAmount,
       @NotNull @DecimalMin("0") BigDecimal exchangeRate,
       @DecimalMin("0") @DecimalMax("100") BigDecimal targetWeight,
       @NotNull HoldingStatus holdingStatus,
@@ -78,12 +94,16 @@ public class OperationalDataAdminController {
       String stockName,
       BigDecimal holdingQuantity,
       BigDecimal averagePrice,
+      BigDecimal wholeSharePurchaseAmount,
+      BigDecimal fractionalSharePurchaseAmount,
       BigDecimal currentPrice,
       BigDecimal exchangeRate,
       BigDecimal evaluationAmount,
       BigDecimal profitLossRate,
       BigDecimal targetWeight,
       BigDecimal currentWeight,
+      WeightStatus weightStatus,
+      String weightStatusName,
       HoldingStatus holdingStatus,
       RegularBuyStatus buyStatus,
       String userPauseYn,
@@ -173,6 +193,7 @@ public class OperationalDataAdminController {
                     x -> holdingKey(x.getAccount().getAccountId(), x.getStock().getStockId()),
                     x -> x,
                     (a, b) -> a));
+    Map<String, String> weightStatusNames = commonCodes.activeNames("WGT_STS");
     return ok(
         rows.stream()
             .map(
@@ -181,7 +202,8 @@ public class OperationalDataAdminController {
                         x,
                         totals.getOrDefault(x.getAccount().getAccountId(), BigDecimal.ZERO),
                         buySettings.get(
-                            holdingKey(x.getAccount().getAccountId(), x.getStock().getStockId()))))
+                            holdingKey(x.getAccount().getAccountId(), x.getStock().getStockId())),
+                        weightStatusNames))
             .toList(),
         r);
   }
@@ -197,6 +219,7 @@ public class OperationalDataAdminController {
     apply(x, b);
     TbHold saved = holdings.save(x);
     createDefaultRegularBuy(saved);
+    portfolioWeights.refreshAccount(saved.getAccount());
     return ok(row(saved), r);
   }
 
@@ -217,7 +240,9 @@ public class OperationalDataAdminController {
               throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE);
             });
     apply(x, b);
-    return ok(row(holdings.save(x)), r);
+    TbHold saved = holdings.save(x);
+    portfolioWeights.refreshAccount(saved.getAccount());
+    return ok(row(saved), r);
   }
 
   @GetMapping("/investment-grades")
@@ -323,11 +348,45 @@ public class OperationalDataAdminController {
   }
 
   private void apply(TbHold x, HoldingRequest b) {
-    x.setAccount(account(b.accountId()));
+    TbAcct account = account(b.accountId());
+    boolean domestic = account.getAccountType() == AccountType.DOMESTIC;
+    if (domestic
+        && (b.wholeSharePurchaseAmount() == null || b.fractionalSharePurchaseAmount() == null))
+      throw new BusinessException(
+          ErrorCode.INVALID_REQUEST, "국내주식 계좌는 정수주·소수점주 매입금액을 모두 입력해야 합니다.");
+    if (!domestic
+        && (b.wholeSharePurchaseAmount() != null || b.fractionalSharePurchaseAmount() != null))
+      throw new BusinessException(
+          ErrorCode.INVALID_REQUEST, "정수주·소수점주 매입금액은 국내주식 계좌에서만 입력할 수 있습니다.");
+    BigDecimal averagePrice = b.averagePrice();
+    if (domestic) {
+      BigDecimal totalPurchaseAmount =
+          b.wholeSharePurchaseAmount().add(b.fractionalSharePurchaseAmount());
+      if (b.holdingQuantity().signum() == 0 && totalPurchaseAmount.signum() != 0)
+        throw new BusinessException(
+            ErrorCode.INVALID_REQUEST, "보유수량이 0이면 정수주·소수점주 매입금액도 0이어야 합니다.");
+      averagePrice =
+          b.holdingQuantity().signum() == 0
+              ? BigDecimal.ZERO.setScale(6)
+              : totalPurchaseAmount.divide(b.holdingQuantity(), 6, RoundingMode.HALF_UP);
+    }
+    x.setAccount(account);
     x.setStock(stock(b.stockId()));
     x.setHoldingQuantity(b.holdingQuantity());
-    x.setAveragePrice(b.averagePrice());
+    x.setAveragePrice(averagePrice);
+    x.setWholeSharePurchaseAmount(b.wholeSharePurchaseAmount());
+    x.setFractionalSharePurchaseAmount(b.fractionalSharePurchaseAmount());
     x.setExchangeRate(b.exchangeRate());
+    BigDecimal currentPrice = x.getCurrentPrice() == null ? BigDecimal.ZERO : x.getCurrentPrice();
+    HoldingValuationService.Valuation valuation =
+        holdingValuations.calculate(
+            b.holdingQuantity(), averagePrice, currentPrice, b.exchangeRate());
+    x.setOriginalEvaluationAmount(valuation.originalEvaluationAmount());
+    x.setEvaluationAmount(valuation.evaluationAmount());
+    x.setOriginalProfitLossAmount(valuation.originalProfitLossAmount());
+    x.setProfitLossAmount(valuation.profitLossAmount());
+    x.setProfitLossRate(valuation.profitLossRate());
+    x.setCalculatedDateTime(OffsetDateTime.now());
     x.setTargetWeight(b.targetWeight());
     x.setHoldingStatus(b.holdingStatus());
     x.setMemo(b.memo());
@@ -430,10 +489,15 @@ public class OperationalDataAdminController {
             .findByAccount_AccountIdAndStock_StockIdAndDeleteYn(
                 x.getAccount().getAccountId(), x.getStock().getStockId(), "N")
             .orElse(null);
-    return row(x, accountEvaluationTotal(x.getAccount().getAccountId()), buy);
+    return row(
+        x,
+        accountEvaluationTotal(x.getAccount().getAccountId()),
+        buy,
+        commonCodes.activeNames("WGT_STS"));
   }
 
-  private HoldingRow row(TbHold x, BigDecimal accountTotal, TbRegBuy buy) {
+  private HoldingRow row(
+      TbHold x, BigDecimal accountTotal, TbRegBuy buy, Map<String, String> weightStatusNames) {
     BigDecimal currentWeight = x.getCurrentWeight();
     if (currentWeight == null && accountTotal.signum() > 0)
       currentWeight =
@@ -449,12 +513,16 @@ public class OperationalDataAdminController {
         x.getStock().getStockName(),
         x.getHoldingQuantity(),
         x.getAveragePrice(),
+        x.getWholeSharePurchaseAmount(),
+        x.getFractionalSharePurchaseAmount(),
         x.getCurrentPrice(),
         x.getExchangeRate(),
         x.getEvaluationAmount(),
         x.getProfitLossRate(),
         x.getTargetWeight(),
         currentWeight,
+        x.getWeightStatus(),
+        x.getWeightStatus() == null ? null : weightStatusNames.get(x.getWeightStatus().name()),
         x.getHoldingStatus(),
         buy == null ? null : buy.getBuyStatus(),
         buy == null ? "N" : buy.getUserPauseYn(),

@@ -1,0 +1,33 @@
+ALTER TABLE "TB_HOLD"
+    ADD COLUMN "WHOLE_BUY_AMT" NUMERIC(20, 4),
+    ADD COLUMN "FRAC_BUY_AMT" NUMERIC(20, 4);
+
+UPDATE "TB_HOLD"
+   SET "WHOLE_BUY_AMT" = ROUND(TRUNC("HOLD_QTY") * "AVG_PRC", 4),
+       "FRAC_BUY_AMT" = ROUND(("HOLD_QTY" - TRUNC("HOLD_QTY")) * "AVG_PRC", 4)
+ WHERE "ACCT_TP" = 'DOMESTIC';
+
+ALTER TABLE "TB_HOLD"
+    ADD CONSTRAINT "CK_TB_HOLD_11" CHECK (
+        "WHOLE_BUY_AMT" IS NULL OR "WHOLE_BUY_AMT" >= 0
+    ),
+    ADD CONSTRAINT "CK_TB_HOLD_12" CHECK (
+        "FRAC_BUY_AMT" IS NULL OR "FRAC_BUY_AMT" >= 0
+    ),
+    ADD CONSTRAINT "CK_TB_HOLD_13" CHECK (
+        (
+            "ACCT_TP" = 'DOMESTIC'
+            AND "WHOLE_BUY_AMT" IS NOT NULL
+            AND "FRAC_BUY_AMT" IS NOT NULL
+        )
+        OR (
+            "ACCT_TP" <> 'DOMESTIC'
+            AND "WHOLE_BUY_AMT" IS NULL
+            AND "FRAC_BUY_AMT" IS NULL
+        )
+    );
+
+COMMENT ON COLUMN "TB_HOLD"."WHOLE_BUY_AMT" IS
+    '국내주식 계좌 정수주 매입금액. 평단가 계산 입력값';
+COMMENT ON COLUMN "TB_HOLD"."FRAC_BUY_AMT" IS
+    '국내주식 계좌 소수점주 매입금액. 평단가 계산 입력값';

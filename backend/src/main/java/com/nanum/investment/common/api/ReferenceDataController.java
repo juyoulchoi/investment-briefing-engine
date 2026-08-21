@@ -2,6 +2,7 @@ package com.nanum.investment.common.api;
 
 import com.nanum.investment.common.api.response.AccountApiResponse;
 import com.nanum.investment.common.api.response.StockApiResponse;
+import com.nanum.investment.common.application.CommonCodeLookupService;
 import com.nanum.investment.common.domain.AccountType;
 import com.nanum.investment.common.domain.TbAcct;
 import com.nanum.investment.common.domain.TbStk;
@@ -23,6 +24,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
 import org.springframework.data.domain.*;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -36,16 +38,19 @@ public class ReferenceDataController {
   private final TbStkRepository stocks;
   private final TbHoldRepository holdings;
   private final HoldingManagementService holdingManagement;
+  private final CommonCodeLookupService commonCodes;
 
   public ReferenceDataController(
       TbAcctRepository accounts,
       TbStkRepository stocks,
       TbHoldRepository holdings,
-      HoldingManagementService holdingManagement) {
+      HoldingManagementService holdingManagement,
+      CommonCodeLookupService commonCodes) {
     this.accounts = accounts;
     this.stocks = stocks;
     this.holdings = holdings;
     this.holdingManagement = holdingManagement;
+    this.commonCodes = commonCodes;
   }
 
   @GetMapping("/accounts")
@@ -100,10 +105,11 @@ public class ReferenceDataController {
   @Operation(summary = "보유종목 목록")
   public ApiResponse<PageResponse<HoldingApiResponse>> holdings(
       @RequestParam Long accountId, Pageable pageable, HttpServletRequest req) {
+    Map<String, String> weightStatusNames = commonCodes.activeNames("WGT_STS");
     return ok(
         page(
             holdings.findAllByAccount_AccountIdAndUseYnAndDeleteYn(accountId, "Y", "N").stream()
-                .map(this::holding)
+                .map(h -> holding(h, weightStatusNames))
                 .toList(),
             pageable),
         req);
@@ -170,6 +176,10 @@ public class ReferenceDataController {
   }
 
   private HoldingApiResponse holding(TbHold h) {
+    return holding(h, commonCodes.activeNames("WGT_STS"));
+  }
+
+  private HoldingApiResponse holding(TbHold h, Map<String, String> weightStatusNames) {
     return new HoldingApiResponse(
         h.getHoldingId(),
         h.getAccount().getAccountId(),
@@ -179,12 +189,15 @@ public class ReferenceDataController {
         h.getStock().getStockName(),
         h.getHoldingQuantity(),
         h.getAveragePrice(),
+        h.getWholeSharePurchaseAmount(),
+        h.getFractionalSharePurchaseAmount(),
         h.getCurrentPrice(),
         h.getEvaluationAmount(),
         h.getProfitLossRate(),
         h.getTargetWeight(),
         h.getCurrentWeight(),
         h.getWeightStatus(),
+        h.getWeightStatus() == null ? null : weightStatusNames.get(h.getWeightStatus().name()),
         h.getHoldingStatus());
   }
 

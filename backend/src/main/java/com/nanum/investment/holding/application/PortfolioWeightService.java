@@ -6,6 +6,12 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class PortfolioWeightService {
+  public Result calculateHoldingsWeight(
+      BigDecimal evaluationAmount, BigDecimal totalHoldings, BigDecimal targetWeight) {
+    return calculate(
+        evaluationAmount, totalHoldings, BigDecimal.ZERO, BigDecimal.ZERO, targetWeight);
+  }
+
   public Result calculate(
       BigDecimal evaluationAmount,
       BigDecimal totalHoldings,

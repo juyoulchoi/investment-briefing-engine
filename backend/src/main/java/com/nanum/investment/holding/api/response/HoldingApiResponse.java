@@ -13,10 +13,13 @@ public record HoldingApiResponse(
     String stockName,
     BigDecimal holdingQuantity,
     BigDecimal averagePrice,
+    BigDecimal wholeSharePurchaseAmount,
+    BigDecimal fractionalSharePurchaseAmount,
     BigDecimal currentPrice,
     BigDecimal evaluationAmount,
     BigDecimal profitLossRate,
     BigDecimal targetWeight,
     BigDecimal currentWeight,
     WeightStatus weightStatus,
+    String weightStatusName,
     HoldingStatus holdingStatus) {}

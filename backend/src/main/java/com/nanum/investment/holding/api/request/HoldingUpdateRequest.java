@@ -6,4 +6,6 @@ import java.math.BigDecimal;
 
 public record HoldingUpdateRequest(
     @NotNull @DecimalMin(value = "0", inclusive = true) BigDecimal holdingQuantity,
-    @NotNull @DecimalMin(value = "0", inclusive = true) BigDecimal averagePrice) {}
+    @NotNull @DecimalMin(value = "0", inclusive = true) BigDecimal averagePrice,
+    @DecimalMin(value = "0", inclusive = true) BigDecimal wholeSharePurchaseAmount,
+    @DecimalMin(value = "0", inclusive = true) BigDecimal fractionalSharePurchaseAmount) {}

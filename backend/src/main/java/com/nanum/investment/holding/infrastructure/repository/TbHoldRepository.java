@@ -10,4 +10,6 @@ public interface TbHoldRepository extends JpaRepository<TbHold, Long> {
 
   List<TbHold> findAllByAccount_AccountIdAndUseYnAndDeleteYn(
       Long accountId, String useYn, String deleteYn);
+
+  List<TbHold> findAllByAccount_AccountIdAndDeleteYn(Long accountId, String deleteYn);
 }

@@ -10,6 +10,7 @@ type Field = {
   required?: boolean;
   options?: [string, string][];
   wide?: boolean;
+  domesticOnly?: boolean;
 };
 const labels: Record<string, string> = {
   DOMESTIC: "국내",
@@ -33,6 +34,9 @@ const labels: Record<string, string> = {
   CASH_LIKE: "현금성",
   CLOSED: "종료",
   TRANSFER_PENDING: "이관 대기",
+  OVERWEIGHT: "비중초과",
+  UNDERWEIGHT: "비중부족",
+  NORMAL: "적정",
   Y: "예",
   N: "아니오",
 };
@@ -57,8 +61,12 @@ const config: Record<
       ["stockCode", "종목 코드"],
       ["holdingQuantity", "보유수량"],
       ["averagePrice", "평단가"],
+      ["wholeSharePurchaseAmount", "정수주 매입금액"],
+      ["fractionalSharePurchaseAmount", "소수점주 매입금액"],
       ["currentPrice", "현재가"],
       ["targetWeight", "목표비중"],
+      ["currentWeight", "현재비중"],
+      ["weightStatusName", "비중상태"],
       ["holdingStatus", "상태"],
     ],
     defaults: {
@@ -82,6 +90,22 @@ const config: Record<
         label: "평균 매입가",
         type: "number",
         required: true,
+      },
+      {
+        key: "wholeSharePurchaseAmount",
+        label: "정수주 매입금액",
+        help: "국내주식 계좌 전용",
+        type: "number",
+        required: true,
+        domesticOnly: true,
+      },
+      {
+        key: "fractionalSharePurchaseAmount",
+        label: "소수점주 매입금액",
+        help: "국내주식 계좌 전용",
+        type: "number",
+        required: true,
+        domesticOnly: true,
       },
       {
         key: "exchangeRate",
@@ -400,9 +424,14 @@ export default function OperationsAdmin({
     setError("");
   };
   const save = async () => {
+    const formAccountType =
+      form.accountType ??
+      accounts.find((a) => Number(a.accountId) === Number(form.accountId))
+        ?.accountType;
     for (const f of config[kind].fields)
       if (
         f.required &&
+        (!f.domesticOnly || formAccountType === "DOMESTIC") &&
         (form[f.key] === undefined ||
           form[f.key] === null ||
           String(form[f.key]).trim() === "")
@@ -644,6 +673,10 @@ export default function OperationsAdmin({
             ...form,
             accountId,
             stockId: null,
+            wholeSharePurchaseAmount:
+              accountType === "DOMESTIC" ? 0 : null,
+            fractionalSharePurchaseAmount:
+              accountType === "DOMESTIC" ? 0 : null,
             ...(["DOMESTIC", "OVERSEAS"].includes(String(accountType))
               ? fixedAmountRegularBuyBase
               : ["ISA", "PENSION"].includes(String(accountType))
@@ -784,7 +817,15 @@ export default function OperationsAdmin({
     ) : (
       <input
         type={f.type || "text"}
-        disabled={fixedBaseField(f.key)}
+        disabled={
+          fixedBaseField(f.key) ||
+          (kind === "holdings" &&
+            f.key === "averagePrice" &&
+            (form.accountType ??
+              accounts.find(
+                (a) => Number(a.accountId) === Number(form.accountId),
+              )?.accountType) === "DOMESTIC")
+        }
         value={form[f.key] ?? ""}
         onChange={(e) =>
           setForm({
@@ -988,18 +1029,24 @@ export default function OperationsAdmin({
               {config[kind].fields
                 .filter(
                   (f) =>
-                    kind !== "regular-buys" ||
-                    ((f.key !== "buyDayCode" || form.buyCycle === "WEEKLY") &&
-                      (f.key !== "buyDayNumbers" ||
-                        form.buyCycle === "MONTHLY") &&
-                      (f.key !== "appliedWeekDays" ||
-                        form.appliedCycle === "WEEKLY") &&
-                      (f.key !== "appliedMonthDays" ||
-                        form.appliedCycle === "MONTHLY") &&
-                      (!["minimumBuyAmount", "appliedAmount"].includes(f.key) ||
-                        form.buyBasis === "AMOUNT") &&
-                      (!["baseBuyQuantity", "buyQuantity"].includes(f.key) ||
-                        form.buyBasis === "QUANTITY")),
+                    (!f.domesticOnly ||
+                      (form.accountType ??
+                        accounts.find(
+                          (a) =>
+                            Number(a.accountId) === Number(form.accountId),
+                        )?.accountType) === "DOMESTIC") &&
+                    (kind !== "regular-buys" ||
+                      ((f.key !== "buyDayCode" || form.buyCycle === "WEEKLY") &&
+                        (f.key !== "buyDayNumbers" ||
+                          form.buyCycle === "MONTHLY") &&
+                        (f.key !== "appliedWeekDays" ||
+                          form.appliedCycle === "WEEKLY") &&
+                        (f.key !== "appliedMonthDays" ||
+                          form.appliedCycle === "MONTHLY") &&
+                        (!["minimumBuyAmount", "appliedAmount"].includes(f.key) ||
+                          form.buyBasis === "AMOUNT") &&
+                        (!["baseBuyQuantity", "buyQuantity"].includes(f.key) ||
+                          form.buyBasis === "QUANTITY"))),
                 )
                 .map((f) => (
                   <label
