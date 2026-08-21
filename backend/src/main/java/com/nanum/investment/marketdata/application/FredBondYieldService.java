@@ -1,6 +1,7 @@
 package com.nanum.investment.marketdata.application;
 
 import com.nanum.investment.common.infrastructure.external.CollectionResult;
+import com.nanum.investment.common.application.CommonCodeLookupService;
 import com.nanum.investment.marketdata.infrastructure.BondYieldCollector;
 import com.nanum.investment.marketdata.infrastructure.FredBondYieldCollector;
 import java.math.*;
@@ -14,13 +15,16 @@ import org.springframework.stereotype.Service;
 @Service
 public class FredBondYieldService {
   private static final Logger log = LoggerFactory.getLogger(FredBondYieldService.class);
-  private static final List<String> CODES = List.of("DGS2", "DGS10", "DGS30", "DFII10");
+  private static final String SERIES_GROUP = "BOND_YIELD_SERIES";
   private final FredBondYieldCollector collector;
   private final JdbcClient jdbc;
+  private final CommonCodeLookupService commonCodes;
 
-  public FredBondYieldService(FredBondYieldCollector collector, JdbcClient jdbc) {
+  public FredBondYieldService(
+      FredBondYieldCollector collector, JdbcClient jdbc, CommonCodeLookupService commonCodes) {
     this.collector = collector;
     this.jdbc = jdbc;
+    this.commonCodes = commonCodes;
   }
 
   public RefreshResult refreshLatest() {
@@ -29,7 +33,14 @@ public class FredBondYieldService {
     CollectionResult collection = collect(from, to);
     LocalDate latest =
         jdbc.sql(
-                "SELECT MAX(\"BASE_DT\") FROM \"TB_BOND_DAY\" WHERE \"BOND_CD\" IN ('DGS2','DGS10','DGS30','DFII10')")
+                """
+                SELECT MAX(b."BASE_DT")
+                  FROM "TB_BOND_DAY" b
+                  JOIN "TB_CD_DTL" c
+                    ON c."CD_GRP"=:group AND c."CD_KEY"=b."BOND_CD" AND c."ACTV_YN"='Y'
+                 WHERE c."CD_KEY"<>'ALL'
+                """)
+            .param("group", SERIES_GROUP)
             .query(LocalDate.class)
             .optional()
             .orElse(null);
@@ -41,7 +52,14 @@ public class FredBondYieldService {
       throw new IllegalArgumentException("유효하지 않은 조회 기간입니다.");
     int saved = 0;
     Map<String, Integer> counts = new LinkedHashMap<>();
-    for (String code : CODES) {
+    List<String> seriesCodes =
+        commonCodes.activeCodes(SERIES_GROUP).stream()
+            .map(CommonCodeLookupService.CommonCode::code)
+            .filter(code -> !"ALL".equals(code))
+            .toList();
+    if (seriesCodes.isEmpty())
+      throw new IllegalStateException("수집할 활성 채권금리 공통코드가 없습니다.");
+    for (String code : seriesCodes) {
       int count = 0;
       for (BondYieldCollector.Yield value : collector.collectRange(code, from, to)) {
         save(value);
@@ -56,11 +74,16 @@ public class FredBondYieldService {
   public List<Map<String, Object>> history(LocalDate from, LocalDate to) {
     return jdbc.sql(
             """
-  SELECT "BASE_DT" base_date,"BOND_CD" bond_code,"BOND_NM" bond_name,"CNTRY_CD" country_code,
-   "MATURITY_MON" maturity_months,"YLD_RT" yield_rate,"PREV_YLD_RT" previous_yield_rate,
-   "CHG_BP" change_basis_points,"DATA_SRC_CD" data_source_code,"DATA_STS" data_status
-  FROM "TB_BOND_DAY" WHERE "BASE_DT" BETWEEN :from AND :to ORDER BY "BASE_DT" DESC,"BOND_CD"
+  SELECT b."BASE_DT" base_date,b."BOND_CD" bond_code,c."CD_NM" bond_name,b."CNTRY_CD" country_code,
+   b."MATURITY_MON" maturity_months,b."YLD_RT" yield_rate,b."PREV_YLD_RT" previous_yield_rate,
+   b."CHG_BP" change_basis_points,b."DATA_SRC_CD" data_source_code,b."DATA_STS" data_status
+  FROM "TB_BOND_DAY" b
+  JOIN "TB_CD_DTL" c
+    ON c."CD_GRP"=:group AND c."CD_KEY"=b."BOND_CD" AND c."ACTV_YN"='Y'
+  WHERE b."BASE_DT" BETWEEN :from AND :to
+  ORDER BY b."BASE_DT" DESC,c."DSP_ORD",b."BOND_CD"
   """)
+        .param("group", SERIES_GROUP)
         .param("from", from)
         .param("to", to)
         .query()

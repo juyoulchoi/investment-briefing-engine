@@ -13,13 +13,12 @@ type BondYield = {
   data_source_code: string;
   data_status: string;
 };
-const series = [
-  { code: "ALL", name: "전체 만기" },
-  { code: "DGS2", name: "미국 국채 2년" },
-  { code: "DGS10", name: "미국 국채 10년" },
-  { code: "DGS30", name: "미국 국채 30년" },
-  { code: "DFII10", name: "미국 물가연동국채 10년" },
-];
+type CommonCode = {
+  code: string;
+  name: string;
+  description: string | null;
+  displayOrder: number;
+};
 const iso = (date: Date) => {
   const year = date.getFullYear(),
     month = String(date.getMonth() + 1).padStart(2, "0"),
@@ -47,6 +46,7 @@ export default function BondYieldPage({
   const [from, setFrom] = useState(initialFrom),
     [to, setTo] = useState(() => iso(new Date())),
     [selected, setSelected] = useState("ALL"),
+    [series, setSeries] = useState<CommonCode[]>([]),
     [rows, setRows] = useState<BondYield[]>([]),
     [loading, setLoading] = useState(true),
     [collecting, setCollecting] = useState(false),
@@ -73,7 +73,22 @@ export default function BondYieldPage({
     }
   };
   useEffect(() => {
-    load();
+    Promise.all([
+      load(),
+      request<CommonCode[]>("/api/v1/common-codes/BOND_YIELD_SERIES").then(
+        (codes) => {
+          setSeries(codes);
+          if (!codes.some((code) => code.code === selected))
+            setSelected(codes[0]?.code ?? "ALL");
+        },
+      ),
+    ]).catch((e) => {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "채권금리 공통코드를 불러오지 못했습니다.",
+      );
+    });
   }, []);
   const collect = async () => {
     setCollecting(true);
@@ -111,10 +126,12 @@ export default function BondYieldPage({
   );
   const latest = useMemo(
     () =>
-      series.slice(1).map((item) => ({
-        item,
-        row: rows.find((row) => row.bond_code === item.code),
-      })),
+      series
+        .filter((item) => item.code !== "ALL")
+        .map((item) => ({
+          item,
+          row: rows.find((row) => row.bond_code === item.code),
+        })),
     [rows],
   );
   const rate = (value: number | null | undefined) =>
