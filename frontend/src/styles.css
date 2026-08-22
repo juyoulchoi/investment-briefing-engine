@@ -927,8 +927,8 @@ button {
 .muted-row strong {
   color: #6f7a84;
 }
-.rebalance > p {
-  margin: -8px 0 22px;
+.rebalance-summary {
+  margin: 0 0 18px;
   color: #7e8993;
   font-size: 12px;
 }

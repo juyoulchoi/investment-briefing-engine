@@ -203,7 +203,6 @@ function App() {
   const [page, setPage] = useState<Page>(savedPage),
     [brief, setBrief] = useState("오늘"),
     [history, setHistory] = useState("일일"),
-    [reb, setReb] = useState("정기매수 조정"),
     [toast, setToast] = useState(""),
     [refreshing, setRefreshing] = useState(false),
     [contentVersion, setContentVersion] = useState(0);
@@ -301,7 +300,7 @@ function App() {
         {page === "briefing" && <Briefing />}{" "}
         {page === "holdings" && <Holdings />}{" "}
         {page === "additional" && <Additional />}{" "}
-        {page === "rebalance" && <Rebalance period={reb} set={setReb} />}{" "}
+        {page === "rebalance" && <Rebalance />}{" "}
         {page === "history" && <History period={history} set={setHistory} />}{" "}
         {page === "reference" && <ReferenceAdmin notify={notify} />}{" "}
         {page === "operations" && <OperationsAdmin notify={notify} />}{" "}
@@ -1700,7 +1699,9 @@ function Additional() {
         </div>
         <div>
           <i>
-            <b style={{ width: `${Math.min(100, accountSummary.usageRate)}%` }} />
+            <b
+              style={{ width: `${Math.min(100, accountSummary.usageRate)}%` }}
+            />
           </i>
           <span>
             계좌 확보현금 사용 권장률{" "}
@@ -1740,29 +1741,16 @@ function Additional() {
     </div>
   );
 }
-function Rebalance({
-  period,
-  set,
-}: {
-  period: string;
-  set: (s: string) => void;
-}) {
+function Rebalance() {
   const { accountTypes, accountLabel } = useAccountTypes();
-  const isRegularBuyAdjustment = period === "정기매수 조정";
   type Item = {
     rebalanceItemId: number;
     accountType: Account["accountType"];
     stockCode: string;
     stockName: string;
-    currentAmount: number;
-    targetAmount: number;
     currentWeight: number;
     targetWeight: number;
-    currentRegularBuyAmount: number;
-    newRegularBuyAmount: number;
-    changeAmount: number;
     action: string;
-    reason: string;
   };
   type Result = { baseDate: string | null; type: string; items: Item[] };
   const [data, setData] = useState<Result | null>(null),
@@ -1772,9 +1760,7 @@ function Rebalance({
   useEffect(() => {
     setData(null);
     setError("");
-    fetch(
-      `/api/investment/rebalancing/latest?type=${isRegularBuyAdjustment ? "WEEKLY" : "MONTHLY"}`,
-    )
+    fetch("/api/investment/rebalancing/latest?type=MONTHLY")
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<Result>;
@@ -1787,16 +1773,11 @@ function Rebalance({
             : "리밸런싱 계산안을 불러오지 못했습니다.",
         ),
       );
-  }, [isRegularBuyAdjustment]);
+  }, []);
   const rows = (data?.items || []).filter((r) => r.accountType === accountType);
   return (
     <div className="page">
       <div className="filter-row">
-        <Tabs
-          vals={["정기매수 조정", "보유비중 조정"]}
-          active={period}
-          set={set}
-        />
         <div className="tabs account-tabs">
           {orderedAccountTypes(accountTypes).map((type) => (
             <button
@@ -1809,67 +1790,56 @@ function Rebalance({
           ))}
         </div>
       </div>
-      <section className="card rebalance">
-        <p>
+      <section className="card table rebalance-table">
+        <p className="rebalance-summary">
           {data?.baseDate
-            ? `${data.baseDate} 기준 · ${
-                isRegularBuyAdjustment
-                  ? "현재 정기매수액과 추천 정기매수액 비교"
-                  : "현재 보유비중과 목표비중 비교"
-              }`
+            ? `${data.baseDate} 기준 · 현재 보유비중과 목표비중 비교`
             : "계산된 리밸런싱 계획이 없습니다."}
         </p>
-        {error ? (
-          <p className="data-state">{error}</p>
-        ) : !data ? (
-          <p className="data-state">불러오는 중입니다.</p>
-        ) : rows.length === 0 ? (
-          <p className="data-state">
-            선택한 계좌의 리밸런싱 평가 결과가 없습니다.
-          </p>
-        ) : (
-          rows.map((r) => {
-            const money = (value: number) =>
-                `${value.toLocaleString("ko-KR", { maximumFractionDigits: 0 })}원`,
-              before =
-                isRegularBuyAdjustment
-                  ? money(Number(r.currentRegularBuyAmount))
-                  : `${Number(r.currentWeight).toFixed(1)}%`,
-              after =
-                isRegularBuyAdjustment
-                  ? money(Number(r.newRegularBuyAmount))
-                  : `${Number(r.targetWeight).toFixed(1)}%`,
-              change =
-                isRegularBuyAdjustment
-                  ? `${Number(r.changeAmount) >= 0 ? "+" : ""}${money(Number(r.changeAmount))}`
-                  : `${Number(r.targetWeight - r.currentWeight) >= 0 ? "+" : ""}${Number(r.targetWeight - r.currentWeight).toFixed(1)}%p`;
-            return (
-              <article
+        <Table heads={["종목코드", "종목명", "현재비중", "목표비중", "상태"]}>
+          {error ? (
+            <tr>
+              <td colSpan={5} className="data-state error">
+                {error}
+              </td>
+            </tr>
+          ) : !data ? (
+            <tr>
+              <td colSpan={5} className="data-state">
+                불러오는 중입니다.
+              </td>
+            </tr>
+          ) : rows.length === 0 ? (
+            <tr>
+              <td colSpan={5} className="data-state">
+                선택한 계좌의 리밸런싱 평가 결과가 없습니다.
+              </td>
+            </tr>
+          ) : (
+            rows.map((r) => (
+              <tr
                 key={r.rebalanceItemId}
                 className={r.action === "HOLD" ? "muted-row" : ""}
               >
-                <strong className="stock-identity">
-                  <span>{r.stockCode}</span>
-                  <small>{r.stockName || r.stockCode}</small>
-                </strong>
-                <span>{before}</span>
-                <b>→</b>
-                <span>{after}</span>
-                <em
-                  className={
-                    Number(r.changeAmount) > 0
-                      ? "pos"
-                      : Number(r.changeAmount) < 0
-                        ? "neg"
-                        : ""
-                  }
-                >
-                  {r.action === "HOLD" ? "유지" : change}
-                </em>
-              </article>
-            );
-          })
-        )}
+                <td>{r.stockCode}</td>
+                <td>
+                  <strong>{r.stockName || r.stockCode}</strong>
+                </td>
+                <td>{Number(r.currentWeight).toFixed(1)}%</td>
+                <td>{Number(r.targetWeight).toFixed(1)}%</td>
+                <td>
+                  <span className={`badge ${r.action === "BUY" ? "buy" : ""}`}>
+                    {r.action === "BUY"
+                      ? "매수"
+                      : r.action === "SELL"
+                        ? "매도"
+                        : "유지"}
+                  </span>
+                </td>
+              </tr>
+            ))
+          )}
+        </Table>
       </section>
     </div>
   );
