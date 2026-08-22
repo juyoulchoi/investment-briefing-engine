@@ -944,6 +944,18 @@ button {
   text-align: center;
   color: #a0a9b1;
 }
+.rebalance .stock-identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.rebalance .stock-identity small {
+  margin-top: 3px;
+  color: #919ba4;
+  font-size: 11px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
 .rebalance article em {
   text-align: right;
   font-style: normal;

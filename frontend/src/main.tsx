@@ -1179,8 +1179,8 @@ function Holdings() {
         {error && <div className="data-state error">{error}</div>}
         <Table
           heads={[
-            "종목",
             "종목 코드",
+            "종목명",
             "보유수량",
             ...(isDomestic ? ["정수주 매입금액", "소수점주 매입금액"] : []),
             "평균단가",
@@ -1207,10 +1207,10 @@ function Holdings() {
           ) : (
             rows.map((h) => (
               <tr key={h.holdingId} className={rowClass(h)}>
+                <td>{h.stockCode}</td>
                 <td>
                   <strong>{h.stockName}</strong>
                 </td>
-                <td>{h.stockCode}</td>
                 <td>
                   {editMode ? (
                     <input
@@ -1720,7 +1720,8 @@ function Additional() {
               className={r.eligibleYn === "Y" ? "" : "muted-row"}
             >
               <span>
-                <strong>{r.stockName || r.stockCode}</strong>
+                <strong>{r.stockCode}</strong>
+                <small>{r.stockName || r.stockCode}</small>
               </span>
               <em>
                 {r.eligibleYn === "Y"
@@ -1838,7 +1839,10 @@ function Rebalance({
                 key={r.rebalanceItemId}
                 className={r.action === "HOLD" ? "muted-row" : ""}
               >
-                <strong>{r.stockName}</strong>
+                <strong className="stock-identity">
+                  <span>{r.stockCode}</span>
+                  <small>{r.stockName || r.stockCode}</small>
+                </strong>
                 <span>{before}</span>
                 <b>→</b>
                 <span>{after}</span>

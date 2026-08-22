@@ -57,8 +57,8 @@ const config: Record<
     id: "holdingId",
     columns: [
       ["accountType", "계좌"],
-      ["stockName", "종목명"],
       ["stockCode", "종목 코드"],
+      ["stockName", "종목명"],
       ["holdingQuantity", "보유수량"],
       ["averagePrice", "평단가"],
       ["wholeSharePurchaseAmount", "정수주 매입금액"],
@@ -703,7 +703,7 @@ export default function OperationsAdmin({
         <option value="">종목 선택 ({stockChoices.length}개)</option>
         {stockChoices.map((s) => (
           <option key={s.stockId} value={s.stockId}>
-            {s.stockName} ({s.stockCode})
+            {s.stockCode} · {s.stockName}
           </option>
         ))}
       </select>
@@ -888,7 +888,7 @@ export default function OperationsAdmin({
                 className="ref-search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="종목명 또는 종목 코드 검색"
+                placeholder="종목 코드 또는 종목명 검색"
                 aria-label="종목 검색"
               />
               <select
