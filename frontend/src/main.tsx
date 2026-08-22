@@ -203,7 +203,7 @@ function App() {
   const [page, setPage] = useState<Page>(savedPage),
     [brief, setBrief] = useState("오늘"),
     [history, setHistory] = useState("일일"),
-    [reb, setReb] = useState("주간"),
+    [reb, setReb] = useState("정기매수 조정"),
     [toast, setToast] = useState(""),
     [refreshing, setRefreshing] = useState(false),
     [contentVersion, setContentVersion] = useState(0);
@@ -1748,6 +1748,7 @@ function Rebalance({
   set: (s: string) => void;
 }) {
   const { accountTypes, accountLabel } = useAccountTypes();
+  const isRegularBuyAdjustment = period === "정기매수 조정";
   type Item = {
     rebalanceItemId: number;
     accountType: Account["accountType"];
@@ -1772,7 +1773,7 @@ function Rebalance({
     setData(null);
     setError("");
     fetch(
-      `/api/investment/rebalancing/latest?type=${period === "주간" ? "WEEKLY" : "MONTHLY"}`,
+      `/api/investment/rebalancing/latest?type=${isRegularBuyAdjustment ? "WEEKLY" : "MONTHLY"}`,
     )
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -1786,12 +1787,16 @@ function Rebalance({
             : "리밸런싱 계산안을 불러오지 못했습니다.",
         ),
       );
-  }, [period]);
+  }, [isRegularBuyAdjustment]);
   const rows = (data?.items || []).filter((r) => r.accountType === accountType);
   return (
     <div className="page">
       <div className="filter-row">
-        <Tabs vals={["주간", "월간"]} active={period} set={set} />
+        <Tabs
+          vals={["정기매수 조정", "보유비중 조정"]}
+          active={period}
+          set={set}
+        />
         <div className="tabs account-tabs">
           {orderedAccountTypes(accountTypes).map((type) => (
             <button
@@ -1807,7 +1812,11 @@ function Rebalance({
       <section className="card rebalance">
         <p>
           {data?.baseDate
-            ? `${data.baseDate} 자동 계산 결과`
+            ? `${data.baseDate} 기준 · ${
+                isRegularBuyAdjustment
+                  ? "현재 정기매수액과 추천 정기매수액 비교"
+                  : "현재 보유비중과 목표비중 비교"
+              }`
             : "계산된 리밸런싱 계획이 없습니다."}
         </p>
         {error ? (
@@ -1823,15 +1832,15 @@ function Rebalance({
             const money = (value: number) =>
                 `${value.toLocaleString("ko-KR", { maximumFractionDigits: 0 })}원`,
               before =
-                period === "주간"
+                isRegularBuyAdjustment
                   ? money(Number(r.currentRegularBuyAmount))
                   : `${Number(r.currentWeight).toFixed(1)}%`,
               after =
-                period === "주간"
+                isRegularBuyAdjustment
                   ? money(Number(r.newRegularBuyAmount))
                   : `${Number(r.targetWeight).toFixed(1)}%`,
               change =
-                period === "주간"
+                isRegularBuyAdjustment
                   ? `${Number(r.changeAmount) >= 0 ? "+" : ""}${money(Number(r.changeAmount))}`
                   : `${Number(r.targetWeight - r.currentWeight) >= 0 ? "+" : ""}${Number(r.targetWeight - r.currentWeight).toFixed(1)}%p`;
             return (
