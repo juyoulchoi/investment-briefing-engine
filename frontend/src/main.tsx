@@ -1793,7 +1793,7 @@ function Rebalance({
       <div className="filter-row">
         <Tabs vals={["주간", "월간"]} active={period} set={set} />
         <div className="tabs account-tabs">
-          {accountTypes.map((type) => (
+          {orderedAccountTypes(accountTypes).map((type) => (
             <button
               key={type}
               className={accountType === type ? "active" : ""}
