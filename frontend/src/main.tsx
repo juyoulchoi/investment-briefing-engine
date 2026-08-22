@@ -1652,6 +1652,14 @@ function Additional() {
   const rows = data.candidates.filter((r) => r.accountType === accountType);
   return (
     <div className="page">
+      <section className="ref-intro">
+        <div>
+          <h2>추가매수 계획</h2>
+          <p>
+            자동 계산된 추가매수 후보와 대기현금 사용 권장액을 확인합니다.
+          </p>
+        </div>
+      </section>
       <div className="tabs account-tabs">
         {accountTypes.map((type) => (
           <button

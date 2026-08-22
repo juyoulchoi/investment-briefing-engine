@@ -149,7 +149,9 @@ public class ReferenceDataAdminController {
     x.setMaskedAccountNumber(b.maskedAccountNumber());
     x.setBaseCurrencyCode(b.baseCurrencyCode());
     x.setCashAmount(b.cashAmount());
-    x.setReservedCashAmount(b.reservedCashAmount());
+    // 추가매수 대기현금은 TB_CASH_RSV 원장과 CashReserveService가 소유한다.
+    // 계좌 기준정보 수정으로 원장과 잔액이 어긋나지 않도록 신규 계좌만 0으로 초기화한다.
+    if (x.getAccountId() == null) x.setReservedCashAmount(java.math.BigDecimal.ZERO);
     x.setTargetCashWeight(b.targetCashWeight());
     x.setDisplaySequence(b.displaySequence());
     x.setUseYn(nvl(b.useYn(), "Y"));

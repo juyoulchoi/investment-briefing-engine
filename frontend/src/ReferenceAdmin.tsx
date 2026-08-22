@@ -12,6 +12,7 @@ const meta: Record<
     fields: {
       key: string;
       label: string;
+      help?: string;
       required?: boolean;
       type?: string;
       options?: [string, string][];
@@ -118,8 +119,8 @@ const meta: Record<
       {
         key: "reservedCashAmount",
         label: "추가매수 대기현금",
-        required: true,
-        type: "number",
+        help: "정기매수 감액 적립과 추가매수 사용 내역에 따라 자동 관리됩니다.",
+        type: "readonly",
       },
       { key: "targetCashWeight", label: "목표 현금비중 (%)", type: "number" },
       {
@@ -488,7 +489,8 @@ export default function ReferenceAdmin({
                     </select>
                   ) : (
                     <input
-                      type={f.type || "text"}
+                      type={f.type === "readonly" ? "text" : f.type || "text"}
+                      disabled={f.type === "readonly"}
                       value={form[f.key] ?? ""}
                       onChange={(e) =>
                         setForm({
@@ -501,6 +503,7 @@ export default function ReferenceAdmin({
                       }
                     />
                   )}
+                  {f.help && <small>{f.help}</small>}
                 </label>
               ))}
             </div>

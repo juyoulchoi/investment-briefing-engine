@@ -842,16 +842,14 @@ export default function OperationsAdmin({
       <section className="ref-intro operations-intro">
         <div>
           <h2>투자 설정 관리</h2>
-          <p>
-            계좌별 보유종목, 정기매수 계획과 추가매수 대기현금을 관리합니다.
-          </p>
+          <p>계좌별 정기매수 기준과 현재 적용 계획을 관리합니다.</p>
         </div>
         <button className="primary" onClick={() => open()}>
           + {config[kind].title} 등록
         </button>
       </section>
       <div className="tabs ref-tabs">
-        {(["regular-buys", "cash-reserves"] as Kind[]).map((k) => (
+        {(["regular-buys"] as Kind[]).map((k) => (
           <button
             key={k}
             className={kind === k ? "active" : ""}
