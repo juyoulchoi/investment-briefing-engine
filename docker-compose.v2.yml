@@ -1,0 +1,76 @@
+name: investment-v2
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: investment-v2-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: investment
+      POSTGRES_USER: investment
+      POSTGRES_PASSWORD: investment
+    ports:
+      - "5433:5432"
+    volumes:
+      - investment-v2-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U investment -d investment"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - investment-v2
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: investment-v2-backend
+    container_name: investment-v2-backend
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/investment
+      SPRING_DATASOURCE_USERNAME: investment
+      SPRING_DATASOURCE_PASSWORD: investment
+      KRX_AUTH_KEY: ${KRX_AUTH_KEY:-}
+      KRX_BASE_URL: ${KRX_BASE_URL:-https://data-dbg.krx.co.kr}
+      YAHOO_FINANCE_BASE_URL: ${YAHOO_FINANCE_BASE_URL:-https://query2.finance.yahoo.com/v8/finance/chart}
+      FRED_API_KEY: ${FRED_API_KEY:-}
+      FRED_BASE_URL: ${FRED_BASE_URL:-https://api.stlouisfed.org/fred}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-sol}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      INVESTMENT_BRIEFING_SCHEDULER_CRON: ${V2_DAILY_CRON:--}
+      INVESTMENT_BRIEFING_WEEKLY_DECISION_SCHEDULER_CRON: ${V2_WEEKLY_DECISION_CRON:--}
+      INVESTMENT_BRIEFING_WEEKLY_SCHEDULER_CRON: ${V2_WEEKLY_CRON:--}
+      INVESTMENT_BRIEFING_SCHEDULER_ZONE: Asia/Seoul
+    ports:
+      - "8082:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - investment-v2
+
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    image: investment-v2-frontend
+    container_name: investment-v2-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "4174:80"
+    networks:
+      - investment-v2
+
+networks:
+  investment-v2:
+    name: investment-v2-network
+
+volumes:
+  investment-v2-postgres-data:
+    name: investment-v2-postgres-data
