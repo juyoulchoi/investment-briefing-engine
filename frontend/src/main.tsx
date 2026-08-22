@@ -68,6 +68,7 @@ type Holding = {
 };
 type DashboardData = {
   baseDate: string;
+  briefingBaseDate: string | null;
   marketScore: number;
   marketRegime: string;
   sentimentScore: number;
@@ -78,6 +79,7 @@ type DashboardData = {
   additionalBuyTotal: number;
   title: string | null;
   summary: string | null;
+  body: string | null;
   accountSummaries: {
     accountType: Account["accountType"];
     totalAsset: number;
@@ -748,7 +750,7 @@ function Briefing() {
   return (
     <div className="page">
       <section className="briefHero">
-        <h2>{data.baseDate}</h2>
+        <h2>{data.briefingBaseDate}</h2>
         <p>
           {data.summary || "최신 투자 판단을 바탕으로 생성된 브리핑입니다."}
         </p>

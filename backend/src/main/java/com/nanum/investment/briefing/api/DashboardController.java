@@ -23,6 +23,7 @@ public class DashboardController {
 
   public record DashboardResponse(
       LocalDate baseDate,
+      LocalDate briefingBaseDate,
       BigDecimal marketScore,
       String marketRegime,
       BigDecimal sentimentScore,
@@ -33,6 +34,7 @@ public class DashboardController {
       BigDecimal additionalBuyTotal,
       String title,
       String summary,
+      String body,
       List<AccountSummary> accountSummaries,
       List<ActionSignal> actionSignals,
       List<BriefingArticle> briefingArticles) {}
@@ -67,21 +69,32 @@ public class DashboardController {
     DashboardResponse response =
         jdbc.sql(
                 """
-                SELECT d."BASE_DT",d."MKT_SCR",d."MKT_REGIME",d."SENT_SCR",d."SENT_PHASE",
+                SELECT d."BASE_DT" AS "INV_BASE_DT",d."MKT_SCR",d."MKT_REGIME",d."SENT_SCR",d."SENT_PHASE",
                        d."RISK_GRADE",d."OVR_DEC_SIG",d."REG_BUY_TOT_AMT",d."ADD_BUY_TOT_AMT",
-                       b."TITLE",b."SUMMARY_TXT"
+                       b."BRF_ID",b."BASE_DT" AS "BRF_BASE_DT",b."TITLE",b."SUMMARY_TXT",b."BODY_TXT"
                   FROM "TB_INV_DEC" d
-                  LEFT JOIN "TB_BRF" b ON b."BASE_DT"=d."BASE_DT" AND b."BRF_TP"='DAILY'
-                       AND b."SCOPE_TP"='GLOBAL' AND b."LATEST_YN"='Y'
+                  LEFT JOIN LATERAL (
+                       SELECT x."BRF_ID",x."BASE_DT",x."TITLE",x."SUMMARY_TXT",x."BODY_TXT"
+                         FROM "TB_BRF" x
+                        WHERE x."PUBL_YN"='Y'
+                          AND x."BRF_STS"='PUBLISHED'
+                          AND x."BRF_TP"='DAILY'
+                          AND x."SCOPE_TP"='GLOBAL'
+                          AND x."LATEST_YN"='Y'
+                        ORDER BY x."BASE_DT" DESC,x."BRF_ID" DESC
+                        LIMIT 1
+                  ) b ON TRUE
                  WHERE d."LATEST_YN"='Y'
                  ORDER BY d."BASE_DT" DESC,d."CALC_SEQ" DESC
                  LIMIT 1
                 """)
             .query(
                 (rs, rowNum) -> {
-                  LocalDate baseDate = rs.getObject("BASE_DT", LocalDate.class);
+                  LocalDate baseDate = rs.getObject("INV_BASE_DT", LocalDate.class);
+                  Long briefingId = rs.getObject("BRF_ID", Long.class);
                   return new DashboardResponse(
                       baseDate,
+                      rs.getObject("BRF_BASE_DT", LocalDate.class),
                       rs.getBigDecimal("MKT_SCR"),
                       rs.getString("MKT_REGIME"),
                       rs.getBigDecimal("SENT_SCR"),
@@ -92,9 +105,10 @@ public class DashboardController {
                       rs.getBigDecimal("ADD_BUY_TOT_AMT"),
                       rs.getString("TITLE"),
                       rs.getString("SUMMARY_TXT"),
+                      rs.getString("BODY_TXT"),
                       accounts(),
                       actions(baseDate),
-                      articles(baseDate));
+                      articles(briefingId));
                 })
             .optional()
             .orElse(null);
@@ -165,16 +179,16 @@ public class DashboardController {
         .list();
   }
 
-  private List<BriefingArticle> articles(LocalDate baseDate) {
+  private List<BriefingArticle> articles(Long briefingId) {
+    if (briefingId == null) return List.of();
     return jdbc.sql(
             """
                 SELECT x."ITEM_CD",x."ITEM_SUM",x."ITEM_CONT",x."SIG_CD"
                   FROM "TB_BRF_DTL" x
-                  JOIN "TB_BRF" b ON b."BRF_ID"=x."BRF_ID"
-                 WHERE b."BASE_DT"=:day AND b."LATEST_YN"='Y' AND b."PUBL_YN"='Y'
+                 WHERE x."BRF_ID"=:briefingId
                  ORDER BY x."DTL_ID"
                 """)
-        .param("day", baseDate)
+        .param("briefingId", briefingId)
         .query(
             (rs, rowNum) ->
                 new BriefingArticle(
