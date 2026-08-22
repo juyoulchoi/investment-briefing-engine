@@ -1,0 +1,1087 @@
+투자 브리핑 시장방향예측 V2 영향 범위 분석
+=============================================
+
+1. 문서 목적
+------------
+
+이 문서는 investment_market_direction_v2_design.txt 설계안을 현재
+investment-briefing-engine 프로젝트에 적용할 경우 발생하는 DB, 백엔드,
+API, 프런트엔드, 테스트 및 운영 영향 범위를 정리한다.
+
+설계안에 포함된 문장은 참고 설계로만 취급하며 이 문서는 구현 명령서가 아니다.
+실제 구현 범위와 순서는 별도의 사용자 요청과 확정된 업무 규칙을 따른다.
+
+
+2. 분석 결론
+------------
+
+V2는 기존 시장방향 점수 계산식 하나를 변경하는 작업이 아니다.
+
+필요한 전체 범위는 다음과 같다.
+
+- 신규 원천 데이터 수집과 장기 이력 백필
+- V1/V2 병행 저장이 가능한 DB Header 변경
+- Factor, Metric, Interaction 상세 테이블 추가
+- Robust Z-Score 및 결측치 처리
+- 6개 Factor 계산
+- Prediction Confidence 계산
+- Interaction 보정
+- Anchor 선형보간과 Largest Remainder 확률 보정
+- 직전 거래일 최종값 대비 확률 변화 계산
+- V1 Fallback과 최종 모델 선택
+- 브리핑 DB Snapshot 및 OpenAI 확정값 계약 확장
+- 투자 브리핑과 관리 화면 확장
+- +5/+10/+20 거래일 백테스트
+
+현재 V1 구조는 존재하지만 V2의 상세 재현성 구조와 계산기는 없다.
+현재 운영 데이터도 252거래일 Robust Z-Score 요건을 충족하지 않는다.
+
+따라서 V2 초기 배포는 다음 상태를 정상 동작으로 인정해야 한다.
+
+V2 계산 시도
+  -> 데이터 부족 또는 핵심 Factor INVALID
+  -> MODEL_STATUS = FALLBACK
+  -> V1을 최종 브리핑 결과로 선택
+
+
+3. 현재 V1 구현
+----------------
+
+현재 시장방향 예측은 MarketDirectionPredictionService에서 계산한다.
+
+주요 입력:
+
+- TB_INV_DEC.MKT_SCR
+- TB_INV_DEC.RISK_SCR
+- TB_INV_DEC.MKT_REGIME
+
+현재 방향점수:
+
+DIR_SCR = (MKT_SCR + (100 - RISK_SCR)) / 2
+
+현재 시나리오:
+
+- 상승추세 재개
+- 반등 지속·박스권
+- 재조정
+- 전저점 재시험
+
+현재 시나리오 확률은 방향점수를 이용한 단순 정수 공식으로 계산하고 마지막
+시나리오에 나머지를 반영해 합계를 100으로 맞춘다.
+
+현재 이전 확률 비교는 같은 날의 이전 CALC_SEQ가 아니라 BASE_DT가 작은
+직전 최신 행을 사용하므로 설계안의 일간 비교 원칙과 대체로 일치한다.
+
+
+4. DB 영향 범위
+---------------
+
+4.1 TB_MKT_DIR_PRED Header 확장
+
+현재 컬럼:
+
+- MKT_DIR_PRED_ID
+- BASE_DT
+- CALC_SEQ
+- DIR_SCR
+- UPTREND_RESUME_PROB
+- BOX_RANGE_PROB
+- RE_CORRECTION_PROB
+- RETEST_LOW_PROB
+- 각 시나리오의 전일 대비 변화
+- INPUT_BASE_DT_JSON
+- CALC_BASIS_JSON
+- RULE_VER_NO
+- LATEST_YN
+- CRT_DTTM
+
+V2 권장 추가 컬럼:
+
+- MODEL_VER_CD
+- PRED_PERIOD_TP
+- BASE_DIR_SCR
+- RAW_INTERACTION_ADJ_SCR
+- INTERACTION_ADJ_SCR
+- CONF_SCR
+- CONF_GRADE
+- MODEL_STATUS
+- PREV_BASE_DT
+- SELECTED_YN
+
+권장 의미:
+
+MODEL_VER_CD
+  V1, V2.0, V2.1 등의 명시적 모델 버전
+
+PRED_PERIOD_TP
+  DAILY 또는 WEEKLY
+
+LATEST_YN
+  같은 기준일과 같은 모델 버전 안에서 최신 계산인지 여부
+
+SELECTED_YN
+  같은 기준일의 여러 모델 결과 중 브리핑에서 최종 사용한 결과인지 여부
+
+MODEL_STATUS
+  NORMAL, FALLBACK, INVALID 등의 모델 상태
+
+현재 RULE_VER_NO는 INTEGER이지만 설계안은 V2.0 같은 문자열을 사용한다.
+기존 컬럼 타입을 변경하면 호환성 영향이 크므로 MODEL_VER_CD VARCHAR 컬럼을
+별도로 추가하는 방식이 안전하다.
+
+
+4.2 최신값 인덱스 변경
+
+현재 최신값 유일 인덱스:
+
+UNIQUE (BASE_DT) WHERE LATEST_YN = 'Y'
+
+이 인덱스는 같은 날짜에 V1과 V2 최신값을 동시에 저장하지 못하게 한다.
+
+권장 인덱스:
+
+UNIQUE (BASE_DT, MODEL_VER_CD, PRED_PERIOD_TP)
+WHERE LATEST_YN = 'Y'
+
+또한 날짜와 예측 주기별 최종 선택 결과는 하나만 존재해야 한다.
+
+UNIQUE (BASE_DT, PRED_PERIOD_TP)
+WHERE SELECTED_YN = 'Y'
+
+계산 이력 유일성:
+
+UNIQUE (BASE_DT, MODEL_VER_CD, PRED_PERIOD_TP, CALC_SEQ)
+
+
+4.3 TB_MKT_DIR_PRED_FCTR 신규 테이블
+
+목적:
+
+- 6개 Factor 결과 저장
+- Factor 가중치와 기여도 저장
+- 가용 데이터 비율과 Confidence 저장
+- Factor INVALID 및 부분 계산 상태 저장
+
+권장 컬럼:
+
+- MKT_DIR_PRED_FCTR_ID
+- MKT_DIR_PRED_ID
+- FACTOR_CD
+- FACTOR_WEIGHT
+- FACTOR_SCORE
+- FACTOR_CONFIDENCE
+- FACTOR_CONTRIBUTION
+- AVAILABLE_WEIGHT
+- FACTOR_STATUS
+- CRT_DTTM
+
+Factor 코드:
+
+- FOREIGN_FLOW
+- FX_DOLLAR
+- US_RATE
+- SEMICONDUCTOR
+- MARKET_INTERNAL
+- PRICE_TREND
+
+주요 제약조건:
+
+- UNIQUE (MKT_DIR_PRED_ID, FACTOR_CD)
+- 점수, 가중치, Confidence는 0~100
+- Header 삭제 시 Detail도 삭제되도록 ON DELETE CASCADE
+
+
+4.4 TB_MKT_DIR_PRED_METRIC 신규 테이블
+
+목적:
+
+- RAW_VALUE부터 Metric Score까지 계산 전 과정을 저장
+- 몇 달 뒤에도 SQL로 당시 결과를 재현
+- 사용된 원천 데이터, 공식, 파라미터와 기준일 추적
+
+권장 컬럼:
+
+- MKT_DIR_PRED_METRIC_ID
+- MKT_DIR_PRED_ID
+- FACTOR_CD
+- METRIC_CD
+- SOURCE_TABLE
+- SOURCE_KEY_JSON
+- SOURCE_BASE_DT
+- RAW_VALUE
+- LOOKBACK_DAYS
+- SAMPLE_COUNT
+- ROLLING_MEDIAN
+- ROLLING_MAD
+- ROBUST_Z
+- METRIC_SCORE
+- PLANNED_WEIGHT
+- EFFECTIVE_WEIGHT
+- CONTRIBUTION
+- DATA_STATUS
+- FORMULA_CD
+- PARAM_JSON
+- SOURCE_DATA_HASH
+- CRT_DTTM
+
+SOURCE_BASE_DT 하나만으로는 252개 표본 전체를 식별할 수 없다.
+따라서 SOURCE_KEY_JSON 또는 조회 범위와 원천 데이터 해시가 필요하다.
+
+DATA_STATUS 권장 값:
+
+- AVAILABLE
+- MISSING
+- STALE
+- INSUFFICIENT_HISTORY
+- INVALID
+
+FORMULA_CD 예:
+
+- ROBUST_Z_POSITIVE
+- ROBUST_Z_INVERSE
+- BREADTH_DIRECT
+- CREDIT_CUSTOM
+- RANGE_POSITION_DIRECT
+
+
+4.5 TB_MKT_DIR_PRED_INT 신규 테이블
+
+목적:
+
+- 복합신호 발동 여부와 보정점수 저장
+- Base Score와 Final Score 차이를 DB에서 설명
+
+권장 컬럼:
+
+- MKT_DIR_PRED_INT_ID
+- MKT_DIR_PRED_ID
+- INTERACTION_CD
+- TRIGGERED_YN
+- ADJUSTMENT_SCORE
+- BASIS_JSON
+- CRT_DTTM
+
+Interaction 코드:
+
+- FOREIGN_FX_ALIGNMENT
+- SEMICONDUCTOR_CONFIRMATION
+- RATE_DOLLAR_SHOCK
+- BREADTH_DIVERGENCE
+- CREDIT_VOLATILITY_RISK
+
+각 Interaction에는 원래 보정값을 저장하고 Header에는 전체 합계와
+-10~+10 clamp 적용값을 구분해 저장하는 것이 재현성에 유리하다.
+
+
+4.6 시나리오 Anchor 관리
+
+설계안의 방향점수별 Anchor는 코드 상수 또는 DB 설정으로 관리할 수 있다.
+
+DB Source of Truth를 엄격히 적용할 경우 권장 테이블:
+
+TB_MKT_DIR_PROB_ANCHOR
+
+- MODEL_VER_CD
+- DIR_SCR_ANCHOR
+- UPTREND_RESUME_PROB
+- BOX_RANGE_PROB
+- RE_CORRECTION_PROB
+- RETEST_LOW_PROB
+- USE_YN
+
+초기 복잡도를 줄이기 위해 Java 상수로 고정할 경우 계산 당시 사용한 Anchor와
+보간 파라미터를 CALC_BASIS_JSON 또는 PARAM_JSON에 반드시 저장해야 한다.
+
+
+4.7 백테스트 결과 테이블
+
+예측 Header는 생성 후 불변으로 유지하고 사후 평가값은 별도 테이블에 저장하는
+방식이 적합하다.
+
+권장 테이블:
+
+TB_MKT_DIR_PRED_EVAL
+
+권장 컬럼:
+
+- MKT_DIR_PRED_EVAL_ID
+- MKT_DIR_PRED_ID
+- RETURN_5D
+- RETURN_10D
+- RETURN_20D
+- MAX_DRAWDOWN_20D
+- FUTURE_LOW_20D
+- ACTUAL_SCENARIO_CD
+- DIRECTION_HIT_5D_YN
+- DIRECTION_HIT_10D_YN
+- DIRECTION_HIT_20D_YN
+- BRIER_SCORE
+- EVAL_STATUS
+- EVALUATED_DTTM
+- CRT_DTTM
+- UPD_DTTM
+
+
+4.8 TB_BRF 영향
+
+현재 TB_BRF는 MKT_DIR_PRED_ID와 MKT_DIR_SCR을 보유한다.
+
+최종 선택된 V1 또는 V2 결과 하나만 브리핑에 사용한다면 기존 FK를 유지할 수
+있다. V1/V2 비교 결과를 브리핑에 동시에 연결하려면 별도 연결 테이블이 필요하다.
+
+권장 방식:
+
+- TB_BRF는 최종 SELECTED_YN='Y' 결과 하나만 참조
+- V1/V2 비교는 별도 관리 API에서 제공
+
+
+5. 원천 데이터 영향과 현재 가용성
+-----------------------------------
+
+운영 DB 분석 시점의 데이터 범위:
+
+- TB_MKT_SNAP: 16일
+- TB_EXCH_DAY: 24일
+- TB_BOND_DAY: 69일
+- TB_IDX_DAY: 35일
+- TB_PRC_DAY: 159일
+- KRX KOSPI 종목 일별: 154일
+- KRX KOSPI 지수 일별: 105일
+- 삼성전자 가격: 154일
+- SK하이닉스 가격: 154일
+- DGS10: 69일
+- SOX: 9일
+- VIX: 22일
+- 기존 시장방향 예측: 4행
+
+현재 주요 지표 중 252거래일을 충족하는 데이터가 없다.
+
+MA60 등의 선행 계산구간과 252일 정규화 분포를 모두 확보하려면 단순 252일보다
+긴 약 350~400거래일 수집을 권장한다.
+
+
+5.1 F1 외국인 자금흐름
+
+기존 컬럼:
+
+- TB_MKT_SNAP.FRGN_NET_AMT
+- TB_MKT_SNAP.FRGN_FUT_NET_QTY
+- TB_MKT_SNAP.TURNOVER_AMT
+
+운영 데이터 상태:
+
+- KR_MARKET 스냅샷 16행
+- FRGN_NET_AMT 값 존재 0행
+- FRGN_FUT_NET_QTY 값 존재 0행
+- TURNOVER_AMT 값 존재 16행
+
+필요 작업:
+
+- KRX 투자자별 거래실적 데이터 수집
+- 외국인 현물 순매수금액 수집
+- KOSPI 시장 거래대금과 동일 시장 범위로 정렬
+- 외국인 선물 순매수수량 수집
+- 5/10/20일 집계
+- 최소 253거래일 이상 백필
+
+현재 F1은 INVALID 상태가 정상이다.
+
+
+5.2 F2 환율·달러
+
+USD/KRW는 TB_EXCH_DAY에 존재하지만 이력이 부족하다.
+DXY는 TB_IDX에 등록돼 있지 않다.
+
+필요 작업:
+
+- DXY 지수 기준정보 등록
+- DXY 일별 수집
+- USD/KRW 장기 백필
+- 5일 및 20일 수익률 계산
+- Robust Z 역점수 계산
+
+외국인 또는 환율 Factor가 INVALID이면 V2를 최종 선택하지 않는 설계이므로
+F2 데이터 확보가 V2 활성화의 필수 조건이다.
+
+
+5.3 F3 글로벌 금리
+
+DGS10 수집기와 TB_BOND_DAY는 존재한다.
+
+필요 작업:
+
+- DGS10 최소 253거래일 이상 백필
+- 5일 및 20일 bp 변화 계산
+- 미국 휴일과 한국 기준일 정렬
+- STALE 판정 기준 확정
+
+
+5.4 F4 반도체 선행신호
+
+관련 원천:
+
+- SOX: TB_IDX, TB_IDX_DAY
+- 삼성전자: TB_STK, TB_PRC_DAY
+- SK하이닉스: TB_STK, TB_PRC_DAY
+- KOSPI: KRX 원천 JSON 또는 TB_IDX_DAY
+
+필요 작업:
+
+- SOX 수집 복구 및 장기 백필
+- KOSPI 지수 장기 이력 확보
+- 삼성전자와 SK하이닉스 장기 백필
+- 종목과 지수의 서로 다른 휴장일 정렬
+- 수정주가 사용 여부 확정
+- 20일 상대강도 계산
+
+현재 KOSPI는 TB_IDX_DAY보다 KRX 원천 JSON에서 직접 조회하는 경로가 주로
+사용되므로 V2 계산의 표준 원천을 하나로 확정해야 한다.
+
+
+5.5 F5 시장 내부상태
+
+Breadth와 거래대금:
+
+- KRX 종목 원천으로 일별 재계산 가능
+- 현재 TB_MKT_SNAP 이력은 16일뿐
+- V2 계산 시 과거 Snapshot 백필 또는 원천 직접 계산 필요
+
+신용융자:
+
+- 현재 전용 원천 테이블과 수집기 없음
+- 공급자 선정과 신규 저장 구조 필요
+- 252일 Percentile과 10일 증가율 계산 필요
+
+변동성:
+
+- VIX 일부 존재
+- VKOSPI 없음
+- VKOSPI 필수 여부 또는 VIX 대체 정책 확정 필요
+
+대체 데이터를 사용할 경우 다른 METRIC_CD와 FORMULA_CD로 저장해야 한다.
+
+
+5.6 F6 가격 추세
+
+필요 계산:
+
+- KOSPI vs MA20
+- KOSPI vs MA60
+- MA20 10일 기울기
+- 최근 20일 High/Low 위치
+
+KOSPI 가격 이력은 현재 252일보다 짧다. MA60 계산 후 다시 252일 분포를
+만들기 위해 약 350~400거래일 이력이 필요하다.
+
+
+6. 백엔드 영향 범위
+-------------------
+
+6.1 권장 서비스 구조
+
+MarketDirectionPredictionCoordinator
+  |- MarketDirectionV1Calculator
+  |- MarketDirectionV2Calculator
+  |- PredictionModelSelector
+  `- MarketDirectionPredictionWriter
+
+처리 흐름:
+
+1. V1 계산
+2. V2 계산 시도
+3. V2 핵심 Factor 및 Confidence 판정
+4. V2 정상 시 V2 선택
+5. V2 불충분 시 V1 선택 및 V2 FALLBACK 저장
+6. 선택된 예측 ID를 브리핑 Snapshot에 연결
+
+기존 MarketDirectionPredictionService는 V1 계산기로 유지하는 것이 안전하다.
+
+
+6.2 Robust Z 공통 계산기
+
+신규 RobustZScoreCalculator 책임:
+
+- 기준일 t 제외
+- t-252 ~ t-1 표본 선택
+- Median 계산
+- MAD 계산
+- 1.4826 x MAD 적용
+- -2~+2 clamp
+- Positive 또는 Inverse Score
+- 0~100 clamp
+- MAD 0 처리
+- 표본 수와 데이터 상태 반환
+
+
+6.3 Metric 계산기
+
+Factor별 Metric 계산기 후보:
+
+- ForeignFlowMetricCalculator
+- FxDollarMetricCalculator
+- UsRateMetricCalculator
+- SemiconductorMetricCalculator
+- MarketInternalMetricCalculator
+- PriceTrendMetricCalculator
+
+각 계산기는 점수만 반환하지 않고 DB Metric 행에 필요한 원천값, 기준일,
+Median, MAD, Robust Z, 공식, 파라미터와 상태를 함께 반환해야 한다.
+
+
+6.4 Factor 집계기
+
+책임:
+
+- 가용 Metric의 원래 가중치 합 계산
+- 60% 이상 가용 여부 판단
+- 가용 Metric 가중치 재정규화
+- Factor Score 계산
+- Factor Confidence 계산
+- Factor Contribution 계산
+- Factor Status 결정
+
+
+6.5 Interaction 엔진
+
+신규 MarketDirectionInteractionEvaluator가 각 규칙을 독립적으로 평가한다.
+
+결과:
+
+- interactionCode
+- triggered
+- adjustmentScore
+- basisValues
+
+상세행에는 원래 보정값을 저장하고 Header에는 전체 합계와 clamp 결과를
+구분해 저장한다.
+
+
+6.6 시나리오 확률 계산기
+
+신규 ScenarioProbabilityInterpolator 책임:
+
+- 방향점수 양쪽 Anchor 탐색
+- 선형보간
+- 소수 확률 계산
+- Largest Remainder 정수 보정
+- 합계 100 보장
+- 동률일 때 고정 우선순위 적용
+
+현재 V1 normalize 방식과 다르므로 별도 구현해야 한다.
+
+
+6.7 이전 거래일 비교
+
+V2 이전 확률은 다음 조건으로 조회해야 한다.
+
+- 현재 BASE_DT보다 작은 날짜
+- 같은 MODEL_VER_CD
+- 같은 PRED_PERIOD_TP
+- LATEST_YN='Y'
+- 가장 최근 거래일
+
+같은 날짜의 이전 CALC_SEQ는 비교 대상이 아니다.
+
+
+6.8 Confidence와 Fallback
+
+권장 선택 규칙:
+
+외국인 Factor INVALID
+또는 환율 Factor INVALID
+또는 전체 Confidence < 60
+  -> V2 MODEL_STATUS = FALLBACK
+  -> V1 최종 선택
+
+그 외
+  -> V2 MODEL_STATUS = NORMAL
+  -> V2 최종 선택
+
+데이터 부족은 예외가 아니라 정상적인 FALLBACK 상태로 처리해야 한다.
+
+
+6.9 브리핑 실행 파이프라인
+
+현재 9-1 시장방향 예측 계산 단계는 단일 V1 서비스를 호출한다.
+V2에서는 Coordinator를 호출하도록 변경해야 한다.
+
+권장 실패 경계:
+
+- V1 실패: 전체 시장방향 예측 실패
+- V2 계산 예외: V1 Fallback, 실패 원인 저장
+- V2 데이터 부족: 예외가 아닌 FALLBACK
+- V2 Header 또는 Detail 일부 저장 실패: V2 결과 사용 금지
+
+Header, Factor, Metric, Interaction은 하나의 트랜잭션으로 저장해야 한다.
+
+
+6.10 브리핑 Raw Snapshot
+
+현재 MARKET_DIRECTION Snapshot에는 Header 수준 값만 포함된다.
+
+V2 권장 추가 값:
+
+- modelVersion
+- modelStatus
+- baseDirectionScore
+- interactionAdjustmentScore
+- directionScore
+- confidenceScore
+- confidenceGrade
+- previousBaseDate
+- factors
+- metrics 요약
+- interactions
+
+252개 원천 표본 전체를 OpenAI에 전달할 필요는 없으며 DB에 저장하고 확정된
+Factor와 Interaction 요약만 OpenAI 설명 입력으로 제공하는 것이 적합하다.
+
+
+6.11 OpenAI 계약과 검증
+
+추가 확정값 후보:
+
+- marketDirectionModelVersion
+- marketDirectionModelStatus
+- marketDirectionConfidence
+- marketDirectionConfidenceGrade
+- marketDirectionBaseScore
+- marketDirectionInteractionAdjustment
+
+서버 검증 항목:
+
+- Prediction ID 일치
+- 모델 버전 일치
+- 방향점수 일치
+- Confidence 일치
+- 네 시나리오 확률 일치
+- 네 확률 변화 일치
+- Factor 코드, 점수, 순서 일치
+- Interaction 코드와 보정값 일치
+
+숫자와 표는 DB에서 직접 구성하고 OpenAI는 설명 문장만 생성하도록 제한하는
+방식이 가장 안전하다.
+
+
+6.12 백테스트 서비스
+
+신규 MarketDirectionBacktestService 책임:
+
+- +5 거래일 수익률 적재
+- +10 거래일 수익률 적재
+- +20 거래일 수익률 적재
+- 20일 최대 낙폭 계산
+- 20일 미래 저점 계산
+- 실제 시나리오 판정
+- 방향 적중 여부 계산
+- Brier Score 계산
+
+달력 일수가 아니라 실제 거래일 목록으로 N번째 거래일을 찾아야 한다.
+
+
+7. API 영향 범위
+----------------
+
+권장 조회 API:
+
+GET /api/v1/market-direction/latest
+GET /api/v1/market-direction?baseDate=YYYY-MM-DD
+GET /api/v1/market-direction/{predictionId}/details
+
+권장 관리 API:
+
+GET /api/v1/admin/market-direction/comparison
+GET /api/v1/admin/market-direction/backtest
+GET /api/v1/admin/market-direction/calibration
+
+상세 응답 구성:
+
+- Header
+- Factors
+- Metrics
+- Interactions
+- Evaluation
+
+동일 날짜 재계산 API를 제공할 경우 CALC_SEQ 증가와 이전 LATEST_YN 해제,
+신규 최신값 저장을 하나의 트랜잭션으로 처리해야 한다.
+
+
+8. 프런트엔드 영향 범위
+----------------------
+
+8.1 투자 브리핑
+
+기존 브리핑 상세는 TB_BRF_DTL의 제목, 요약, 본문을 일반 목록으로 표시하므로
+V2 설명 텍스트 자체는 기존 화면에서도 출력할 수 있다.
+
+구조적인 V2 표시를 위해 권장되는 전용 영역:
+
+- 시장방향예측지수
+- 데이터 신뢰도와 등급
+- 적용 모델 버전
+- 모델 상태
+- 네 시나리오 확률
+- 직전 거래일 대비 확률 변화
+- 6개 Factor 점수
+- 긍정/부정 주요 Factor
+- 발동한 Interaction과 보정점수
+- FALLBACK 사유
+
+FALLBACK 표시 예:
+
+현재 적용 모델: V1
+V2 상태: 데이터 이력 부족
+V2 신뢰도: INSUFFICIENT
+
+
+8.2 대시보드
+
+대시보드에는 요약 카드만 추가하는 것이 적합하다.
+
+- 최종 방향점수
+- 선택 모델
+- Confidence
+- 가장 높은 시나리오와 확률
+- 전 거래일 대비 변화
+- FALLBACK 경고
+
+상세 Factor와 Metric은 투자 브리핑 또는 관리 화면으로 연결한다.
+
+
+8.3 시장 분석 관리
+
+읽기 전용 시장방향 예측 탭 후보:
+
+- 날짜별 Header
+- Factor 상세
+- Metric 상세
+- Interaction 상세
+- V1/V2 비교
+
+DB 확정 점수와 확률을 사용자가 수정하는 CRUD 화면으로 만들면 안 된다.
+
+
+8.4 백테스트 화면
+
+표시 후보:
+
+- 기준일
+- 모델 버전
+- 방향점수
+- 네 예측 확률
+- +5/+10/+20일 실제 수익률
+- 실제 시나리오
+- 방향 적중 여부
+- Brier Score
+- 점수 구간별 평균 수익률
+- Calibration
+
+초기 V2에서는 DB와 API를 먼저 구현하고 데이터가 축적된 뒤 화면을 추가할 수
+있다.
+
+
+8.5 프런트 타입
+
+신규 타입 후보:
+
+- MarketDirectionPrediction
+- MarketDirectionProbabilities
+- MarketDirectionFactor
+- MarketDirectionMetric
+- MarketDirectionInteraction
+- MarketDirectionEvaluation
+
+NORMAL, FALLBACK, INVALID, INSUFFICIENT 상태별 렌더링을 분리해야 한다.
+
+
+9. 테스트 영향 범위
+------------------
+
+9.1 DB 및 Flyway
+
+- 기존 V1 행 보존
+- V1/V2 같은 날짜 동시 저장
+- 버전별 최신값 유일성
+- 날짜와 주기별 최종 선택값 유일성
+- Factor/Metric/Interaction FK
+- 확률 합계 100
+- 점수와 Confidence 범위
+- Interaction 보정 범위
+- 과거 예측 불변성
+
+
+9.2 계산 단위 테스트
+
+- 기준일 제외 및 Look-ahead Bias 차단
+- 정확한 252거래일 표본
+- Median과 MAD
+- MAD 0
+- Positive와 Inverse Score
+- -2~+2 clamp
+- 252일 미만 상태
+- STALE 및 MISSING
+- 가용 가중치 60% 경계
+- Factor 가중치 재정규화
+- Interaction 개별 조건
+- 전체 Interaction clamp
+- Anchor 경계와 선형보간
+- Largest Remainder
+- 확률 합계 100
+- 직전 거래일 비교
+- 핵심 Factor INVALID 시 V1 Fallback
+
+
+9.3 통합 테스트
+
+- V1/V2 병행 저장
+- V2 정상 시 TB_BRF가 V2 참조
+- V2 불충분 시 TB_BRF가 V1 참조
+- DB Header와 Detail 단일 트랜잭션
+- 브리핑 Snapshot과 DB 확정값 완전 일치
+- OpenAI 숫자 변경 시 검증 실패
+- 재계산 시 이전 최신값 전환
+
+
+9.4 프런트 테스트
+
+- NORMAL 표시
+- FALLBACK 표시
+- INVALID 및 INSUFFICIENT 표시
+- 확률 합계와 변화 표시
+- 양수/음수 %p 스타일
+- 결측 Factor 표시
+- V1 과거 브리핑 호환
+- 모바일 화면
+
+
+10. 구현 전 확정 사항
+--------------------
+
+10.1 모델 버전
+
+현재 INTEGER RULE_VER_NO와 V2.0 문자열 계약 중 어떤 방식을 사용할지 확정한다.
+권장안은 MODEL_VER_CD VARCHAR 신규 컬럼이다.
+
+10.2 예측 주기
+
+DAILY와 WEEKLY를 같은 테이블에서 구분할 PRED_PERIOD_TP가 필요하다.
+
+10.3 외국인 선물 단위
+
+수량 또는 금액 중 하나를 확정해야 한다. 현재 컬럼과 초기 구현은 수량이
+자연스럽지만 Metric에 단위를 명시해야 한다.
+
+10.4 국내 시장 범위
+
+외국인 현물, Breadth와 거래대금의 시장 범위를 확정해야 한다.
+
+권장 초기 범위:
+
+- 외국인 현물: KOSPI
+- Breadth: KOSPI 상장 종목
+- 거래대금: KOSPI
+- ETF 제외
+
+현재 일부 Snapshot 계산은 KOSPI, KOSDAQ, ETF를 합산하므로 V2 계산과 분리해야
+한다.
+
+10.5 VKOSPI 대체
+
+VKOSPI 필수, VIX 대체 허용, 또는 해당 Metric 결측 처리 중 하나를 확정한다.
+
+10.6 Metric별 공식
+
+모든 Metric이 동일한 Robust Z 공식을 사용하지 않는다.
+
+- 외국인 현물/선물: Robust Z Positive
+- USD/KRW, DXY: 수익률 후 Robust Z Inverse
+- US10Y: bp 변화 후 Robust Z Inverse
+- SOX, 상대강도: Robust Z Positive
+- Breadth: 직접 점수 또는 이동평균 후 정규화 확정 필요
+- Signed Turnover: Robust Z Positive
+- Credit: 설계 전용 공식
+- Volatility: Robust Z Inverse
+- MA 거리와 기울기: Robust Z Positive
+- Range Position: 직접 0~100
+
+
+11. 권장 구현 순서
+------------------
+
+1단계: 격리 개발 기반
+
+- market-direction-v2 브랜치
+- V2 전용 PostgreSQL, 백엔드, 프런트
+- 운영과 다른 포트와 Docker Volume
+- V2 자동 스케줄 비활성화
+
+2단계: DB 계약
+
+- Header 확장
+- 모델 버전과 예측 주기
+- 버전별 최신/선택 인덱스
+- Factor/Metric/Interaction 테이블
+- V1 데이터 보존
+
+3단계: 원천 데이터
+
+- 외국인 현물
+- 외국인 선물
+- DXY
+- SOX 장기 이력
+- USD/KRW 장기 이력
+- DGS10 장기 이력
+- KOSPI 장기 이력
+- 삼성전자와 SK하이닉스 장기 이력
+- 신용융자
+- VKOSPI 또는 대체 정책
+- 약 350~400거래일 백필
+
+4단계: 계산 공통기반
+
+- 거래일 정렬
+- Robust Z
+- Metric 결과 객체
+- 결측과 STALE
+- Factor 재정규화
+- Confidence
+
+5단계: V2 계산
+
+- F1~F6
+- Base Score
+- Interaction
+- Final Score
+- Anchor 보간
+- Largest Remainder
+- 전 거래일 변화
+- Header와 Detail 트랜잭션 저장
+
+6단계: V1/V2 선택과 브리핑
+
+- V1/V2 동시 계산
+- Confidence 기반 선택
+- NORMAL/FALLBACK
+- TB_BRF 최종 예측 연결
+- Raw Snapshot 확장
+- OpenAI 확정값 검증
+
+7단계: 프런트
+
+- 브리핑 V2 요약
+- Factor와 Interaction
+- FALLBACK 안내
+- 관리용 상세 조회
+- 모바일 검증
+
+8단계: 백테스트
+
+- 사후 평가 테이블
+- +5/+10/+20 거래일
+- 실제 시나리오
+- 적중률
+- 상관계수
+- Brier Score
+- Calibration
+
+
+12. 예상 변경 파일 범위
+-----------------------
+
+기존 백엔드 변경 후보:
+
+- MarketDirectionPredictionService.java
+- BriefingRefreshService.java
+- BriefingRawDataService.java
+- BriefingValidationService.java
+- OpenAiBriefingAiClient.java
+- WeeklyInvestmentBriefingService.java
+- TbMarketDirectionPrediction.java
+- 시장방향 요청 및 응답 DTO
+- 시장 데이터 수집 및 정합성 서비스
+
+신규 백엔드 후보:
+
+- MarketDirectionPredictionCoordinator
+- MarketDirectionV1Calculator
+- MarketDirectionV2Calculator
+- RobustZScoreCalculator
+- ForeignFlowMetricCalculator
+- FxDollarMetricCalculator
+- UsRateMetricCalculator
+- SemiconductorMetricCalculator
+- MarketInternalMetricCalculator
+- PriceTrendMetricCalculator
+- MarketDirectionFactorCalculator
+- MarketDirectionConfidenceCalculator
+- MarketDirectionInteractionEvaluator
+- ScenarioProbabilityInterpolator
+- PredictionModelSelector
+- MarketDirectionPredictionWriter
+- MarketDirectionBacktestService
+
+프런트 변경 후보:
+
+- main.tsx
+- 시장방향 V2 상세 컴포넌트
+- 시장 분석 관리 화면
+- 관련 API 타입
+- 관련 CSS
+
+Flyway는 하나의 거대한 파일보다 다음 범위로 분리하는 것이 안전하다.
+
+- Header 및 버전 인덱스
+- Factor/Metric/Interaction
+- 공통코드 및 Anchor
+- 백테스트
+- 원천 데이터 등록과 백필 보조
+
+
+13. 최종 판단
+-------------
+
+V2 설계는 프로젝트의 DB Source of Truth 원칙과 잘 맞는다. 다만 초기 구현의
+가장 큰 제약은 계산 코드가 아니라 원천 데이터 종류와 이력 길이다.
+
+현재 즉시 구현 가능한 범위:
+
+- V2 DB Header와 Detail 구조
+- Robust Z 및 Factor/Interaction/확률 계산 코드
+- FALLBACK 구조
+- V1/V2 병행 저장
+- API와 프런트 표시 구조
+
+현재 데이터로 정상 V2 결과를 낼 수 없는 주요 이유:
+
+- 252거래일 이력 미충족
+- 외국인 현물 값 미적재
+- 외국인 선물 값 미적재
+- DXY 미등록
+- 신용융자 원천 없음
+- VKOSPI 없음
+- SOX 이력 부족
+- USD/KRW 이력 부족
+- DGS10 이력 부족
+- KOSPI 지수 이력 부족
+
+따라서 DB 구조와 FALLBACK을 먼저 구현하고, 데이터 수집과 백필 요건이 충족될
+때까지 V1을 최종 선택 모델로 유지하는 방식이 가장 안전하다.
+
+
+14. V2 개발 환경 기준
+----------------------
+
+브랜치:
+
+- market-direction-v2
+
+격리 환경:
+
+- PostgreSQL: investment-v2-postgres, localhost:5433
+- Backend: investment-v2-backend, localhost:8082
+- Frontend: investment-v2-frontend, localhost:4174
+- Network: investment-v2-network
+- Volume: investment-v2-postgres-data
+
+V2 자동 일일/주간 스케줄은 개발 중 비활성화한다.
+V2 Flyway와 테스트 데이터는 V2 전용 DB에만 적용하고 운영 DB에는 적용하지 않는다.
