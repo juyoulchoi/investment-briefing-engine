@@ -12,6 +12,8 @@ import com.nanum.investment.common.infrastructure.repository.TbAcctRepository;
 import com.nanum.investment.common.infrastructure.repository.TbStkRepository;
 import com.nanum.investment.common.response.ApiResponse;
 import com.nanum.investment.common.web.TraceIdUtils;
+import com.nanum.investment.holding.domain.TbCashRsv;
+import com.nanum.investment.holding.infrastructure.repository.TbCashRsvRepository;
 import com.nanum.investment.marketdata.domain.DataSourceCode;
 import com.nanum.investment.marketdata.domain.IndexType;
 import com.nanum.investment.marketdata.domain.TbIdx;
@@ -29,12 +31,17 @@ public class ReferenceDataAdminController {
   private final TbIdxRepository indices;
   private final TbAcctRepository accounts;
   private final TbStkRepository stocks;
+  private final TbCashRsvRepository cashReserves;
 
   public ReferenceDataAdminController(
-      TbIdxRepository indices, TbAcctRepository accounts, TbStkRepository stocks) {
+      TbIdxRepository indices,
+      TbAcctRepository accounts,
+      TbStkRepository stocks,
+      TbCashRsvRepository cashReserves) {
     this.indices = indices;
     this.accounts = accounts;
     this.stocks = stocks;
+    this.cashReserves = cashReserves;
   }
 
   public record IndexRow(
@@ -111,7 +118,11 @@ public class ReferenceDataAdminController {
     apply(x, b);
     x.setCreatedUserId("ADMIN");
     x.setUpdatedUserId("ADMIN");
-    return ok(row(accounts.save(x)), r);
+    TbAcct saved = accounts.save(x);
+    TbCashRsv reserve = new TbCashRsv();
+    reserve.setAccount(saved);
+    cashReserves.save(reserve);
+    return ok(row(saved), r);
   }
 
   @PutMapping("/accounts/{id}")
@@ -183,7 +194,10 @@ public class ReferenceDataAdminController {
         x.getMaskedAccountNumber(),
         x.getBaseCurrencyCode(),
         x.getCashAmount(),
-        x.getReservedCashAmount(),
+        cashReserves
+            .findByAccount_AccountId(x.getAccountId())
+            .map(TbCashRsv::getReserveAmount)
+            .orElse(java.math.BigDecimal.ZERO),
         x.getTargetCashWeight(),
         x.getDisplaySequence(),
         x.getUseYn());
