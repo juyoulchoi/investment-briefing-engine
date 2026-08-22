@@ -31,9 +31,6 @@ public class TbRegBuy {
   @Column(name = "STK_CD", nullable = false, length = 30)
   private String stockCode;
 
-  @Column(name = "STK_NM", nullable = false)
-  private String legacyStockName;
-
   @Column(name = "CYCLE_TP", nullable = false)
   private String legacyCycleType;
 

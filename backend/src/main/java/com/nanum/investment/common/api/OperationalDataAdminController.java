@@ -400,7 +400,6 @@ public class OperationalDataAdminController {
     AccountType accountType = a.getAccountType();
     x.setAccountType(accountType);
     x.setStockCode(s.getStockCode());
-    x.setLegacyStockName(s.getStockName());
     x.setAccount(a);
     x.setStock(s);
     x.setPriority(b.priority());
@@ -445,7 +444,6 @@ public class OperationalDataAdminController {
     TbRegBuy x = new TbRegBuy();
     x.setAccountType(accountType);
     x.setStockCode(holding.getStock().getStockCode());
-    x.setLegacyStockName(holding.getStock().getStockName());
     x.setLegacyCycleType("MONTHLY");
     x.setLegacyMonthDay(15);
     x.setAppliedMonthDays("15");

@@ -168,9 +168,9 @@ public class OverseasStockService {
     jdbc.sql(
             """
             INSERT INTO "TB_STK"
-              ("MKT_CD","STK_CD","STK_NM","LIST_SCOPE","ASSET_TP","AST_TP","CNTRY_CD","CURR","CURR_CD","STK_GRADE","EXCH_NM","PRVDR")
-            VALUES ('US',:symbol,:name,'OVERSEAS','STOCK','STOCK','US',:currency,:currency,'CORE',:exchange,'YAHOO_FINANCE')
-            ON CONFLICT("MKT_CD","STK_CD") DO UPDATE SET "STK_NM"=EXCLUDED."STK_NM",
+              ("MKT_CD","STK_CD","STK_NM","STK_NM_EN","LIST_SCOPE","ASSET_TP","AST_TP","CNTRY_CD","CURR","CURR_CD","STK_GRADE","EXCH_NM","PRVDR")
+            VALUES ('US',:symbol,:name,:name,'OVERSEAS','STOCK','STOCK','US',:currency,:currency,'CORE',:exchange,'YAHOO_FINANCE')
+            ON CONFLICT("MKT_CD","STK_CD") DO UPDATE SET "STK_NM_EN"=EXCLUDED."STK_NM_EN",
               "EXCH_NM"=EXCLUDED."EXCH_NM","CURR"=EXCLUDED."CURR",
               "PRVDR"=EXCLUDED."PRVDR","MOD_DT"=CURRENT_TIMESTAMP,"UPD_DTTM"=CURRENT_TIMESTAMP
             """)
