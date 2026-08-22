@@ -130,6 +130,14 @@ const accountTypeContext = createContext<AccountTypeContextValue>({
 const isAccountType = (code: string): code is Account["accountType"] =>
   ["DOMESTIC", "OVERSEAS", "ISA", "PENSION"].includes(code);
 const useAccountTypes = () => useContext(accountTypeContext);
+const accountTabOrder: Account["accountType"][] = [
+  "DOMESTIC",
+  "OVERSEAS",
+  "ISA",
+  "PENSION",
+];
+const orderedAccountTypes = (types: Account["accountType"][]) =>
+  accountTabOrder.filter((type) => types.includes(type));
 const accountTabStorageKey = "investment-briefing-account-tab";
 const savedAccountTab = () => {
   const value = localStorage.getItem(accountTabStorageKey);
@@ -1103,7 +1111,7 @@ function Holdings() {
     <div className="page">
       <div className="holding-toolbar">
         <div className="tabs account-tabs">
-          {accountTypes.map((type) => (
+          {orderedAccountTypes(accountTypes).map((type) => (
             <button
               key={type}
               className={selected === type ? "active" : ""}
@@ -1612,6 +1620,13 @@ function Additional() {
     reserveAmount: number;
     recommendedTotal: number;
     usageRate: number;
+    accounts: {
+      accountId: number;
+      accountType: Account["accountType"];
+      reserveAmount: number;
+      recommendedTotal: number;
+      usageRate: number;
+    }[];
     candidates: Candidate[];
   };
   const [data, setData] = useState<Result | null>(null),
@@ -1649,19 +1664,20 @@ function Additional() {
         </section>
       </div>
     );
-  const rows = data.candidates.filter((r) => r.accountType === accountType);
+  const rows = data.candidates.filter((r) => r.accountType === accountType),
+    accountSummary = data.accounts.find(
+      (account) => account.accountType === accountType,
+    ) || {
+      accountId: 0,
+      accountType,
+      reserveAmount: 0,
+      recommendedTotal: 0,
+      usageRate: 0,
+    };
   return (
     <div className="page">
-      <section className="ref-intro">
-        <div>
-          <h2>추가매수 계획</h2>
-          <p>
-            자동 계산된 추가매수 후보와 대기현금 사용 권장액을 확인합니다.
-          </p>
-        </div>
-      </section>
       <div className="tabs account-tabs">
-        {accountTypes.map((type) => (
+        {orderedAccountTypes(accountTypes).map((type) => (
           <button
             key={type}
             className={accountType === type ? "active" : ""}
@@ -1673,22 +1689,22 @@ function Additional() {
       </div>
       <section className="cash">
         <div>
-          <small>전체 계좌 추가매수 확보현금</small>
-          <strong>{won(data.reserveAmount)}</strong>
+          <small>{accountLabel(accountType)} 추가매수 확보현금</small>
+          <strong>{won(accountSummary.reserveAmount)}</strong>
           <p>
             {data.baseDate
               ? `${data.baseDate} 계산 기준`
               : "계산된 추가매수 계획 없음"}{" "}
-            · 전체 최대 사용 권장액 {won(data.recommendedTotal)}
+            · 계좌 최대 사용 권장액 {won(accountSummary.recommendedTotal)}
           </p>
         </div>
         <div>
           <i>
-            <b style={{ width: `${Math.min(100, data.usageRate)}%` }} />
+            <b style={{ width: `${Math.min(100, accountSummary.usageRate)}%` }} />
           </i>
           <span>
-            전체 확보현금 사용 권장률{" "}
-            <strong>{data.usageRate.toFixed(1)}%</strong>
+            계좌 확보현금 사용 권장률{" "}
+            <strong>{accountSummary.usageRate.toFixed(1)}%</strong>
           </span>
         </div>
       </section>

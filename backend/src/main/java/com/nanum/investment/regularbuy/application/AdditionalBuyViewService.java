@@ -3,6 +3,8 @@ package com.nanum.investment.regularbuy.application;
 import java.math.*;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +18,8 @@ public class AdditionalBuyViewService {
 
   private record LatestDecision(Long id, LocalDate date) {}
 
+  private record AccountCash(Long accountId, String accountType, BigDecimal reserveAmount) {}
+
   public AdditionalBuyViewResult latest() {
     LatestDecision latest =
         jdbc.sql(
@@ -28,9 +32,21 @@ public class AdditionalBuyViewService {
         jdbc.sql("SELECT COALESCE(sum(\"RSV_AMT\"),0) FROM \"TB_CASH_RSV\"")
             .query(BigDecimal.class)
             .single();
+    List<AccountCash> accountCash =
+        jdbc.sql(
+                "SELECT a.\"ACCT_ID\",a.\"ACCT_TP\",COALESCE(r.\"RSV_AMT\",0) FROM \"TB_ACCT\" a LEFT JOIN \"TB_CASH_RSV\" r ON r.\"ACCT_ID\"=a.\"ACCT_ID\" WHERE a.\"USE_YN\"='Y' AND a.\"DEL_YN\"='N' ORDER BY a.\"DISP_SEQ\"")
+            .query(
+                (rs, n) ->
+                    new AccountCash(rs.getLong(1), rs.getString(2), rs.getBigDecimal(3)))
+            .list();
     if (date == null)
       return new AdditionalBuyViewResult(
-          null, reserve, BigDecimal.ZERO, BigDecimal.ZERO, List.of());
+          null,
+          reserve,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          accountSummaries(accountCash, List.of()),
+          List.of());
     List<AdditionalBuyViewResult.Candidate> candidates =
         jdbc.sql(
                 """
@@ -66,6 +82,44 @@ public class AdditionalBuyViewService {
         reserve.signum() == 0
             ? BigDecimal.ZERO
             : total.multiply(new BigDecimal("100")).divide(reserve, 2, RoundingMode.HALF_UP);
-    return new AdditionalBuyViewResult(date, reserve, total, usage, List.copyOf(candidates));
+    return new AdditionalBuyViewResult(
+        date,
+        reserve,
+        total,
+        usage,
+        accountSummaries(accountCash, candidates),
+        List.copyOf(candidates));
+  }
+
+  private List<AdditionalBuyViewResult.AccountSummary> accountSummaries(
+      List<AccountCash> accountCash, List<AdditionalBuyViewResult.Candidate> candidates) {
+    Map<Long, BigDecimal> recommendedByAccount =
+        candidates.stream()
+            .collect(
+                Collectors.groupingBy(
+                    AdditionalBuyViewResult.Candidate::accountId,
+                    Collectors.reducing(
+                        BigDecimal.ZERO,
+                        AdditionalBuyViewResult.Candidate::recommendedAmount,
+                        BigDecimal::add)));
+    return accountCash.stream()
+        .map(
+            account -> {
+              BigDecimal recommended =
+                  recommendedByAccount.getOrDefault(account.accountId(), BigDecimal.ZERO);
+              BigDecimal usage =
+                  account.reserveAmount().signum() == 0
+                      ? BigDecimal.ZERO
+                      : recommended
+                          .multiply(new BigDecimal("100"))
+                          .divide(account.reserveAmount(), 2, RoundingMode.HALF_UP);
+              return new AdditionalBuyViewResult.AccountSummary(
+                  account.accountId(),
+                  account.accountType(),
+                  account.reserveAmount(),
+                  recommended,
+                  usage);
+            })
+        .toList();
   }
 }

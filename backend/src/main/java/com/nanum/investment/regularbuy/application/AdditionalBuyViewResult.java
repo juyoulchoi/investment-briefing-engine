@@ -9,7 +9,15 @@ public record AdditionalBuyViewResult(
     BigDecimal reserveAmount,
     BigDecimal recommendedTotal,
     BigDecimal usageRate,
+    List<AccountSummary> accounts,
     List<Candidate> candidates) {
+  public record AccountSummary(
+      Long accountId,
+      String accountType,
+      BigDecimal reserveAmount,
+      BigDecimal recommendedTotal,
+      BigDecimal usageRate) {}
+
   public record Candidate(
       Long additionalBuyId,
       Long accountId,
