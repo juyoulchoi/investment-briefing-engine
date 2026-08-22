@@ -61,7 +61,6 @@ public class ReferenceDataAdminController {
   public record AccountRow(
       Long accountId,
       AccountType accountType,
-      String baseCurrencyCode,
       java.math.BigDecimal cashAmount,
       java.math.BigDecimal reservedCashAmount,
       java.math.BigDecimal targetCashWeight,
@@ -159,7 +158,6 @@ public class ReferenceDataAdminController {
 
   private void apply(TbAcct x, AccountSaveRequest b) {
     x.setAccountType(b.accountType());
-    x.setBaseCurrencyCode(b.baseCurrencyCode());
     x.setCashAmount(b.cashAmount());
     // 추가매수 대기현금은 TB_CASH_RSV 원장과 CashReserveService가 소유한다.
     // 계좌 기준정보 수정으로 원장과 잔액이 어긋나지 않도록 신규 계좌만 0으로 초기화한다.
@@ -189,7 +187,6 @@ public class ReferenceDataAdminController {
     return new AccountRow(
         x.getAccountId(),
         x.getAccountType(),
-        x.getBaseCurrencyCode(),
         x.getCashAmount(),
         cashReserves
             .findByAccount_AccountId(x.getAccountId())

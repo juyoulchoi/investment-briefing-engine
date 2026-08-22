@@ -6,7 +6,6 @@ import java.math.BigDecimal;
 
 public record AccountSaveRequest(
     @NotNull AccountType accountType,
-    @NotBlank @Size(max = 10) String baseCurrencyCode,
     @NotNull @DecimalMin("0") BigDecimal cashAmount,
     @NotNull @DecimalMin("0") BigDecimal reservedCashAmount,
     @DecimalMin("0") @DecimalMax("100") BigDecimal targetCashWeight,

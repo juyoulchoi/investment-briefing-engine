@@ -90,7 +90,6 @@ const meta: Record<
     id: "accountId",
     columns: [
       ["accountType", "계좌 유형"],
-      ["baseCurrencyCode", "통화"],
       ["cashAmount", "예수금"],
       ["reservedCashAmount", "대기 현금"],
       ["targetCashWeight", "목표 현금 비중"],
@@ -108,7 +107,6 @@ const meta: Record<
           ["PENSION", "연금"],
         ],
       },
-      { key: "baseCurrencyCode", label: "기준 통화", required: true },
       {
         key: "cashAmount",
         label: "예수금",
@@ -233,7 +231,6 @@ const defaults: Record<Kind, Row> = {
   },
   accounts: {
     accountType: "DOMESTIC",
-    baseCurrencyCode: "KRW",
     cashAmount: 0,
     reservedCashAmount: 0,
     targetCashWeight: 20,
@@ -341,9 +338,7 @@ export default function ReferenceAdmin({
     display = (key: string, v: any, r: Row) =>
       key === "baseIndexId"
         ? indices.find((i) => i.indexId === v)?.indexName || "-"
-        : key === "baseCurrencyCode" && r.accountType === "OVERSEAS"
-          ? "달러"
-          : key.endsWith("Amount")
+        : key.endsWith("Amount")
             ? Number(v || 0).toLocaleString("ko-KR")
             : v === "Y"
               ? "예"

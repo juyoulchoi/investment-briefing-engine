@@ -154,7 +154,6 @@ public class ReferenceDataController {
         a.getAccountType().name(),
         accountName(a.getAccountType()),
         a.getAccountType(),
-        a.getBaseCurrencyCode(),
         a.getCashAmount(),
         a.getReservedCashAmount(),
         a.getTargetCashWeight());

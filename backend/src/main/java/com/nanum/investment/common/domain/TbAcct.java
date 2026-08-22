@@ -25,10 +25,6 @@ public class TbAcct {
   private AccountType accountType;
 
   @Builder.Default
-  @Column(name = "BASE_CURR_CD", nullable = false, length = 10)
-  private String baseCurrencyCode = "KRW";
-
-  @Builder.Default
   @Column(name = "CASH_AMT", nullable = false, precision = 20, scale = 4)
   private BigDecimal cashAmount = BigDecimal.ZERO;
 

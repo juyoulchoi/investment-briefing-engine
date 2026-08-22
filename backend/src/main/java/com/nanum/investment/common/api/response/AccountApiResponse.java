@@ -8,7 +8,6 @@ public record AccountApiResponse(
     String accountCode,
     String accountName,
     AccountType accountType,
-    String baseCurrencyCode,
     BigDecimal cashAmount,
     BigDecimal reservedCashAmount,
     BigDecimal targetCashWeight) {}

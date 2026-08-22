@@ -137,7 +137,7 @@ public class DashboardController {
                   LEFT JOIN "TB_HOLD" h ON h."ACCT_ID"=a."ACCT_ID"
                        AND h."USE_YN"='Y' AND h."DEL_YN"='N'
                  WHERE a."DEL_YN"='N'
-                 GROUP BY a."ACCT_ID",a."ACCT_TP",a."DISP_SEQ",a."CASH_AMT",a."RSV_CASH_AMT",a."BASE_CURR_CD"
+                 GROUP BY a."ACCT_ID",a."ACCT_TP",a."DISP_SEQ",a."CASH_AMT",a."RSV_CASH_AMT"
                  ORDER BY a."DISP_SEQ"
                 """)
         .query(
