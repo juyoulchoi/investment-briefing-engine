@@ -258,6 +258,12 @@ async function call<T>(url: string, init?: RequestInit) {
     throw new Error(body.error?.message || `HTTP ${res.status}`);
   return body.data;
 }
+const formatAmountInput = (value: unknown) => {
+  if (value === null || value === undefined || value === "") return "";
+  const [integer, decimal] = String(value).replaceAll(",", "").split(".");
+  const formatted = Number(integer || 0).toLocaleString("ko-KR");
+  return decimal === undefined ? formatted : `${formatted}.${decimal}`;
+};
 export default function ReferenceAdmin({
   notify,
 }: {
@@ -486,18 +492,38 @@ export default function ReferenceAdmin({
                     </select>
                   ) : (
                     <input
-                      type={f.type === "readonly" ? "text" : f.type || "text"}
+                      type={
+                        f.key.endsWith("Amount") || f.type === "readonly"
+                          ? "text"
+                          : f.type || "text"
+                      }
+                      inputMode={
+                        f.key.endsWith("Amount") ? "decimal" : undefined
+                      }
                       disabled={f.type === "readonly"}
-                      value={form[f.key] ?? ""}
-                      onChange={(e) =>
+                      value={
+                        f.key.endsWith("Amount")
+                          ? formatAmountInput(form[f.key])
+                          : (form[f.key] ?? "")
+                      }
+                      onChange={(e) => {
+                        const raw = e.target.value.replaceAll(",", "");
+                        if (
+                          f.key.endsWith("Amount") &&
+                          raw !== "" &&
+                          !/^\d*(\.\d*)?$/.test(raw)
+                        )
+                          return;
                         setForm({
                           ...form,
                           [f.key]:
-                            f.type === "number" && e.target.value !== ""
-                              ? Number(e.target.value)
-                              : e.target.value,
-                        })
-                      }
+                            (f.type === "number" ||
+                              f.key.endsWith("Amount")) &&
+                            raw !== ""
+                              ? Number(raw)
+                              : raw,
+                        });
+                      }}
                     />
                   )}
                   {f.help && <small>{f.help}</small>}
