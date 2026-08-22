@@ -163,7 +163,7 @@ public class BriefingRawDataService {
     out.put(
         "ACCOUNTS",
         rows(
-            "SELECT a.\"ACCT_TP\" account_type,a.\"CASH_AMT\" cash_amount,a.\"RSV_CASH_AMT\" reserved_cash_amount,c.\"RSV_AMT\" additional_buy_cash,c.\"ACCUM_AMT\" accumulated_amount,c.\"USED_AMT\" used_amount FROM \"TB_ACCT\" a LEFT JOIN \"TB_CASH_RSV\" c ON c.\"ACCT_ID\"=a.\"ACCT_ID\" WHERE a.\"USE_YN\"='Y' AND a.\"DEL_YN\"='N' ORDER BY a.\"DISP_SEQ\"",
+            "SELECT a.\"ACCT_TP\" account_type,a.\"CASH_AMT\" cash_amount,a.\"RSV_CASH_AMT\" reserved_cash_amount,c.\"RSV_AMT\" additional_buy_cash,c.\"ACCUM_AMT\" accumulated_amount,c.\"USED_AMT\" used_amount FROM \"TB_ACCT\" a LEFT JOIN \"TB_CASH_RSV\" c ON c.\"ACCT_ID\"=a.\"ACCT_ID\" WHERE a.\"DEL_YN\"='N' ORDER BY a.\"DISP_SEQ\"",
             date,
             null));
     out.put("DATA_QUALITY", quality(date, decisionId));

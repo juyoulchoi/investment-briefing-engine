@@ -119,20 +119,20 @@ public class DashboardController {
     return jdbc.sql(
             """
                 SELECT a."ACCT_TP",
-                       COALESCE(sum(h."EVL_AMT"),0)+a."CASH_AMT"+a."RSV_CASH_AMT" AS total_asset,
+                       COALESCE(sum(h."EVL_AMT"),0)+a."CASH_AMT" AS total_asset,
                        COALESCE(sum(h."EVL_AMT"),0) AS evaluation_amount,
                        COALESCE(sum(h."AVG_PRC"*h."HOLD_QTY"*h."EXCH_RT"),0) AS cost_amount,
-                       a."CASH_AMT"+a."RSV_CASH_AMT" AS cash_amount,
+                       a."CASH_AMT" AS cash_amount,
                        count(h."HOLD_ID") AS holding_count,max(h."PRC_BASE_DT") AS price_base_date,
                        CASE WHEN a."ACCT_TP"='OVERSEAS' THEN 'USD' ELSE 'KRW' END AS currency_code,
                        CASE WHEN a."ACCT_TP"='OVERSEAS'
                             THEN COALESCE(sum(h."ORG_EVL_AMT"),0)
-                            ELSE COALESCE(sum(h."EVL_AMT"),0)+a."CASH_AMT"+a."RSV_CASH_AMT" END AS display_total_asset,
+                            ELSE COALESCE(sum(h."EVL_AMT"),0)+a."CASH_AMT" END AS display_total_asset,
                        CASE WHEN a."ACCT_TP"='OVERSEAS' THEN COALESCE(sum(h."ORG_EVL_AMT"),0)
                             ELSE COALESCE(sum(h."EVL_AMT"),0) END AS display_evaluation_amount,
                        CASE WHEN a."ACCT_TP"='OVERSEAS' THEN COALESCE(sum(h."AVG_PRC"*h."HOLD_QTY"),0)
                             ELSE COALESCE(sum(h."AVG_PRC"*h."HOLD_QTY"*h."EXCH_RT"),0) END AS display_cost_amount,
-                       a."CASH_AMT"+a."RSV_CASH_AMT" AS display_cash_amount
+                       a."CASH_AMT" AS display_cash_amount
                   FROM "TB_ACCT" a
                   LEFT JOIN "TB_HOLD" h ON h."ACCT_ID"=a."ACCT_ID"
                        AND h."USE_YN"='Y' AND h."DEL_YN"='N'

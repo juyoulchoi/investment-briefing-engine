@@ -71,6 +71,7 @@ class PortfolioWeightRefreshServiceTest {
         .account(account)
         .evaluationAmount(bd(evaluationAmount))
         .targetWeight(targetWeight == null ? null : bd(targetWeight))
+        .useYn(useYn)
         .deleteYn("N")
         .build();
   }

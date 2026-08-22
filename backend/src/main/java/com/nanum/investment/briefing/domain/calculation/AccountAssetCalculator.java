@@ -9,6 +9,8 @@ public class AccountAssetCalculator {
   public Result calculate(BigDecimal cash, BigDecimal reservedCash, List<Holding> holdings) {
     nonNegative(cash);
     nonNegative(reservedCash);
+    if (reservedCash.compareTo(cash) > 0)
+      throw new IllegalArgumentException("대기현금은 예수금을 초과할 수 없습니다.");
     BigDecimal evaluation = BigDecimal.ZERO;
     for (Holding h : holdings == null ? List.<Holding>of() : holdings) {
       nonNegative(h.quantity());
@@ -18,7 +20,7 @@ public class AccountAssetCalculator {
       evaluation =
           evaluation.add(h.quantity().multiply(h.currentPrice()).multiply(h.exchangeRate()));
     }
-    BigDecimal total = cash.add(reservedCash).add(evaluation), totalCash = cash.add(reservedCash);
+    BigDecimal total = cash.add(evaluation), totalCash = cash;
     BigDecimal cashRate =
         total.signum() == 0
             ? BigDecimal.ZERO

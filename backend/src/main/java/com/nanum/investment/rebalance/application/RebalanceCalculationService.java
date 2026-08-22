@@ -21,8 +21,10 @@ public class RebalanceCalculationService {
     requireNonNegative(holdings, "보유평가금액");
     requireNonNegative(newCash, "신규현금");
     requireWeight(targetCashWeight, "목표 현금비중");
-    BigDecimal total = cash.add(reservedCash).add(holdings).add(newCash);
-    BigDecimal currentCash = cash.add(reservedCash).add(newCash);
+    if (reservedCash.compareTo(cash) > 0)
+      throw new IllegalArgumentException("대기현금은 예수금을 초과할 수 없습니다.");
+    BigDecimal total = cash.add(holdings).add(newCash);
+    BigDecimal currentCash = cash.add(newCash);
     BigDecimal currentWeight =
         total.signum() == 0
             ? BigDecimal.ZERO
@@ -30,8 +32,14 @@ public class RebalanceCalculationService {
     BigDecimal targetCash =
         total.multiply(targetCashWeight).divide(HUNDRED, 4, RoundingMode.HALF_UP);
     BigDecimal gap = currentCash.subtract(targetCash);
+    BigDecimal generalAvailableCash = cash.subtract(reservedCash).add(newCash);
     return new AccountAmounts(
-        total, currentCash, currentWeight, targetCash, gap, gap.max(BigDecimal.ZERO));
+        total,
+        currentCash,
+        currentWeight,
+        targetCash,
+        gap,
+        min(gap.max(BigDecimal.ZERO), generalAvailableCash));
   }
 
   public ItemAmounts item(

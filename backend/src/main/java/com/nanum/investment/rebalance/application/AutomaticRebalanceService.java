@@ -229,7 +229,7 @@ public class AutomaticRebalanceService {
 
   private List<Account> accounts() {
     return jdbc.sql(
-            "SELECT \"ACCT_ID\",\"ACCT_TP\",COALESCE(\"CASH_AMT\",0),COALESCE(\"RSV_CASH_AMT\",0),COALESCE(\"TGT_CASH_WGT\",20) FROM \"TB_ACCT\" WHERE \"USE_YN\"='Y' AND \"DEL_YN\"='N' ORDER BY \"DISP_SEQ\"")
+            "SELECT \"ACCT_ID\",\"ACCT_TP\",COALESCE(\"CASH_AMT\",0),COALESCE(\"RSV_CASH_AMT\",0),COALESCE(\"TGT_CASH_WGT\",20) FROM \"TB_ACCT\" WHERE \"DEL_YN\"='N' ORDER BY \"DISP_SEQ\"")
         .query(
             (rs, n) ->
                 new Account(

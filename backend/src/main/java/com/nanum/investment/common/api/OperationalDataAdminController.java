@@ -474,8 +474,13 @@ public class OperationalDataAdminController {
   }
 
   private void apply(TbCashRsv x, CashReserveRequest b) {
-    x.setAccount(account(b.accountId()));
+    TbAcct account = account(b.accountId());
+    if (b.reserveAmount().compareTo(account.getCashAmount()) > 0)
+      throw new BusinessException(
+          ErrorCode.INVALID_REQUEST, "대기 현금은 예수금을 초과할 수 없습니다.");
+    x.setAccount(account);
     x.setReserveAmount(b.reserveAmount());
+    account.setReservedCashAmount(b.reserveAmount());
     x.setAccumulatedAmount(b.accumulatedAmount());
     x.setUsedAmount(b.usedAmount());
     x.setLastTransactionDate(b.lastTransactionDate());

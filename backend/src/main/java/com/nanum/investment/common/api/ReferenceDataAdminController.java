@@ -137,6 +137,14 @@ public class ReferenceDataAdminController {
             v -> {
               throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE);
             });
+    java.math.BigDecimal reserve =
+        cashReserves
+            .findByAccount_AccountId(id)
+            .map(TbCashRsv::getReserveAmount)
+            .orElse(java.math.BigDecimal.ZERO);
+    if (b.cashAmount().compareTo(reserve) < 0)
+      throw new BusinessException(
+          ErrorCode.INVALID_REQUEST, "예수금은 대기 현금보다 작을 수 없습니다.");
     apply(x, b);
     x.setUpdatedUserId("ADMIN");
     return ok(row(accounts.save(x)), r);

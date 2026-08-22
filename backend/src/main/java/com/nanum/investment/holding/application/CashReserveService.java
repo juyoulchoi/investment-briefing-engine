@@ -77,6 +77,14 @@ public class CashReserveService {
             .orElseThrow(() -> new IllegalArgumentException("계좌 대기현금 원장이 없습니다."));
     BigDecimal after = incoming ? before.add(amount) : before.subtract(amount);
     if (after.signum() < 0) throw new IllegalStateException("추가매수 대기현금이 부족합니다.");
+    BigDecimal cash =
+        jdbc.sql("SELECT \"CASH_AMT\" FROM \"TB_ACCT\" WHERE \"ACCT_ID\"=:accountId FOR UPDATE")
+            .param("accountId", accountId)
+            .query(BigDecimal.class)
+            .optional()
+            .orElseThrow(() -> new IllegalArgumentException("계좌를 찾을 수 없습니다."));
+    if (incoming && after.compareTo(cash) > 0)
+      throw new IllegalStateException("대기현금은 예수금을 초과할 수 없습니다.");
     jdbc.sql(
             "UPDATE \"TB_CASH_RSV\" SET \"RSV_AMT\"=:after,\"ACCUM_AMT\"=\"ACCUM_AMT\"+:accum,\"USED_AMT\"=\"USED_AMT\"+:used,\"LAST_TX_DT\"=:date,\"VER_NO\"=\"VER_NO\"+1,\"UPD_DTTM\"=CURRENT_TIMESTAMP WHERE \"ACCT_ID\"=:accountId")
         .param("after", after)
@@ -86,7 +94,8 @@ public class CashReserveService {
         .param("accountId", accountId)
         .update();
     jdbc.sql(
-            "UPDATE \"TB_ACCT\" SET \"RSV_CASH_AMT\"=:after,\"UPD_DTTM\"=CURRENT_TIMESTAMP WHERE \"ACCT_ID\"=:accountId")
+            "UPDATE \"TB_ACCT\" SET \"CASH_AMT\"=\"CASH_AMT\"-:spent,\"RSV_CASH_AMT\"=:after,\"UPD_DTTM\"=CURRENT_TIMESTAMP WHERE \"ACCT_ID\"=:accountId")
+        .param("spent", incoming ? BigDecimal.ZERO : amount)
         .param("after", after)
         .param("accountId", accountId)
         .update();

@@ -10,6 +10,24 @@ class RebalanceCalculationServiceTest {
   private final RebalanceCalculationService service = new RebalanceCalculationService();
 
   @Test
+  void reservedCashIsPartOfCashAndNotAddedToTotalAssetsTwice() {
+    var result = service.account(bd("100"), bd("30"), bd("900"), bd("20"), BigDecimal.ZERO);
+
+    assertThat(result.totalAssetAmount()).isEqualByComparingTo("1000");
+    assertThat(result.currentCashAmount()).isEqualByComparingTo("100");
+    assertThat(result.targetCashAmount()).isEqualByComparingTo("200");
+    assertThat(result.buyBudgetAmount()).isZero();
+  }
+
+  @Test
+  void ordinaryBuyBudgetDoesNotConsumeReservedCash() {
+    var result = service.account(bd("300"), bd("250"), bd("700"), bd("20"), BigDecimal.ZERO);
+
+    assertThat(result.cashGapAmount()).isEqualByComparingTo("100");
+    assertThat(result.buyBudgetAmount()).isEqualByComparingTo("50");
+  }
+
+  @Test
   void buyRecommendationUsesSmallestLimit() {
     var result =
         service.item(

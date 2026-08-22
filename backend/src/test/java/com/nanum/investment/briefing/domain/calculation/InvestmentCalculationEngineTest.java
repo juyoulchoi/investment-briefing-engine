@@ -88,15 +88,16 @@ class InvestmentCalculationEngineTest {
   }
 
   @Test
-  void accountAssetIncludesCashReserveAndExchangeRate() {
+  void accountAssetDoesNotCountReservedCashTwice() {
     var result =
         new AccountAssetCalculator()
             .calculate(
                 bd("100"),
                 bd("50"),
                 List.of(new AccountAssetCalculator.Holding(bd("2"), bd("10"), bd("2"))));
-    assertThat(result.totalAssetAmount()).isEqualByComparingTo("190");
+    assertThat(result.totalAssetAmount()).isEqualByComparingTo("140");
     assertThat(result.holdingEvaluationAmount()).isEqualByComparingTo("40");
+    assertThat(result.totalCashAmount()).isEqualByComparingTo("100");
   }
 
   private MarketRegime classify(String score, boolean emergency) {
