@@ -788,8 +788,6 @@ function Holdings() {
   type AdminAccount = {
     accountId: number;
     accountType: Account["accountType"];
-    brokerName?: string;
-    useYn: string;
   };
   type AdminStock = {
     stockId: number;
@@ -1380,13 +1378,10 @@ function Holdings() {
                   }
                 >
                   {adminAccounts
-                    .filter(
-                      (a) => a.useYn === "Y" && a.accountType === selected,
-                    )
+                    .filter((a) => a.accountType === selected)
                     .map((a) => (
                       <option key={a.accountId} value={a.accountId}>
                         {accountLabel(a.accountType)}
-                        {a.brokerName ? ` · ${a.brokerName}` : ""}
                       </option>
                     ))}
                 </select>

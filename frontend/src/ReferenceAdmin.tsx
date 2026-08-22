@@ -90,13 +90,10 @@ const meta: Record<
     id: "accountId",
     columns: [
       ["accountType", "계좌 유형"],
-      ["brokerName", "증권사"],
-      ["maskedAccountNumber", "계좌번호"],
       ["baseCurrencyCode", "통화"],
-      ["cashAmount", "일반 현금"],
+      ["cashAmount", "예수금"],
       ["reservedCashAmount", "대기 현금"],
-      ["targetCashWeight", "목표 현금비중"],
-      ["useYn", "사용"],
+      ["targetCashWeight", "목표 현금 비중"],
     ],
     fields: [
       {
@@ -111,32 +108,31 @@ const meta: Record<
           ["PENSION", "연금"],
         ],
       },
-      { key: "brokerCode", label: "증권사 코드" },
-      { key: "brokerName", label: "증권사명" },
-      { key: "maskedAccountNumber", label: "마스킹 계좌번호" },
       { key: "baseCurrencyCode", label: "기준 통화", required: true },
-      { key: "cashAmount", label: "일반 현금", required: true, type: "number" },
+      {
+        key: "cashAmount",
+        label: "예수금",
+        help: "현재 계좌에서 사용할 수 있는 증권 계좌의 예수금입니다.",
+        required: true,
+        type: "number",
+      },
       {
         key: "reservedCashAmount",
-        label: "추가매수 대기현금",
-        help: "정기매수 감액 적립과 추가매수 사용 내역에 따라 자동 관리됩니다.",
+        label: "대기 현금",
+        help: "예수금에서 추가 매수에 사용할 현금이며, 적립과 사용 내역에 따라 자동 관리됩니다.",
         type: "readonly",
       },
-      { key: "targetCashWeight", label: "목표 현금비중 (%)", type: "number" },
+      {
+        key: "targetCashWeight",
+        label: "목표 현금 비중 (%)",
+        help: "전체 평가 금액에서 현금으로 유지할 목표 비중입니다.",
+        type: "number",
+      },
       {
         key: "displaySequence",
         label: "표시 순번",
         required: true,
         type: "number",
-      },
-      {
-        key: "useYn",
-        label: "사용 여부",
-        type: "select",
-        options: [
-          ["Y", "사용"],
-          ["N", "미사용"],
-        ],
       },
     ],
   },
@@ -234,7 +230,6 @@ const defaults: Record<Kind, Row> = {
     currencyCode: "KRW",
     dataSourceCode: "KRX",
     defaultYn: "N",
-    useYn: "Y",
   },
   accounts: {
     accountType: "DOMESTIC",
@@ -378,12 +373,14 @@ export default function ReferenceAdmin({
       </div>
       <section className="card table ref-table">
         <header className="head list-tools">
-          <input
-            className="ref-search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="코드 또는 이름 검색"
-          />
+          {kind !== "accounts" && (
+            <input
+              className="ref-search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="코드 또는 이름 검색"
+            />
+          )}
         </header>
         {error && !editing && <p className="form-error ref-error">{error}</p>}
         <div className="tablewrap">

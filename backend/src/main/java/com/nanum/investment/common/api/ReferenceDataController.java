@@ -58,7 +58,7 @@ public class ReferenceDataController {
   public ApiResponse<PageResponse<AccountApiResponse>> accounts(
       Pageable pageable, HttpServletRequest req) {
     List<AccountApiResponse> rows =
-        accounts.findAllByUseYnAndDeleteYnOrderByDisplaySequenceAsc("Y", "N").stream()
+        accounts.findAllByDeleteYnOrderByDisplaySequenceAsc("N").stream()
             .map(this::account)
             .toList();
     return ok(page(rows, pageable), req);
@@ -157,8 +157,7 @@ public class ReferenceDataController {
         a.getBaseCurrencyCode(),
         a.getCashAmount(),
         a.getReservedCashAmount(),
-        a.getTargetCashWeight(),
-        a.getUseYn());
+        a.getTargetCashWeight());
   }
 
   private StockApiResponse stock(TbStk s) {

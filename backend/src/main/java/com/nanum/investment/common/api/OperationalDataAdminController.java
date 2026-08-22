@@ -582,7 +582,7 @@ public class OperationalDataAdminController {
             """
   SELECT r."ACCT_TP"||'/'||r."STK_CD" AS "regularBuyKey",
    r."ACCT_ID" AS "accountId",r."ACCT_TP" AS "accountType",r."STK_ID" AS "stockId",
-   a."BRKR_NM" AS "brokerName",s."MKT_CD" AS "marketCode",s."STK_CD" AS "stockCode",s."STK_NM" AS "stockName",
+   s."MKT_CD" AS "marketCode",s."STK_CD" AS "stockCode",s."STK_NM" AS "stockName",
    r."PRIORITY" AS "priority",r."BUY_CYCLE" AS "baseCycle",
    r."BUY_DAY_CD" AS "baseWeekDays",r."BUY_DAY_NOS" AS "baseMonthDays",
    r."BUY_BASIS" AS "buyBasis",r."MIN_BUY_AMT" AS "baseAmount",

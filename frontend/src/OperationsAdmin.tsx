@@ -685,14 +685,11 @@ export default function OperationsAdmin({
         }}
       >
         <option value="">계좌 선택</option>
-        {accounts
-          .filter((a) => a.useYn === "Y")
-          .map((a) => (
-            <option key={a.accountId} value={a.accountId}>
-              {labels[a.accountType] || a.accountType}
-              {a.brokerName ? ` · ${a.brokerName}` : ""}
-            </option>
-          ))}
+        {accounts.map((a) => (
+          <option key={a.accountId} value={a.accountId}>
+            {labels[a.accountType] || a.accountType}
+          </option>
+        ))}
       </select>
     ) : f.type === "stock" ? (
       <select

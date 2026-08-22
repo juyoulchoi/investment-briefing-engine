@@ -61,15 +61,11 @@ public class ReferenceDataAdminController {
   public record AccountRow(
       Long accountId,
       AccountType accountType,
-      String brokerCode,
-      String brokerName,
-      String maskedAccountNumber,
       String baseCurrencyCode,
       java.math.BigDecimal cashAmount,
       java.math.BigDecimal reservedCashAmount,
       java.math.BigDecimal targetCashWeight,
-      Integer displaySequence,
-      String useYn) {}
+      Integer displaySequence) {}
 
   public record StockRow(
       Long stockId,
@@ -155,9 +151,6 @@ public class ReferenceDataAdminController {
 
   private void apply(TbAcct x, AccountSaveRequest b) {
     x.setAccountType(b.accountType());
-    x.setBrokerCode(b.brokerCode());
-    x.setBrokerName(b.brokerName());
-    x.setMaskedAccountNumber(b.maskedAccountNumber());
     x.setBaseCurrencyCode(b.baseCurrencyCode());
     x.setCashAmount(b.cashAmount());
     // 추가매수 대기현금은 TB_CASH_RSV 원장과 CashReserveService가 소유한다.
@@ -165,7 +158,6 @@ public class ReferenceDataAdminController {
     if (x.getAccountId() == null) x.setReservedCashAmount(java.math.BigDecimal.ZERO);
     x.setTargetCashWeight(b.targetCashWeight());
     x.setDisplaySequence(b.displaySequence());
-    x.setUseYn(nvl(b.useYn(), "Y"));
     x.setDeleteYn("N");
   }
 
@@ -189,9 +181,6 @@ public class ReferenceDataAdminController {
     return new AccountRow(
         x.getAccountId(),
         x.getAccountType(),
-        x.getBrokerCode(),
-        x.getBrokerName(),
-        x.getMaskedAccountNumber(),
         x.getBaseCurrencyCode(),
         x.getCashAmount(),
         cashReserves
@@ -199,8 +188,7 @@ public class ReferenceDataAdminController {
             .map(TbCashRsv::getReserveAmount)
             .orElse(java.math.BigDecimal.ZERO),
         x.getTargetCashWeight(),
-        x.getDisplaySequence(),
-        x.getUseYn());
+        x.getDisplaySequence());
   }
 
   private StockRow row(TbStk x) {

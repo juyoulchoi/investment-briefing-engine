@@ -11,5 +11,4 @@ public record AccountApiResponse(
     String baseCurrencyCode,
     BigDecimal cashAmount,
     BigDecimal reservedCashAmount,
-    BigDecimal targetCashWeight,
-    String useYn) {}
+    BigDecimal targetCashWeight) {}

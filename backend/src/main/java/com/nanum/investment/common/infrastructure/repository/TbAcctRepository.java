@@ -8,5 +8,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface TbAcctRepository extends JpaRepository<TbAcct, Long> {
   Optional<TbAcct> findByAccountTypeAndDeleteYn(AccountType accountType, String deleteYn);
 
-  List<TbAcct> findAllByUseYnAndDeleteYnOrderByDisplaySequenceAsc(String useYn, String deleteYn);
+  List<TbAcct> findAllByDeleteYnOrderByDisplaySequenceAsc(String deleteYn);
 }

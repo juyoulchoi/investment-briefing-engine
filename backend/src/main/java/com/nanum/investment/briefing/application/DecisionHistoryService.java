@@ -64,7 +64,7 @@ public class DecisionHistoryService {
               SELECT :decisionId,:account,:code,:name,:action,:multiplier,:minimum,:recommended,:reserved,CAST(:reasons AS jsonb),
                 :maximum,:maximumMultiplier,:adjustmentReason,:cashPlan,a."ACCT_ID",s."STK_ID",h."HOLD_ID",:date,
                 d."RISK_SCR",d."RISK_GRADE",:multiplier,'N',d."CONF_RT",:adjustmentReason
-              FROM "TB_STK" s JOIN "TB_ACCT" a ON a."ACCT_TP"=:account AND a."USE_YN"='Y' AND a."DEL_YN"='N'
+              FROM "TB_STK" s JOIN "TB_ACCT" a ON a."ACCT_TP"=:account AND a."DEL_YN"='N'
               LEFT JOIN "TB_HOLD" h ON h."ACCT_ID"=a."ACCT_ID" AND h."STK_ID"=s."STK_ID" AND h."USE_YN"='Y' AND h."DEL_YN"='N'
               JOIN "TB_INV_DEC" d ON d."INV_DEC_ID"=:decisionId
               WHERE s."STK_CD"=:code AND s."USE_YN"='Y' AND s."DEL_YN"='N'

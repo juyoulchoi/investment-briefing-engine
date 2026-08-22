@@ -24,15 +24,6 @@ public class TbAcct {
   @Column(name = "ACCT_TP", nullable = false, length = 20)
   private AccountType accountType;
 
-  @Column(name = "BRKR_CD", length = 30)
-  private String brokerCode;
-
-  @Column(name = "BRKR_NM", length = 100)
-  private String brokerName;
-
-  @Column(name = "ACCT_NO_MASK", length = 50)
-  private String maskedAccountNumber;
-
   @Builder.Default
   @Column(name = "BASE_CURR_CD", nullable = false, length = 10)
   private String baseCurrencyCode = "KRW";
@@ -51,10 +42,6 @@ public class TbAcct {
   @Builder.Default
   @Column(name = "DISP_SEQ", nullable = false)
   private Integer displaySequence = 0;
-
-  @Builder.Default
-  @Column(name = "USE_YN", nullable = false, length = 1)
-  private String useYn = "Y";
 
   @Builder.Default
   @Column(name = "DEL_YN", nullable = false, length = 1)
