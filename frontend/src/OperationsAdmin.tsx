@@ -332,7 +332,7 @@ export default function OperationsAdmin({
   notify: (s: string) => void;
   initialKind?: Kind;
 }) {
-  const [kind, setKind] = useState<Kind>(initialKind || "regular-buys"),
+  const [kind] = useState<Kind>(initialKind || "regular-buys"),
     [rows, setRows] = useState<Row[]>([]),
     [accounts, setAccounts] = useState<Row[]>([]),
     [stocks, setStocks] = useState<Row[]>([]),
@@ -848,22 +848,6 @@ export default function OperationsAdmin({
           + {config[kind].title} 등록
         </button>
       </section>
-      <div className="tabs ref-tabs">
-        {(["regular-buys"] as Kind[]).map((k) => (
-          <button
-            key={k}
-            className={kind === k ? "active" : ""}
-            onClick={() => {
-              setKind(k);
-              setQuery("");
-              setBuyStatusFilter("");
-              setUserPauseFilter("");
-            }}
-          >
-            {config[k].title}
-          </button>
-        ))}
-      </div>
       <section className="card table ref-table">
         {kind === "regular-buys" && (
           <header className="head list-tools">

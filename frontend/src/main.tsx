@@ -16,7 +16,6 @@ type Page =
   | "briefing"
   | "holdings"
   | "additional"
-  | "rebalance"
   | "history"
   | "reference"
   | "operations"
@@ -27,7 +26,6 @@ const nav: [Page, string, string][] = [
   ["briefing", "투자 브리핑", "▤"],
   ["holdings", "보유종목", "◇"],
   ["additional", "추가매수", "+"],
-  ["rebalance", "리밸런싱", "⇄"],
   ["history", "브리핑 이력", "◷"],
   ["reference", "기준정보 관리", "⚙"],
   ["operations", "투자 설정 관리", "⌘"],
@@ -264,11 +262,11 @@ function App() {
             <Nav key={x[0]} x={x} active={page === x[0]} go={move} />
           ))}
           <p>INVEST</p>
-          {nav.slice(1, 5).map((x) => (
+          {nav.slice(1, 4).map((x) => (
             <Nav key={x[0]} x={x} active={page === x[0]} go={move} />
           ))}
           <p>RECORDS</p>
-          {nav.slice(5).map((x) => (
+          {nav.slice(4).map((x) => (
             <Nav key={x[0]} x={x} active={page === x[0]} go={move} />
           ))}
         </nav>
@@ -300,7 +298,6 @@ function App() {
         {page === "briefing" && <Briefing />}{" "}
         {page === "holdings" && <Holdings />}{" "}
         {page === "additional" && <Additional />}{" "}
-        {page === "rebalance" && <Rebalance />}{" "}
         {page === "history" && <History period={history} set={setHistory} />}{" "}
         {page === "reference" && <ReferenceAdmin notify={notify} />}{" "}
         {page === "operations" && <OperationsAdmin notify={notify} />}{" "}
@@ -1737,109 +1734,6 @@ function Additional() {
             </article>
           ))
         )}
-      </section>
-    </div>
-  );
-}
-function Rebalance() {
-  const { accountTypes, accountLabel } = useAccountTypes();
-  type Item = {
-    rebalanceItemId: number;
-    accountType: Account["accountType"];
-    stockCode: string;
-    stockName: string;
-    currentWeight: number;
-    targetWeight: number;
-    action: string;
-  };
-  type Result = { baseDate: string | null; type: string; items: Item[] };
-  const [data, setData] = useState<Result | null>(null),
-    [error, setError] = useState(""),
-    [accountType, setAccountType] =
-      useState<Account["accountType"]>("DOMESTIC");
-  useEffect(() => {
-    setData(null);
-    setError("");
-    fetch("/api/investment/rebalancing/latest?type=MONTHLY")
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<Result>;
-      })
-      .then(setData)
-      .catch((e) =>
-        setError(
-          e instanceof Error
-            ? e.message
-            : "리밸런싱 계산안을 불러오지 못했습니다.",
-        ),
-      );
-  }, []);
-  const rows = (data?.items || []).filter((r) => r.accountType === accountType);
-  return (
-    <div className="page">
-      <div className="filter-row">
-        <div className="tabs account-tabs">
-          {orderedAccountTypes(accountTypes).map((type) => (
-            <button
-              key={type}
-              className={accountType === type ? "active" : ""}
-              onClick={() => setAccountType(type)}
-            >
-              {accountLabel(type)}
-            </button>
-          ))}
-        </div>
-      </div>
-      <section className="card table rebalance-table">
-        <p className="rebalance-summary">
-          {data?.baseDate
-            ? `${data.baseDate} 기준 · 현재 보유비중과 목표비중 비교`
-            : "계산된 리밸런싱 계획이 없습니다."}
-        </p>
-        <Table heads={["종목코드", "종목명", "현재비중", "목표비중", "상태"]}>
-          {error ? (
-            <tr>
-              <td colSpan={5} className="data-state error">
-                {error}
-              </td>
-            </tr>
-          ) : !data ? (
-            <tr>
-              <td colSpan={5} className="data-state">
-                불러오는 중입니다.
-              </td>
-            </tr>
-          ) : rows.length === 0 ? (
-            <tr>
-              <td colSpan={5} className="data-state">
-                선택한 계좌의 리밸런싱 평가 결과가 없습니다.
-              </td>
-            </tr>
-          ) : (
-            rows.map((r) => (
-              <tr
-                key={r.rebalanceItemId}
-                className={r.action === "HOLD" ? "muted-row" : ""}
-              >
-                <td>{r.stockCode}</td>
-                <td>
-                  <strong>{r.stockName || r.stockCode}</strong>
-                </td>
-                <td>{Number(r.currentWeight).toFixed(1)}%</td>
-                <td>{Number(r.targetWeight).toFixed(1)}%</td>
-                <td>
-                  <span className={`badge ${r.action === "BUY" ? "buy" : ""}`}>
-                    {r.action === "BUY"
-                      ? "매수"
-                      : r.action === "SELL"
-                        ? "매도"
-                        : "유지"}
-                  </span>
-                </td>
-              </tr>
-            ))
-          )}
-        </Table>
       </section>
     </div>
   );
