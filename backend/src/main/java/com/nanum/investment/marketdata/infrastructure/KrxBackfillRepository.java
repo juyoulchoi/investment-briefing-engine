@@ -197,7 +197,7 @@ public class KrxBackfillRepository {
               failed_day_count=(SELECT count(*) FROM tb_krx_bf_day d WHERE d.backfill_job_id=j.id AND d.status='FAILED'),
               skipped_day_count=(SELECT count(*) FROM tb_krx_bf_day d WHERE d.backfill_job_id=j.id AND d.status='SKIPPED'),
               pending_day_count=(SELECT count(*) FROM tb_krx_bf_day d WHERE d.backfill_job_id=j.id AND d.status='PENDING'),
-              current_date=:date,updated_at=CURRENT_TIMESTAMP WHERE id=:id
+              current_base_date=:date,updated_at=CURRENT_TIMESTAMP WHERE id=:id
             """)
         .param("id", id)
         .param("date", currentDate)
@@ -210,7 +210,7 @@ public class KrxBackfillRepository {
             """
             UPDATE tb_krx_bf_job SET
               status=CASE WHEN failed_day_count>0 THEN 'COMPLETED_WITH_ERRORS' ELSE 'COMPLETED' END,
-              current_date=NULL,completed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=:id
+              current_base_date=NULL,completed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=:id
             """)
         .param("id", id)
         .update();
@@ -219,7 +219,7 @@ public class KrxBackfillRepository {
   public void fail(UUID id, String error) {
     jdbc.sql(
             """
-            UPDATE tb_krx_bf_job SET status='FAILED',error_message=:error,current_date=NULL,
+            UPDATE tb_krx_bf_job SET status='FAILED',error_message=:error,current_base_date=NULL,
               completed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=:id
             """)
         .param("id", id)
@@ -238,7 +238,7 @@ public class KrxBackfillRepository {
 
   public void markPaused(UUID id) {
     jdbc.sql(
-            "UPDATE tb_krx_bf_job SET status='PAUSED',current_date=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=:id")
+            "UPDATE tb_krx_bf_job SET status='PAUSED',current_base_date=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=:id")
         .param("id", id)
         .update();
   }
@@ -270,7 +270,7 @@ public class KrxBackfillRepository {
         .param("id", id)
         .update();
     jdbc.sql(
-            "UPDATE tb_krx_bf_job SET status='CANCELLED',current_date=NULL,completed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=:id")
+            "UPDATE tb_krx_bf_job SET status='CANCELLED',current_base_date=NULL,completed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=:id")
         .param("id", id)
         .update();
     updateProgress(id, null);
@@ -323,7 +323,7 @@ public class KrxBackfillRepository {
         rs.getInt("failed_day_count"),
         rs.getInt("skipped_day_count"),
         rs.getInt("pending_day_count"),
-        rs.getObject("current_date", LocalDate.class),
+        rs.getObject("current_base_date", LocalDate.class),
         rs.getString("error_message"),
         time(rs.getTimestamp("created_at")),
         time(rs.getTimestamp("started_at")),
