@@ -592,8 +592,11 @@ public class OperationalDataAdminController {
    r."BUY_DAY_CD" AS "baseWeekDays",r."BUY_DAY_NOS" AS "baseMonthDays",
    r."BUY_BASIS" AS "buyBasis",r."MIN_BUY_AMT" AS "baseAmount",
    r."BASE_QTY" AS "baseQuantity",r."ACTV_YN" AS "activeYn",
-   COALESCE(r."CYCLE_TP",r."BUY_CYCLE") AS "appliedCycle",COALESCE(r."WEEK_DAY",r."BUY_DAY_CD") AS "appliedWeekDays",
-   r."APPLIED_DAY_NOS" AS "appliedMonthDays",
+   COALESCE(r."CYCLE_TP",r."BUY_CYCLE") AS "appliedCycle",
+   CASE WHEN COALESCE(r."CYCLE_TP",r."BUY_CYCLE")='WEEKLY'
+     THEN CASE WHEN r."CYCLE_TP" IS NULL THEN r."BUY_DAY_CD" ELSE r."WEEK_DAY" END
+   END AS "appliedWeekDays",
+   CASE WHEN COALESCE(r."CYCLE_TP",r."BUY_CYCLE")='MONTHLY' THEN r."APPLIED_DAY_NOS" END AS "appliedMonthDays",
    r."AMT" AS "appliedAmount",r."QTY" AS "appliedQuantity",r."RCMD_BUY_AMT" AS "recommendedAmount",
    r."PAUSE_RSN" AS "pauseReason",r."EXEC_ST" AS "todayBuyStatus",r."EXEC_NO" AS "executionNumber",
    COALESCE(ss."STK_GRD",CAST(s."STK_GRADE" AS VARCHAR)) AS "stockGrade",r."INV_GRD" AS "investmentGrade",
