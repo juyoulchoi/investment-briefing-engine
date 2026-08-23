@@ -1,5 +1,6 @@
 package com.nanum.investment.marketdata.infrastructure;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -397,6 +398,7 @@ public class KrxBackfillRepository {
       LocalDateTime startedAt,
       LocalDateTime completedAt,
       List<BackfillDayView> days) {
+    @JsonProperty("progressRate")
     public double progressRate() {
       if (totalDayCount == 0) return 100;
       return Math.round(
