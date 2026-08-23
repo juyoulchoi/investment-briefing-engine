@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/admin/market-analysis")
 @Transactional(readOnly = true)
+@io.swagger.v3.oas.annotations.tags.Tag(name = "시장 분석", description = "시장 스냅샷 및 심리 분석 API")
 public class MarketAnalysisAdminController {
   private final TbMktSnapRepository snapshots;
   private final TbMktSentRepository sentiments;
@@ -98,6 +99,7 @@ public class MarketAnalysisAdminController {
       DataStatus dataStatus) {}
 
   @GetMapping("/snapshots")
+  @io.swagger.v3.oas.annotations.Operation(summary = "시장 스냅샷 운영데이터 조회")
   public ApiResponse<List<SnapshotRow>> snapshots(HttpServletRequest r) {
     return ok(
         snapshots
@@ -109,6 +111,7 @@ public class MarketAnalysisAdminController {
   }
 
   @PostMapping("/snapshots")
+  @io.swagger.v3.oas.annotations.Operation(summary = "시장 스냅샷 운영데이터 생성")
   @Transactional
   public ApiResponse<SnapshotRow> createSnapshot(
       @Valid @RequestBody SnapshotRequest b, HttpServletRequest r) {
@@ -121,6 +124,7 @@ public class MarketAnalysisAdminController {
   }
 
   @PutMapping("/snapshots/{id}")
+  @io.swagger.v3.oas.annotations.Operation(summary = "시장 스냅샷 운영데이터 수정")
   @Transactional
   public ApiResponse<SnapshotRow> updateSnapshot(
       @PathVariable Long id, @Valid @RequestBody SnapshotRequest b, HttpServletRequest r) {
@@ -140,6 +144,7 @@ public class MarketAnalysisAdminController {
   }
 
   @GetMapping("/sentiments")
+  @io.swagger.v3.oas.annotations.Operation(summary = "시장 심리 운영데이터 조회")
   public ApiResponse<List<SentimentRow>> sentiments(HttpServletRequest r) {
     return ok(
         sentiments
@@ -151,6 +156,7 @@ public class MarketAnalysisAdminController {
   }
 
   @PostMapping("/sentiments")
+  @io.swagger.v3.oas.annotations.Operation(summary = "시장 심리 운영데이터 생성")
   @Transactional
   public ApiResponse<SentimentRow> createSentiment(
       @Valid @RequestBody SentimentRequest b, HttpServletRequest r) {
@@ -163,6 +169,7 @@ public class MarketAnalysisAdminController {
   }
 
   @PutMapping("/sentiments/{id}")
+  @io.swagger.v3.oas.annotations.Operation(summary = "시장 심리 운영데이터 수정")
   @Transactional
   public ApiResponse<SentimentRow> updateSentiment(
       @PathVariable Long id, @Valid @RequestBody SentimentRequest b, HttpServletRequest r) {

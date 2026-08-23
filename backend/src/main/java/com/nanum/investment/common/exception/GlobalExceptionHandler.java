@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @Slf4j
 @RestControllerAdvice
@@ -37,6 +38,17 @@ public class GlobalExceptionHandler {
         .body(
             ApiResponse.failure(
                 new ErrorResponse(c.getCode(), c.getMessage(), errors), TraceIdUtils.resolve(req)));
+  }
+
+  @ExceptionHandler(NoResourceFoundException.class)
+  ResponseEntity<ApiResponse<Void>> noResource(
+      NoResourceFoundException ex, HttpServletRequest req) {
+    ErrorCode c = ErrorCode.RESOURCE_NOT_FOUND;
+    return ResponseEntity.status(c.getHttpStatus())
+        .body(
+            ApiResponse.failure(
+                new ErrorResponse(c.getCode(), c.getMessage(), List.of()),
+                TraceIdUtils.resolve(req)));
   }
 
   @ExceptionHandler(Exception.class)

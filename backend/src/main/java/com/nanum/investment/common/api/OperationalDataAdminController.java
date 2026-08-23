@@ -40,6 +40,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/admin/operations")
 @Transactional(readOnly = true)
+@io.swagger.v3.oas.annotations.tags.Tag(name = "운영 관리", description = "보유자산·정기매수·현금 설정 API")
 public class OperationalDataAdminController {
   private final TbHoldRepository holdings;
   private final TbRegBuyRepository regularBuys;
@@ -174,6 +175,7 @@ public class OperationalDataAdminController {
       Long version) {}
 
   @GetMapping("/holdings")
+  @io.swagger.v3.oas.annotations.Operation(summary = "보유자산 운영데이터 조회")
   public ApiResponse<List<HoldingRow>> holdings(HttpServletRequest r) {
     List<TbHold> rows =
         holdings.findAll().stream().filter(x -> "N".equals(x.getDeleteYn())).toList();
@@ -209,6 +211,7 @@ public class OperationalDataAdminController {
   }
 
   @PostMapping("/holdings")
+  @io.swagger.v3.oas.annotations.Operation(summary = "보유자산 운영데이터 생성")
   @Transactional
   public ApiResponse<HoldingRow> createHolding(
       @Valid @RequestBody HoldingRequest b, HttpServletRequest r) {
@@ -224,6 +227,7 @@ public class OperationalDataAdminController {
   }
 
   @PutMapping("/holdings/{id}")
+  @io.swagger.v3.oas.annotations.Operation(summary = "보유자산 운영데이터 수정")
   @Transactional
   public ApiResponse<HoldingRow> updateHolding(
       @PathVariable Long id, @Valid @RequestBody HoldingRequest b, HttpServletRequest r) {
@@ -246,6 +250,7 @@ public class OperationalDataAdminController {
   }
 
   @GetMapping("/investment-grades")
+  @io.swagger.v3.oas.annotations.Operation(summary = "투자등급 조회")
   public ApiResponse<List<Map<String, Object>>> investmentGrades(HttpServletRequest r) {
     return ok(
         jdbc.sql(
@@ -261,11 +266,13 @@ public class OperationalDataAdminController {
   }
 
   @GetMapping("/regular-buys")
+  @io.swagger.v3.oas.annotations.Operation(summary = "정기매수 설정 조회")
   public ApiResponse<List<Map<String, Object>>> regularBuys(HttpServletRequest r) {
     return ok(regularBuyRows(), r);
   }
 
   @PostMapping("/regular-buys")
+  @io.swagger.v3.oas.annotations.Operation(summary = "정기매수 설정 생성")
   @Transactional
   public ApiResponse<RegularBuyRow> createRegularBuy(
       @Valid @RequestBody RegularBuyRequest b, HttpServletRequest r) {
@@ -278,6 +285,7 @@ public class OperationalDataAdminController {
   }
 
   @PutMapping("/regular-buys/{accountType}/{stockCode}")
+  @io.swagger.v3.oas.annotations.Operation(summary = "정기매수 설정 수정")
   @Transactional
   public ApiResponse<RegularBuyRow> updateRegularBuy(
       @PathVariable AccountType accountType,
@@ -299,11 +307,13 @@ public class OperationalDataAdminController {
   }
 
   @GetMapping("/cash-reserves")
+  @io.swagger.v3.oas.annotations.Operation(summary = "현금보유 설정 조회")
   public ApiResponse<List<CashReserveRow>> cashReserves(HttpServletRequest r) {
     return ok(cashReserves.findAll().stream().map(this::row).toList(), r);
   }
 
   @PostMapping("/cash-reserves")
+  @io.swagger.v3.oas.annotations.Operation(summary = "현금보유 설정 생성")
   @Transactional
   public ApiResponse<CashReserveRow> createCashReserve(
       @Valid @RequestBody CashReserveRequest b, HttpServletRequest r) {
@@ -315,6 +325,7 @@ public class OperationalDataAdminController {
   }
 
   @PutMapping("/cash-reserves/{id}")
+  @io.swagger.v3.oas.annotations.Operation(summary = "현금보유 설정 수정")
   @Transactional
   public ApiResponse<CashReserveRow> updateCashReserve(
       @PathVariable Long id, @Valid @RequestBody CashReserveRequest b, HttpServletRequest r) {
@@ -476,8 +487,7 @@ public class OperationalDataAdminController {
   private void apply(TbCashRsv x, CashReserveRequest b) {
     TbAcct account = account(b.accountId());
     if (b.reserveAmount().compareTo(account.getCashAmount()) > 0)
-      throw new BusinessException(
-          ErrorCode.INVALID_REQUEST, "대기 현금은 예수금을 초과할 수 없습니다.");
+      throw new BusinessException(ErrorCode.INVALID_REQUEST, "대기 현금은 예수금을 초과할 수 없습니다.");
     x.setAccount(account);
     x.setReserveAmount(b.reserveAmount());
     account.setReservedCashAmount(b.reserveAmount());
@@ -592,8 +602,11 @@ public class OperationalDataAdminController {
    r."BUY_DAY_CD" AS "baseWeekDays",r."BUY_DAY_NOS" AS "baseMonthDays",
    r."BUY_BASIS" AS "buyBasis",r."MIN_BUY_AMT" AS "baseAmount",
    r."BASE_QTY" AS "baseQuantity",r."ACTV_YN" AS "activeYn",
-   COALESCE(r."CYCLE_TP",r."BUY_CYCLE") AS "appliedCycle",COALESCE(r."WEEK_DAY",r."BUY_DAY_CD") AS "appliedWeekDays",
-   r."APPLIED_DAY_NOS" AS "appliedMonthDays",
+   COALESCE(r."CYCLE_TP",r."BUY_CYCLE") AS "appliedCycle",
+   CASE WHEN COALESCE(r."CYCLE_TP",r."BUY_CYCLE")='WEEKLY'
+     THEN CASE WHEN r."CYCLE_TP" IS NULL THEN r."BUY_DAY_CD" ELSE r."WEEK_DAY" END
+   END AS "appliedWeekDays",
+   CASE WHEN COALESCE(r."CYCLE_TP",r."BUY_CYCLE")='MONTHLY' THEN r."APPLIED_DAY_NOS" END AS "appliedMonthDays",
    r."AMT" AS "appliedAmount",r."QTY" AS "appliedQuantity",r."RCMD_BUY_AMT" AS "recommendedAmount",
    r."PAUSE_RSN" AS "pauseReason",r."EXEC_ST" AS "todayBuyStatus",r."EXEC_NO" AS "executionNumber",
    COALESCE(ss."STK_GRD",CAST(s."STK_GRADE" AS VARCHAR)) AS "stockGrade",r."INV_GRD" AS "investmentGrade",

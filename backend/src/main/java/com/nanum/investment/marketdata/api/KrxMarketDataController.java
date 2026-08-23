@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/krx")
+@io.swagger.v3.oas.annotations.tags.Tag(
+    name = "KRX 데이터",
+    description = "KRX 원본 데이터 및 Collection Job API")
 public class KrxMarketDataController {
   private final KrxMarketDataService krx;
 
@@ -24,11 +27,13 @@ public class KrxMarketDataController {
   }
 
   @GetMapping("/api-methods")
+  @io.swagger.v3.oas.annotations.Operation(summary = "지원 KRX 원본 API method 목록 조회")
   public List<String> apiMethods() {
     return Arrays.stream(KrxDataset.values()).map(KrxDataset::apiMethod).toList();
   }
 
   @PostMapping("/{apiMethod}")
+  @io.swagger.v3.oas.annotations.Operation(summary = "KRX API method 날짜 데이터 수집")
   public KrxMarketDataService.CollectionResult collect(
       @PathVariable String apiMethod,
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate baseDate) {
@@ -36,6 +41,7 @@ public class KrxMarketDataController {
   }
 
   @GetMapping("/{apiMethod}")
+  @io.swagger.v3.oas.annotations.Operation(summary = "저장된 KRX 원본 데이터 조회")
   public List<Map<String, Object>> find(
       @PathVariable String apiMethod,
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate baseDate,

@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/investment")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "투자 의사결정", description = "포트폴리오 투자 의사결정 API")
 public class InvestmentDecisionController {
   private final PortfolioDecisionService decisions;
   private final BriefingPromptService prompts;
@@ -28,6 +29,7 @@ public class InvestmentDecisionController {
   }
 
   @PostMapping("/decision")
+  @io.swagger.v3.oas.annotations.Operation(summary = "포트폴리오 투자 의사결정 계산")
   public PortfolioDecision decide(@Valid @RequestBody InvestmentDecisionRequest request) {
     PortfolioDecision result = decisions.decide(request);
     history.save(request, result);
@@ -35,6 +37,7 @@ public class InvestmentDecisionController {
   }
 
   @PostMapping("/briefing-prompt")
+  @io.swagger.v3.oas.annotations.Operation(summary = "투자 브리핑 프롬프트 생성")
   public Map<String, String> prompt(@Valid @RequestBody InvestmentDecisionRequest request) {
     return Map.of("prompt", prompts.buildPrompt(decisions.decide(request)));
   }

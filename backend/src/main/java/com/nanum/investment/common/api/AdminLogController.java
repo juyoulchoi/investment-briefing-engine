@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/admin")
-@Tag(name = "Administration", description = "스케줄·외부 API·오류 로그")
+@Tag(name = "로그 관리", description = "스케줄·외부 API·오류 로그 API")
 public class AdminLogController {
   private final TbSchLogRepository schedulerLogs;
   private final TbApiLogRepository apiLogs;
@@ -48,6 +48,7 @@ public class AdminLogController {
   }
 
   @GetMapping("/scheduler-logs/{id}")
+  @Operation(summary = "스케줄러 로그 상세 조회")
   public ApiResponse<TbSchLog> scheduler(@PathVariable Long id, HttpServletRequest r) {
     return ok(schedulerLogs.findById(id).orElseThrow(this::notFound), r);
   }
@@ -59,6 +60,7 @@ public class AdminLogController {
   }
 
   @GetMapping("/api-logs/{id}")
+  @Operation(summary = "외부 API 로그 상세 조회")
   public ApiResponse<TbApiLog> api(@PathVariable Long id, HttpServletRequest r) {
     return ok(apiLogs.findById(id).orElseThrow(this::notFound), r);
   }
@@ -70,12 +72,14 @@ public class AdminLogController {
   }
 
   @PostMapping("/error-logs/{id}/resolve")
+  @Operation(summary = "오류 로그 해결 처리")
   public ApiResponse<TbErrLog> resolve(
       @PathVariable Long id, @Valid @RequestBody ResolveRequest body, HttpServletRequest r) {
     return ok(recovery.resolve(id, body.userId(), body.memo()), r);
   }
 
   @PostMapping("/error-logs/{id}/reopen")
+  @Operation(summary = "오류 로그 재오픈")
   @Transactional
   public ApiResponse<TbErrLog> reopen(@PathVariable Long id, HttpServletRequest r) {
     TbErrLog error = errorLogs.findById(id).orElseThrow(this::notFound);

@@ -18,6 +18,8 @@ server:
 krx:
   base-url: ${KRX_BASE_URL:https://data-dbg.krx.co.kr}
   auth-key: ${KRX_AUTH_KEY:}
+  collection:
+    min-request-interval: ${KRX_MIN_REQUEST_INTERVAL:250ms}
 overseas:
   yahoo:
     base-url: ${YAHOO_FINANCE_BASE_URL:https://query2.finance.yahoo.com/v8/finance/chart}
@@ -32,3 +34,14 @@ external-api:
 fred:
   base-url: ${FRED_BASE_URL:https://api.stlouisfed.org/fred}
   api-key: ${FRED_API_KEY:}
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+    try-it-out-enabled: true

@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/investment/decision")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "투자 의사결정", description = "자동 투자 의사결정 API")
 public class AutomaticInvestmentDecisionController {
   private final AutomaticInvestmentDecisionService decisions;
 
@@ -16,6 +17,7 @@ public class AutomaticInvestmentDecisionController {
   }
 
   @PostMapping("/generate")
+  @io.swagger.v3.oas.annotations.Operation(summary = "자동 투자 의사결정 생성")
   public AutomaticInvestmentDecisionResult generate(
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate baseDate) {
     return decisions.generate(baseDate);

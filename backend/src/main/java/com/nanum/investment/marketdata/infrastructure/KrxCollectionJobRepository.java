@@ -31,6 +31,13 @@ public class KrxCollectionJobRepository {
             .addValue("totalCount", totalCount));
   }
 
+  public List<String> failedDatasets(UUID id) {
+    return jdbc.query(
+        "SELECT dataset_code FROM tb_krx_clct_job_item WHERE job_id=:id AND status<>'SUCCESS' ORDER BY dataset_code",
+        Map.of("id", id),
+        (rs, row) -> rs.getString(1));
+  }
+
   public void markRunning(UUID id) {
     jdbc.update(
         "UPDATE tb_krx_clct_job SET status='RUNNING', started_at=CURRENT_TIMESTAMP WHERE id=:id",

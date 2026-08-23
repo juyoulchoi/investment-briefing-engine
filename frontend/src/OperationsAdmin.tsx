@@ -423,6 +423,18 @@ export default function OperationsAdmin({
     });
     setError("");
   };
+  const normalizedRegularBuyForm = (value: Row) => {
+    if (kind !== "regular-buys") return value;
+    if (value.appliedCycle === "WEEKLY")
+      return { ...value, appliedMonthDays: null };
+    if (value.appliedCycle === "MONTHLY")
+      return { ...value, appliedWeekDays: null };
+    return {
+      ...value,
+      appliedWeekDays: null,
+      appliedMonthDays: null,
+    };
+  };
   const save = async () => {
     const formAccountType =
       form.accountType ??
@@ -446,7 +458,7 @@ export default function OperationsAdmin({
       await call(`/api/v1/admin/operations/${kind}${id ? `/${id}` : ""}`, {
         method: id ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(normalizedRegularBuyForm(form)),
       });
       setEditing(null);
       await load();
@@ -801,6 +813,13 @@ export default function OperationsAdmin({
                 ? { minimumBuyAmount: 10000 }
                 : { baseBuyQuantity: 1 }),
             });
+          else if (kind === "regular-buys" && f.key === "appliedCycle")
+            setForm(
+              normalizedRegularBuyForm({
+                ...form,
+                appliedCycle: value,
+              }),
+            );
           else setForm({ ...form, [f.key]: value });
         }}
       >

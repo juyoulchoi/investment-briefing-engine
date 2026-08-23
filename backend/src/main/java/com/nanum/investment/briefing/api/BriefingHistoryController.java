@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/v1/briefings")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "브리핑", description = "투자 브리핑 조회 및 생성 API")
 public class BriefingHistoryController {
   private final JdbcClient jdbc;
 
@@ -62,6 +63,7 @@ public class BriefingHistoryController {
       BigDecimal confidenceRate) {}
 
   @GetMapping("/history")
+  @io.swagger.v3.oas.annotations.Operation(summary = "브리핑 이력 조회")
   public ApiResponse<List<HistoryRow>> history(
       @RequestParam(defaultValue = "DAILY") String type, HttpServletRequest request) {
     String briefingType =
@@ -98,6 +100,7 @@ public class BriefingHistoryController {
   }
 
   @GetMapping("/{id}")
+  @io.swagger.v3.oas.annotations.Operation(summary = "브리핑 상세 조회")
   public ApiResponse<BriefingDetail> detail(@PathVariable Long id, HttpServletRequest request) {
     DetailHeader header =
         jdbc.sql(

@@ -4,6 +4,7 @@ import com.nanum.investment.marketdata.domain.KrxDataset;
 import com.nanum.investment.marketdata.infrastructure.KrxCollectionJobRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -13,19 +14,30 @@ import org.springframework.web.client.RestClientResponseException;
 public class KrxCollectionJobRunner {
   private final KrxMarketDataService collector;
   private final KrxCollectionJobRepository jobs;
+  private final com.nanum.investment.marketdata.infrastructure.KrxRequestRateLimiter rateLimiter;
 
-  public KrxCollectionJobRunner(KrxMarketDataService collector, KrxCollectionJobRepository jobs) {
+  public KrxCollectionJobRunner(
+      KrxMarketDataService collector,
+      KrxCollectionJobRepository jobs,
+      com.nanum.investment.marketdata.infrastructure.KrxRequestRateLimiter rateLimiter) {
     this.collector = collector;
     this.jobs = jobs;
+    this.rateLimiter = rateLimiter;
   }
 
   @Async("krxCollectorExecutor")
   public void run(UUID jobId, LocalDate baseDate) {
+    runNow(jobId, baseDate, List.of(KrxDataset.values()), 0);
+  }
+
+  public KrxCollectionJobRepository.JobView runNow(
+      UUID jobId, LocalDate baseDate, List<KrxDataset> datasets, long requestIntervalMillis) {
     jobs.markRunning(jobId);
     try {
-      for (KrxDataset dataset : KrxDataset.values()) {
+      for (KrxDataset dataset : datasets) {
         LocalDateTime startedAt = LocalDateTime.now();
         try {
+          rateLimiter.acquire(requestIntervalMillis);
           var result = collector.collect(dataset, baseDate);
           jobs.saveItem(
               jobId,
@@ -52,6 +64,7 @@ public class KrxCollectionJobRunner {
     } finally {
       jobs.markCompleted(jobId);
     }
+    return jobs.find(jobId);
   }
 
   private String trim(String value) {
