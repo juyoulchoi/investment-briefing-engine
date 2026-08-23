@@ -17,10 +17,10 @@ Investment Briefing Engine
 2. 전체 결과
 -----------
 
-- 완료: 11개
-- 부분 개발: 7개
+- 완료: 12개
+- 부분 개발: 6개
 - 미개발: 4개
-- 추가 개발이 필요한 항목: 부분 개발 7개 + 미개발 4개 = 총 11개
+- 추가 개발이 필요한 항목: 부분 개발 6개 + 미개발 4개 = 총 10개
 
 
 3. 항목별 개발 현황
@@ -57,19 +57,21 @@ Investment Briefing Engine
     - 지원하지 않는 method는 명시적인 오류 처리
 
 04. KRX 날짜별 및 기간별 백필 작업
-    상태: 부분 개발
-    현재 가능:
+    상태: 완료
+    구현 내용:
     - baseDate 하루 단위 직접 수집
     - baseDate 하루 단위 비동기 Collection Job
-    부족한 기능:
-    - from~to 전체 기간을 하나의 상위 Job으로 관리하는 오케스트레이터
-    - 기간 전체 진행률
-    - 거래일 목록 생성
-    - 날짜별 하위 Job 연결
-    - 중단 후 이어서 실행
-    - 실패 날짜 또는 실패 Dataset만 재실행
-    - 기간 중복 실행 방지
-    - 기간 전체 rate limit 제어
+    - from~to 기간을 하나의 상위 Backfill Job으로 관리
+    - 기간 전체 성공/실패/제외/대기 건수와 진행률
+    - TB_MKT_CAL 우선, 미등록 평일 fallback 기반 거래일 목록 생성
+    - 주말 및 등록 휴장일 SKIPPED 처리
+    - 날짜별 하위 Backfill Day와 기존 Collection Job 연결
+    - 실행 중 pause 요청 및 PAUSED 상태에서 resume
+    - 실패 날짜 전체 재실행(DATE)
+    - 실패한 Dataset만 재실행(DATASET)
+    - 동일 Dataset의 겹치는 활성 기간 Job 생성 방지
+    - 상위 Job별 요청 간격과 전체 공유 KRX rate limiter
+    - 취소 요청 및 미실행 날짜 CANCELLED 처리
 
 05. KRX 비동기 Collection Job
     상태: 완료
@@ -286,20 +288,19 @@ Investment Briefing Engine
 4) Job/Job Item 단위 수집 실패 재처리
 
 
-5. 추가 구현이 필요한 전체 11개 항목
+5. 추가 구현이 필요한 전체 10개 항목
 -----------------------------------
 
-1) KRX 기간 백필 상위 Job 및 오케스트레이터
-2) 범용 FRED Macro Series 수집
-3) KOFIA OpenAPI 공통 클라이언트
-4) 코스콤 또는 KRX 투자자별 EOD 클라이언트
-5) 공급자별 connect/read timeout
-6) 공급자별 재시도 및 rate-limit 정책
-7) Circuit Breaker 실제 호출 연결
-8) API 호출 로그와 마스킹의 실제 호출 연결
-9) 실패 Job/Job Item 재처리
-10) 휴장일/미공개/비정상 0건 구분
-11) 정정 감지, 원본 버전, 변경 이력, downstream 재계산
+1) 범용 FRED Macro Series 수집
+2) KOFIA OpenAPI 공통 클라이언트
+3) 코스콤 또는 KRX 투자자별 EOD 클라이언트
+4) 공급자별 connect/read timeout
+5) 공급자별 재시도 및 rate-limit 정책
+6) Circuit Breaker 실제 호출 연결
+7) API 호출 로그와 마스킹의 실제 호출 연결
+8) 실패 Job/Job Item 재처리
+9) 휴장일/미공개/비정상 0건 구분
+10) 정정 감지, 원본 버전, 변경 이력, downstream 재계산
 
 
 6. 권장 개발 우선순위
@@ -310,14 +311,13 @@ Investment Briefing Engine
 1) 코스콤 또는 KRX 투자자별 EOD 클라이언트
 2) KOFIA OpenAPI 클라이언트
 3) 범용 FRED Macro Series 수집기
-4) KRX 기간 백필 오케스트레이터
 
 [2순위: 장기간 백필 안정성]
 
-5) 실패 Job Item 재처리
-6) 공급자별 timeout
-7) 공급자별 retry/rate-limit 정책
-8) Circuit Breaker 실제 연결
+1) 실패 Job Item 재처리
+2) 공급자별 timeout
+3) 공급자별 retry/rate-limit 정책
+4) Circuit Breaker 실제 연결
 
 [3순위: 데이터 품질 및 감사]
 
@@ -372,7 +372,6 @@ Investment Briefing Engine
 
 [API 추가 신청 없이 프로젝트 내부에서 개발할 기능]
 
-- KRX 기간 백필 오케스트레이터
 - 실패 재처리
 - 공급자별 timeout/retry/rate limit
 - Circuit Breaker 연결
