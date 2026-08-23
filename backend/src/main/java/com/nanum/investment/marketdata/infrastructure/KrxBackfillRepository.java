@@ -277,6 +277,39 @@ public class KrxBackfillRepository {
   }
 
   @Transactional
+  public List<UUID> recoverInterrupted() {
+    jdbc.sql(
+            """
+            UPDATE tb_krx_bf_day SET status='PENDING',
+              error_message='애플리케이션 재시작으로 중단되어 자동 재개 대기',
+              completed_at=NULL,updated_at=CURRENT_TIMESTAMP
+            WHERE status='RUNNING'
+            """)
+        .update();
+    jdbc.sql(
+            """
+            UPDATE tb_krx_bf_job SET status='PAUSED',current_base_date=NULL,
+              updated_at=CURRENT_TIMESTAMP WHERE status='PAUSE_REQUESTED'
+            """)
+        .update();
+    List<UUID> cancelled =
+        jdbc.sql("SELECT id FROM tb_krx_bf_job WHERE status='CANCEL_REQUESTED'")
+            .query(UUID.class)
+            .list();
+    cancelled.forEach(this::cancel);
+    jdbc.sql(
+            """
+            UPDATE tb_krx_bf_job SET status='QUEUED',current_base_date=NULL,
+              error_message='애플리케이션 재시작 후 자동 재개',updated_at=CURRENT_TIMESTAMP
+            WHERE status='RUNNING'
+            """)
+        .update();
+    return jdbc.sql("SELECT id FROM tb_krx_bf_job WHERE status='QUEUED' ORDER BY created_at")
+        .query(UUID.class)
+        .list();
+  }
+
+  @Transactional
   public int resetFailures(UUID id, boolean datasetOnly, KrxCollectionJobRepository dailyJobs) {
     List<Map<String, Object>> failures =
         jdbc.sql(
