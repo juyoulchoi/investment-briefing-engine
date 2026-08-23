@@ -5,11 +5,11 @@ Investment Briefing Engine - Local API 목록
 ---------
 - 기준 브랜치: main
 - 기준 소스: backend/src/main/java 하위 @RestController
-- 로컬 Backend URL: http://localhost:8080
-- Swagger UI: http://localhost:8080/swagger-ui.html
-- Swagger UI 직접 경로: http://localhost:8080/swagger-ui/index.html
-- OpenAPI JSON: http://localhost:8080/v3/api-docs
-- OpenAPI YAML: http://localhost:8080/v3/api-docs.yaml
+- Docker Compose Local Backend URL: http://localhost:8081
+- Swagger UI: http://localhost:8081/swagger-ui.html
+- Swagger UI 직접 경로: http://localhost:8081/swagger-ui/index.html
+- OpenAPI JSON: http://localhost:8081/v3/api-docs
+- OpenAPI YAML: http://localhost:8081/v3/api-docs.yaml
 - 전체 API 수: 85개
 
 주의
@@ -252,7 +252,7 @@ GET    /api/v1/common-codes/{group}
 Swagger 사용 방법
 -----------------
 1. 로컬 Backend를 실행한다.
-2. 브라우저에서 http://localhost:8080/swagger-ui.html 을 연다.
+2. 브라우저에서 http://localhost:8081/swagger-ui.html 을 연다.
 3. Controller별로 자동 분류된 API를 펼친다.
 4. 실행할 API에서 Try it out을 누른다.
 5. Path Variable, Query Parameter 또는 Request Body를 입력한다.
@@ -260,8 +260,8 @@ Swagger 사용 방법
 
 기계 판독용 OpenAPI 명세
 ------------------------
-- JSON: GET http://localhost:8080/v3/api-docs
-- YAML: GET http://localhost:8080/v3/api-docs.yaml
+- JSON: GET http://localhost:8081/v3/api-docs
+- YAML: GET http://localhost:8081/v3/api-docs.yaml
 
 API 추가 시 관리 원칙
 ---------------------
