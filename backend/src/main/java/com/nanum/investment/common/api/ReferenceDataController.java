@@ -32,7 +32,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1")
 @Transactional(readOnly = true)
-@Tag(name = "Reference Data", description = "계좌·종목·보유종목 조회 API")
+@Tag(name = "기준정보", description = "계좌·종목·보유종목 기준정보 API")
 public class ReferenceDataController {
   private final TbAcctRepository accounts;
   private final TbStkRepository stocks;

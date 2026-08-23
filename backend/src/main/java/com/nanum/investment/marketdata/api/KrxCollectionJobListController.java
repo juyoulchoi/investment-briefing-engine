@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/krx")
+@io.swagger.v3.oas.annotations.tags.Tag(
+    name = "KRX 데이터",
+    description = "KRX 원본 데이터 및 Collection Job API")
 public class KrxCollectionJobListController {
   private final JdbcClient jdbc;
 
@@ -20,6 +23,7 @@ public class KrxCollectionJobListController {
   }
 
   @GetMapping("/collection-jobs")
+  @io.swagger.v3.oas.annotations.Operation(summary = "KRX Collection Job 목록 조회")
   public List<Map<String, Object>> findAll(
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
           LocalDate baseDate,

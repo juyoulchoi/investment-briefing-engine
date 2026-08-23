@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/dashboard")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "대시보드", description = "투자 대시보드 API")
 public class DashboardController {
   private final JdbcClient jdbc;
 
@@ -65,6 +66,7 @@ public class DashboardController {
       String itemCode, String summary, String content, String signalCode) {}
 
   @GetMapping
+  @io.swagger.v3.oas.annotations.Operation(summary = "최신 대시보드 조회")
   public ApiResponse<DashboardResponse> latest(HttpServletRequest request) {
     DashboardResponse response =
         jdbc.sql(

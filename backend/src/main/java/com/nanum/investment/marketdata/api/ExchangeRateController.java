@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/market-data/exchange-rates")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "시장 데이터", description = "Yahoo·FRED·환율 및 시장데이터 API")
 public class ExchangeRateController {
   private final ExchangeRateService exchangeRates;
 
@@ -16,6 +17,7 @@ public class ExchangeRateController {
   }
 
   @PostMapping("/collect")
+  @io.swagger.v3.oas.annotations.Operation(summary = "Yahoo 환율 기간 데이터 수집")
   public ExchangeRateService.CollectionResult collect(
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
@@ -23,6 +25,7 @@ public class ExchangeRateController {
   }
 
   @GetMapping
+  @io.swagger.v3.oas.annotations.Operation(summary = "환율 기간 데이터 조회")
   public List<Map<String, Object>> history(
       @RequestParam(defaultValue = "USD") String baseCurrency,
       @RequestParam(defaultValue = "KRW") String quoteCurrency,

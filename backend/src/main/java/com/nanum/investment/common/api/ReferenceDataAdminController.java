@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/admin/reference")
 @Transactional(readOnly = true)
+@io.swagger.v3.oas.annotations.tags.Tag(name = "기준정보", description = "계좌·종목·지수 기준정보 API")
 public class ReferenceDataAdminController {
   private final TbIdxRepository indices;
   private final TbAcctRepository accounts;
@@ -87,6 +88,7 @@ public class ReferenceDataAdminController {
       String useYn) {}
 
   @GetMapping("/indices")
+  @io.swagger.v3.oas.annotations.Operation(summary = "지수 기준정보 조회")
   public ApiResponse<List<IndexRow>> indexList(HttpServletRequest r) {
     return ok(
         indices.findAll().stream().filter(x -> "N".equals(x.getDeleteYn())).map(this::row).toList(),
@@ -94,6 +96,7 @@ public class ReferenceDataAdminController {
   }
 
   @GetMapping("/accounts")
+  @io.swagger.v3.oas.annotations.Operation(summary = "계좌 기준정보 조회")
   public ApiResponse<List<AccountRow>> accountList(HttpServletRequest r) {
     return ok(
         accounts.findAll().stream()
@@ -104,6 +107,7 @@ public class ReferenceDataAdminController {
   }
 
   @PostMapping("/accounts")
+  @io.swagger.v3.oas.annotations.Operation(summary = "계좌 기준정보 생성")
   @Transactional
   public ApiResponse<AccountRow> createAccount(
       @Valid @RequestBody AccountSaveRequest b, HttpServletRequest r) {
@@ -121,6 +125,7 @@ public class ReferenceDataAdminController {
   }
 
   @PutMapping("/accounts/{id}")
+  @io.swagger.v3.oas.annotations.Operation(summary = "계좌 기준정보 수정")
   @Transactional
   public ApiResponse<AccountRow> updateAccount(
       @PathVariable Long id, @Valid @RequestBody AccountSaveRequest b, HttpServletRequest r) {
@@ -142,14 +147,14 @@ public class ReferenceDataAdminController {
             .map(TbCashRsv::getReserveAmount)
             .orElse(java.math.BigDecimal.ZERO);
     if (b.cashAmount().compareTo(reserve) < 0)
-      throw new BusinessException(
-          ErrorCode.INVALID_REQUEST, "예수금은 대기 현금보다 작을 수 없습니다.");
+      throw new BusinessException(ErrorCode.INVALID_REQUEST, "예수금은 대기 현금보다 작을 수 없습니다.");
     apply(x, b);
     x.setUpdatedUserId("ADMIN");
     return ok(row(accounts.save(x)), r);
   }
 
   @GetMapping("/stocks")
+  @io.swagger.v3.oas.annotations.Operation(summary = "종목 기준정보 조회")
   public ApiResponse<List<StockRow>> stockList(HttpServletRequest r) {
     return ok(
         stocks.findAll().stream().filter(x -> "N".equals(x.getDeleteYn())).map(this::row).toList(),
