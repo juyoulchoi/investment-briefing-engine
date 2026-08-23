@@ -3,12 +3,12 @@ package com.nanum.investment.briefing.application.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nanum.investment.briefing.api.response.BriefingItemResponse;
 import com.nanum.investment.briefing.api.response.InvestmentBriefingResponse;
 import com.nanum.investment.briefing.application.BriefingAiClient;
 import com.nanum.investment.briefing.application.BriefingItemCatalog;
 import com.nanum.investment.briefing.application.BriefingValidationService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nanum.investment.briefing.domain.BriefingScopeType;
 import com.nanum.investment.briefing.domain.BriefingStatus;
 import com.nanum.investment.briefing.domain.BriefingType;
@@ -16,7 +16,6 @@ import com.nanum.investment.briefing.domain.TbBrfDtl;
 import com.nanum.investment.briefing.domain.TbInvBrf;
 import com.nanum.investment.briefing.infrastructure.repository.TbBrfDtlRepository;
 import com.nanum.investment.briefing.infrastructure.repository.TbInvBrfRepository;
-import com.nanum.investment.briefing.infrastructure.repository.TbInvestmentBriefingRepository;
 import java.time.LocalDate;
 import java.util.*;
 import org.junit.jupiter.api.Test;
@@ -28,7 +27,6 @@ class InvestmentBriefingServiceImplTest {
 
   @Test
   void validatesStoresAndPublishesStructuredBriefing() {
-    TbInvestmentBriefingRepository legacy = mock(TbInvestmentBriefingRepository.class);
     TbInvBrfRepository briefings = mock(TbInvBrfRepository.class);
     TbBrfDtlRepository details = mock(TbBrfDtlRepository.class);
     BriefingAiClient ai = mock(BriefingAiClient.class);
@@ -42,11 +40,7 @@ class InvestmentBriefingServiceImplTest {
     when(ai.generateBriefing(BriefingType.DAILY))
         .thenReturn(
             new InvestmentBriefingResponse(
-                date,
-                "DAILY",
-                "오늘의 투자 브리핑",
-                new ObjectMapper().createObjectNode(),
-                items));
+                date, "DAILY", "오늘의 투자 브리핑", new ObjectMapper().createObjectNode(), items));
     TbInvBrf briefing =
         TbInvBrf.builder()
             .brfId(10L)
@@ -59,7 +53,8 @@ class InvestmentBriefingServiceImplTest {
                 date, BriefingType.DAILY, BriefingScopeType.GLOBAL, "Y"))
         .thenReturn(Optional.of(briefing));
 
-    Long id = new InvestmentBriefingServiceImpl(legacy, briefings, details, ai, validation).generateAndSave();
+    Long id =
+        new InvestmentBriefingServiceImpl(briefings, details, ai, validation).generateAndSave();
 
     assertThat(id).isEqualTo(10L);
     assertThat(briefing.getBriefingStatus()).isEqualTo(BriefingStatus.PUBLISHED);
@@ -79,7 +74,6 @@ class InvestmentBriefingServiceImplTest {
 
   @Test
   void rejectsBriefingWhenAiDateHasNoMatchingRawData() {
-    TbInvestmentBriefingRepository legacy = mock(TbInvestmentBriefingRepository.class);
     TbInvBrfRepository briefings = mock(TbInvBrfRepository.class);
     TbBrfDtlRepository details = mock(TbBrfDtlRepository.class);
     BriefingAiClient ai = mock(BriefingAiClient.class);
@@ -92,11 +86,7 @@ class InvestmentBriefingServiceImplTest {
     when(ai.generateBriefing(BriefingType.DAILY))
         .thenReturn(
             new InvestmentBriefingResponse(
-                aiDate,
-                "DAILY",
-                "잘못된 기준일",
-                new ObjectMapper().createObjectNode(),
-                items));
+                aiDate, "DAILY", "잘못된 기준일", new ObjectMapper().createObjectNode(), items));
     when(briefings
             .findTopByBaseDateAndBriefingTypeAndScopeTypeAndLatestYnOrderByCalculationSequenceDesc(
                 aiDate, BriefingType.DAILY, BriefingScopeType.GLOBAL, "Y"))
@@ -104,7 +94,8 @@ class InvestmentBriefingServiceImplTest {
 
     org.assertj.core.api.Assertions.assertThatThrownBy(
             () ->
-                new InvestmentBriefingServiceImpl(legacy, briefings, details, ai, validation).generateAndSave())
+                new InvestmentBriefingServiceImpl(briefings, details, ai, validation)
+                    .generateAndSave())
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("원천 브리핑");
     verifyNoInteractions(details);

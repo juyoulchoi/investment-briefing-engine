@@ -10,7 +10,7 @@ Investment Briefing Engine - Local API 목록
 - Swagger UI 직접 경로: http://localhost:8081/swagger-ui/index.html
 - OpenAPI JSON: http://localhost:8081/v3/api-docs
 - OpenAPI YAML: http://localhost:8081/v3/api-docs.yaml
-- 전체 API 수: 85개
+- 전체 API 수: 79개
 
 주의
 ----
@@ -20,7 +20,7 @@ Investment Briefing Engine - Local API 목록
 - KRX, Yahoo, FRED 수집 API는 로컬 API이지만 실행 시 외부 공급자 API를 호출한다.
 
 
-1. 대시보드 및 브리핑 조회 (12개)
+1. 대시보드 및 브리핑 조회 (6개)
 ---------------------------------
 GET    /api/v1/dashboard
        최신 대시보드 데이터 조회
@@ -34,19 +34,6 @@ POST   /api/briefings/raw-data/generate
        브리핑 원본 데이터 스냅샷 생성
 GET    /api/briefings/raw-data/{briefingId}
        브리핑 원본 데이터 조회
-
-GET    /api/v1/investment-briefings
-       투자 브리핑 전체 조회
-GET    /api/v1/investment-briefings/{briefingId}
-       투자 브리핑 단건 조회
-GET    /api/v1/investment-briefings/by-date
-       날짜 기준 투자 브리핑 조회
-POST   /api/v1/investment-briefings
-       투자 브리핑 생성
-PUT    /api/v1/investment-briefings/{briefingId}
-       투자 브리핑 수정
-DELETE /api/v1/investment-briefings/{briefingId}
-       투자 브리핑 삭제
 
 POST   /api/investment/briefing-prompt
        투자 브리핑 프롬프트 생성

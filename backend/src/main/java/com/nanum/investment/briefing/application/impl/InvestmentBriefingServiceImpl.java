@@ -10,33 +10,26 @@ import com.nanum.investment.briefing.domain.BriefingStatus;
 import com.nanum.investment.briefing.domain.BriefingType;
 import com.nanum.investment.briefing.domain.TbBrfDtl;
 import com.nanum.investment.briefing.domain.TbInvBrf;
-import com.nanum.investment.briefing.domain.TbInvestmentBriefing;
 import com.nanum.investment.briefing.infrastructure.repository.TbBrfDtlRepository;
 import com.nanum.investment.briefing.infrastructure.repository.TbInvBrfRepository;
-import com.nanum.investment.briefing.infrastructure.repository.TbInvestmentBriefingRepository;
 import java.time.*;
 import java.util.*;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 @Service
 @Transactional(readOnly = true)
 public class InvestmentBriefingServiceImpl implements InvestmentBriefingService {
-  private final TbInvestmentBriefingRepository repository;
   private final TbInvBrfRepository briefingRepository;
   private final TbBrfDtlRepository detailRepository;
   private final BriefingAiClient briefingAiClient;
   private final BriefingValidationService validationService;
 
   public InvestmentBriefingServiceImpl(
-      TbInvestmentBriefingRepository repository,
       TbInvBrfRepository briefingRepository,
       TbBrfDtlRepository detailRepository,
       BriefingAiClient briefingAiClient,
       BriefingValidationService validationService) {
-    this.repository = repository;
     this.briefingRepository = briefingRepository;
     this.detailRepository = detailRepository;
     this.briefingAiClient = briefingAiClient;
@@ -81,27 +74,5 @@ public class InvestmentBriefingServiceImpl implements InvestmentBriefingService 
     briefing.setPublishedDateTime(OffsetDateTime.now(ZoneId.of("Asia/Seoul")));
     briefingRepository.save(briefing);
     return briefing.getBrfId();
-  }
-
-  public List<TbInvestmentBriefing> findAll() {
-    return repository.findAll(Sort.by(Sort.Direction.DESC, "briefingDate"));
-  }
-
-  public Optional<TbInvestmentBriefing> findById(Long briefingId) {
-    return repository.findById(briefingId);
-  }
-
-  public Optional<TbInvestmentBriefing> findByDate(LocalDate briefingDate) {
-    return repository.findByBriefingDate(briefingDate);
-  }
-
-  @Transactional
-  public TbInvestmentBriefing save(TbInvestmentBriefing briefing) {
-    return repository.save(briefing);
-  }
-
-  @Transactional
-  public void delete(Long briefingId) {
-    repository.deleteById(briefingId);
   }
 }
