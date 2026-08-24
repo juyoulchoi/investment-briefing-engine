@@ -19,4 +19,15 @@ public class KrxAsyncConfig {
     executor.initialize();
     return executor;
   }
+
+  @Bean("fredCollectorExecutor")
+  Executor fredCollectorExecutor() {
+    var executor = new ThreadPoolTaskExecutor();
+    executor.setCorePoolSize(1);
+    executor.setMaxPoolSize(2);
+    executor.setQueueCapacity(20);
+    executor.setThreadNamePrefix("fred-collector-");
+    executor.initialize();
+    return executor;
+  }
 }

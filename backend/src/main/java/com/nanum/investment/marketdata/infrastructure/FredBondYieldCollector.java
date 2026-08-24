@@ -1,14 +1,9 @@
 package com.nanum.investment.marketdata.infrastructure;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.nanum.investment.common.infrastructure.external.ExternalApiRetryExecutor;
-import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;
 import java.math.BigDecimal;
-import java.time.*;
+import java.time.LocalDate;
 import java.util.*;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
 
 @Component
 public class FredBondYieldCollector implements BondYieldCollector {
@@ -22,18 +17,10 @@ public class FredBondYieldCollector implements BondYieldCollector {
           new BondInfo("미국 국채 30년", 360),
           "DFII10",
           new BondInfo("미국 물가연동국채 실질금리 10년", 120));
-  private final RestClient client;
-  private final String apiKey;
-  private final ExternalApiRetryExecutor retry;
+  private final FredClient client;
 
-  public FredBondYieldCollector(
-      @Value("${fred.base-url}") String baseUrl,
-      @Value("${fred.api-key:}") String apiKey,
-      ExternalRestClientFactory clients,
-      ExternalApiRetryExecutor retry) {
-    this.client = clients.builder(baseUrl).defaultHeader("Accept", "application/json").build();
-    this.apiKey = apiKey;
-    this.retry = retry;
+  public FredBondYieldCollector(FredClient client) {
+    this.client = client;
   }
 
   @Override
@@ -44,42 +31,20 @@ public class FredBondYieldCollector implements BondYieldCollector {
   }
 
   public List<Yield> collectRange(String requestedCode, LocalDate from, LocalDate to) {
-    if (apiKey == null || apiKey.isBlank())
-      throw new IllegalStateException("FRED_API_KEY가 설정되지 않았습니다.");
     String code = requestedCode == null ? "" : requestedCode.trim().toUpperCase();
     BondInfo info = BONDS.get(code);
     if (info == null) throw new IllegalArgumentException("지원하지 않는 FRED 채권 코드입니다: " + code);
-    JsonNode body =
-        retry.execute(
-            () ->
-                client
-                    .get()
-                    .uri(
-                        u ->
-                            u.path("/series/observations")
-                                .queryParam("series_id", code)
-                                .queryParam("api_key", apiKey)
-                                .queryParam("file_type", "json")
-                                .queryParam("observation_start", from)
-                                .queryParam("observation_end", to)
-                                .queryParam("sort_order", "asc")
-                                .build())
-                    .retrieve()
-                    .body(JsonNode.class));
-    if (body == null || body.has("error_code"))
-      throw new IllegalStateException("FRED 채권금리 응답을 처리하지 못했습니다.");
     List<Yield> result = new ArrayList<>();
-    for (JsonNode item : body.path("observations")) {
-      String value = item.path("value").asText(".");
-      if (".".equals(value)) continue;
+    for (FredClient.Observation item : client.observations(code, from, to, "lin", "avg")) {
+      if (item.value() == null) continue;
       result.add(
           new Yield(
-              LocalDate.parse(item.path("date").asText()),
+              item.observationDate(),
               code,
               info.name(),
               "US",
               info.months(),
-              new BigDecimal(value),
+              new BigDecimal(item.value().toPlainString()),
               "FRED"));
     }
     return result;

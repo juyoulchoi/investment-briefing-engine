@@ -8,6 +8,7 @@ import com.nanum.investment.common.exception.BusinessException;
 import com.nanum.investment.marketdata.infrastructure.KrxBackfillRepository;
 import com.nanum.investment.marketdata.infrastructure.KrxCollectionJobRepository;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import org.junit.jupiter.api.Test;
@@ -67,13 +68,11 @@ class KrxBackfillServiceTest {
             mock(KrxCollectionJobRepository.class),
             mock(KrxBackfillJobRunner.class));
 
-    assertThatThrownBy(
-            () -> service.start(LocalDate.now(), LocalDate.now().plusDays(1), List.of(), 250))
+    LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+    assertThatThrownBy(() -> service.start(today, today.plusDays(1), List.of(), 250))
         .isInstanceOf(BusinessException.class);
     assertThatThrownBy(
-            () ->
-                service.start(
-                    LocalDate.now().minusDays(1), LocalDate.now(), List.of("UNKNOWN_DATASET"), 250))
+            () -> service.start(today.minusDays(1), today, List.of("UNKNOWN_DATASET"), 250))
         .isInstanceOf(BusinessException.class);
   }
 

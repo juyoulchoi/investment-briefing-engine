@@ -41,6 +41,7 @@ services:
       YAHOO_FINANCE_BASE_URL: ${YAHOO_FINANCE_BASE_URL:-https://query2.finance.yahoo.com/v8/finance/chart}
       FRED_API_KEY: ${FRED_API_KEY:-}
       FRED_BASE_URL: ${FRED_BASE_URL:-https://api.stlouisfed.org/fred}
+      FRED_MIN_REQUEST_INTERVAL: ${FRED_MIN_REQUEST_INTERVAL:-250ms}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-sol}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
