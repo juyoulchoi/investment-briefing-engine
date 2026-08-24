@@ -34,6 +34,11 @@ external-api:
 fred:
   base-url: ${FRED_BASE_URL:https://api.stlouisfed.org/fred}
   api-key: ${FRED_API_KEY:}
+  collection:
+    min-request-interval: ${FRED_MIN_REQUEST_INTERVAL:250ms}
+  circuit-breaker:
+    failure-threshold: ${FRED_CIRCUIT_FAILURE_THRESHOLD:5}
+    open-duration: ${FRED_CIRCUIT_OPEN_DURATION:60s}
 springdoc:
   api-docs:
     enabled: true
