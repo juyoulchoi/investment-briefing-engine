@@ -3,10 +3,12 @@ package com.nanum.investment.marketdata.infrastructure;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nanum.investment.common.infrastructure.external.*;
 import java.math.BigDecimal;
+import java.net.http.HttpClient;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.*;
 
@@ -29,14 +31,27 @@ public class FredRestClient implements FredClient {
   public FredRestClient(
       @Value("${fred.base-url}") String baseUrl,
       @Value("${fred.api-key:}") String apiKey,
+      @Value("${fred.connect-timeout:5s}") Duration connectTimeout,
+      @Value("${fred.read-timeout:30s}") Duration readTimeout,
       @Value("${fred.circuit-breaker.failure-threshold:5}") int failureThreshold,
       @Value("${fred.circuit-breaker.open-duration:60s}") Duration openDuration,
-      ExternalRestClientFactory clients,
       ExternalApiRetryExecutor retry,
       CircuitBreakerSupport circuitBreaker,
       ExternalApiLogService logs,
       FredRequestRateLimiter limiter) {
-    this.client = clients.builder(baseUrl).defaultHeader("Accept", "application/json").build();
+    HttpClient httpClient =
+        HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .connectTimeout(connectTimeout)
+            .build();
+    JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+    requestFactory.setReadTimeout(readTimeout);
+    this.client =
+        RestClient.builder()
+            .requestFactory(requestFactory)
+            .baseUrl(baseUrl)
+            .defaultHeader("Accept", "application/json")
+            .build();
     this.baseUrl = baseUrl;
     this.apiKey = apiKey;
     this.retry = retry;

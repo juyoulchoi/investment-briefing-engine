@@ -34,6 +34,8 @@ external-api:
 fred:
   base-url: ${FRED_BASE_URL:https://api.stlouisfed.org/fred}
   api-key: ${FRED_API_KEY:}
+  connect-timeout: ${FRED_CONNECT_TIMEOUT:5s}
+  read-timeout: ${FRED_READ_TIMEOUT:30s}
   collection:
     min-request-interval: ${FRED_MIN_REQUEST_INTERVAL:250ms}
   circuit-breaker:
