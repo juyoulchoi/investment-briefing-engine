@@ -8,7 +8,8 @@ import com.nanum.investment.common.infrastructure.external.ExternalRestClientFac
 import com.nanum.investment.holding.application.HoldingPriceSyncService;
 import com.nanum.investment.marketdata.domain.KrxDataset;
 import com.nanum.investment.marketdata.infrastructure.KrxIndexDailyCollector;
-import com.nanum.investment.marketdata.infrastructure.KrxFuturesDailyCollector;
+import com.nanum.investment.marketdata.infrastructure.KrxBondTradingDailyCollector;
+import com.nanum.investment.marketdata.infrastructure.KrxDerivativeDailyCollector;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
@@ -35,6 +36,13 @@ public class KrxMarketDataService {
       Set.of(KrxDataset.KRX_INDEX_DAILY, KrxDataset.KOSPI_INDEX_DAILY,
           KrxDataset.KOSDAQ_INDEX_DAILY, KrxDataset.BOND_INDEX_DAILY,
           KrxDataset.DERIVATIVE_INDEX_DAILY);
+  private static final Set<KrxDataset> DERIVATIVE_DAILY_DATASETS =
+      Set.of(KrxDataset.FUTURES_DAILY, KrxDataset.KOSPI_STOCK_FUTURES_DAILY,
+          KrxDataset.KOSDAQ_STOCK_FUTURES_DAILY, KrxDataset.OPTIONS_DAILY,
+          KrxDataset.KOSPI_STOCK_OPTIONS_DAILY, KrxDataset.KOSDAQ_STOCK_OPTIONS_DAILY);
+  private static final Set<KrxDataset> BOND_TRADING_DAILY_DATASETS =
+      Set.of(KrxDataset.GOVERNMENT_BOND_DAILY, KrxDataset.GENERAL_BOND_DAILY,
+          KrxDataset.SMALL_BOND_DAILY);
 
   private final JdbcClient jdbc;
   private final ObjectMapper json;
@@ -43,7 +51,8 @@ public class KrxMarketDataService {
   private final HoldingPriceSyncService holdingPriceSync;
   private final ExternalApiRetryExecutor retry;
   private final KrxIndexDailyCollector indexDailyCollector;
-  private final KrxFuturesDailyCollector futuresDailyCollector;
+  private final KrxDerivativeDailyCollector derivativeDailyCollector;
+  private final KrxBondTradingDailyCollector bondTradingDailyCollector;
 
   public KrxMarketDataService(
       JdbcClient jdbc,
@@ -54,7 +63,8 @@ public class KrxMarketDataService {
       ExternalRestClientFactory clients,
       ExternalApiRetryExecutor retry,
       KrxIndexDailyCollector indexDailyCollector,
-      KrxFuturesDailyCollector futuresDailyCollector) {
+      KrxDerivativeDailyCollector derivativeDailyCollector,
+      KrxBondTradingDailyCollector bondTradingDailyCollector) {
     this.jdbc = jdbc;
     this.json = json;
     this.authKey = authKey;
@@ -62,7 +72,8 @@ public class KrxMarketDataService {
     this.client = clients.builder(baseUrl).build();
     this.retry = retry;
     this.indexDailyCollector = indexDailyCollector;
-    this.futuresDailyCollector = futuresDailyCollector;
+    this.derivativeDailyCollector = derivativeDailyCollector;
+    this.bondTradingDailyCollector = bondTradingDailyCollector;
   }
 
   @Transactional
@@ -109,7 +120,8 @@ public class KrxMarketDataService {
     }
     if (STOCK_MASTER_DATASETS.contains(dataset)) syncStockMaster(dataset, date);
     if (INDEX_DAILY_DATASETS.contains(dataset)) indexDailyCollector.normalize(dataset, date);
-    if (dataset == KrxDataset.FUTURES_DAILY) futuresDailyCollector.normalize(date);
+    if (DERIVATIVE_DAILY_DATASETS.contains(dataset)) derivativeDailyCollector.normalize(dataset, date);
+    if (BOND_TRADING_DAILY_DATASETS.contains(dataset)) bondTradingDailyCollector.normalize(dataset, date);
     return new CollectionResult(dataset.name(), date, received, count(dataset, date));
   }
 

@@ -19,6 +19,14 @@ public enum KrxDataset {
   BOND_INDEX_DAILY("/svc/apis/idx/bon_dd_trd", List.of("IDX_CLSS", "IDX_NM")),
   DERIVATIVE_INDEX_DAILY("/svc/apis/idx/drvprod_dd_trd", List.of("IDX_CLSS", "IDX_NM")),
   FUTURES_DAILY("/svc/apis/drv/fut_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD")),
+  KOSPI_STOCK_FUTURES_DAILY("/svc/apis/drv/eqsfu_stk_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD")),
+  KOSDAQ_STOCK_FUTURES_DAILY("/svc/apis/drv/eqkfu_ksq_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD")),
+  OPTIONS_DAILY("/svc/apis/drv/opt_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD")),
+  KOSPI_STOCK_OPTIONS_DAILY("/svc/apis/drv/eqsop_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD")),
+  KOSDAQ_STOCK_OPTIONS_DAILY("/svc/apis/drv/eqkop_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD")),
+  GOVERNMENT_BOND_DAILY("/svc/apis/bon/kts_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD")),
+  GENERAL_BOND_DAILY("/svc/apis/bon/bnd_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD")),
+  SMALL_BOND_DAILY("/svc/apis/bon/smb_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD")),
   ETF_DAILY("/svc/apis/etp/etf_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD"));
 
   private final String path;
