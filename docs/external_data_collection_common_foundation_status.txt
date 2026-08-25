@@ -195,8 +195,11 @@ Investment Briefing Engine
     현재 구현:
     - 공통 connect timeout 기본 3초
     - 공통 read timeout 기본 10초
+    - FRED 전용 HTTP/1.1 클라이언트
+    - FRED 전용 connect timeout 기본 5초
+    - FRED 전용 read timeout 기본 30초
     부족한 기능:
-    - KRX/Yahoo/FRED/KOFIA 등 공급자별 개별 timeout
+    - KRX/Yahoo/KOFIA 등 나머지 공급자별 개별 timeout
     - Dataset 또는 호출 종류별 timeout
     - 설정 변경 시 공급자별 독립 적용
 
