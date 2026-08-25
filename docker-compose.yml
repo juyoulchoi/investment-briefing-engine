@@ -1,18 +1,18 @@
-name: investment
+name: investment-v2
 
 services:
   postgres:
     image: postgres:16
-    container_name: investment-postgres
+    container_name: investment-v2-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: investment
       POSTGRES_USER: investment
       POSTGRES_PASSWORD: investment
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
-      - investment-postgres-data:/var/lib/postgresql/data
+      - investment-v2-postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U investment -d investment"]
       interval: 10s
@@ -20,16 +20,14 @@ services:
       retries: 5
       start_period: 10s
     networks:
-      investment-existing:
-        aliases:
-          - postgres
+      - investment-v2
 
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    image: investment-backend
-    container_name: investment-backend
+    image: investment-v2-backend
+    container_name: investment-v2-backend
     restart: unless-stopped
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/investment
@@ -47,38 +45,36 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-sol}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
-      INVESTMENT_BRIEFING_SCHEDULER_CRON: "${INVESTMENT_BRIEFING_SCHEDULER_CRON:-0 20 8 * * MON-FRI}"
-      INVESTMENT_BRIEFING_WEEKLY_DECISION_SCHEDULER_CRON: "${INVESTMENT_BRIEFING_WEEKLY_DECISION_SCHEDULER_CRON:-0 20 8 * * SAT}"
-      INVESTMENT_BRIEFING_WEEKLY_SCHEDULER_CRON: "${INVESTMENT_BRIEFING_WEEKLY_SCHEDULER_CRON:-0 20 8 * * SUN}"
-      INVESTMENT_BRIEFING_SCHEDULER_ZONE: "${INVESTMENT_BRIEFING_SCHEDULER_ZONE:-Asia/Seoul}"
+      INVESTMENT_BRIEFING_SCHEDULER_CRON: ${V2_DAILY_CRON:--}
+      INVESTMENT_BRIEFING_WEEKLY_DECISION_SCHEDULER_CRON: ${V2_WEEKLY_DECISION_CRON:--}
+      INVESTMENT_BRIEFING_WEEKLY_SCHEDULER_CRON: ${V2_WEEKLY_CRON:--}
+      INVESTMENT_BRIEFING_SCHEDULER_ZONE: Asia/Seoul
     ports:
-      - "8081:8080"
+      - "8082:8080"
     depends_on:
       postgres:
         condition: service_healthy
     networks:
-      - investment-existing
+      - investment-v2
 
   frontend:
     build:
       context: frontend
       dockerfile: Dockerfile
-    image: investment-frontend
-    container_name: investment-frontend
+    image: investment-v2-frontend
+    container_name: investment-v2-frontend
     restart: unless-stopped
     depends_on:
       - backend
     ports:
-      - "4173:80"
+      - "4174:80"
     networks:
-      - investment-existing
+      - investment-v2
 
 networks:
-  investment-existing:
-    external: true
-    name: investment_default
+  investment-v2:
+    name: investment-v2-network
 
 volumes:
-  investment-postgres-data:
-    external: true
-    name: backend_investment-postgres-data
+  investment-v2-postgres-data:
+    name: investment-v2-postgres-data

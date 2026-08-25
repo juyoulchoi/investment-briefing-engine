@@ -223,9 +223,9 @@ V2 배포는 반드시 V2 전용 Compose 파일과 프로젝트명을 사용한�
 
 예:
 
-  docker compose -p investment-v2 -f docker-compose.v2.yml build backend
-  docker compose -p investment-v2 -f docker-compose.v2.yml up -d backend
-  docker compose -p investment-v2 -f docker-compose.v2.yml ps
+  docker compose build backend
+  docker compose up -d backend
+  docker compose ps
 
 
 5. 반대 방향 적용
