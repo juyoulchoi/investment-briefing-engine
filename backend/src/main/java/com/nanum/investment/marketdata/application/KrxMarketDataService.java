@@ -7,7 +7,7 @@ import com.nanum.investment.common.infrastructure.external.ExternalApiRetryExecu
 import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;
 import com.nanum.investment.holding.application.HoldingPriceSyncService;
 import com.nanum.investment.marketdata.domain.KrxDataset;
-import com.nanum.investment.marketdata.infrastructure.KrxDerivativeIndexCollector;
+import com.nanum.investment.marketdata.infrastructure.KrxIndexDailyCollector;
 import com.nanum.investment.marketdata.infrastructure.KrxFuturesDailyCollector;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -25,7 +25,16 @@ import org.springframework.web.client.RestClient;
 @Service
 public class KrxMarketDataService {
   private static final Set<KrxDataset> STOCK_DAILY_DATASETS =
-      Set.of(KrxDataset.KOSPI_STOCK_DAILY, KrxDataset.KOSDAQ_STOCK_DAILY, KrxDataset.ETF_DAILY);
+      Set.of(KrxDataset.KOSPI_STOCK_DAILY, KrxDataset.KOSDAQ_STOCK_DAILY,
+          KrxDataset.KONEX_STOCK_DAILY, KrxDataset.SUBSCRIPTION_WARRANT_DAILY,
+          KrxDataset.SUBSCRIPTION_RIGHT_DAILY, KrxDataset.ETF_DAILY);
+  private static final Set<KrxDataset> STOCK_MASTER_DATASETS =
+      Set.of(KrxDataset.KOSPI_STOCK_MASTER, KrxDataset.KOSDAQ_STOCK_MASTER,
+          KrxDataset.ALL_STOCK_MASTER, KrxDataset.KONEX_STOCK_MASTER);
+  private static final Set<KrxDataset> INDEX_DAILY_DATASETS =
+      Set.of(KrxDataset.KRX_INDEX_DAILY, KrxDataset.KOSPI_INDEX_DAILY,
+          KrxDataset.KOSDAQ_INDEX_DAILY, KrxDataset.BOND_INDEX_DAILY,
+          KrxDataset.DERIVATIVE_INDEX_DAILY);
 
   private final JdbcClient jdbc;
   private final ObjectMapper json;
@@ -33,7 +42,7 @@ public class KrxMarketDataService {
   private final String authKey;
   private final HoldingPriceSyncService holdingPriceSync;
   private final ExternalApiRetryExecutor retry;
-  private final KrxDerivativeIndexCollector derivativeIndexCollector;
+  private final KrxIndexDailyCollector indexDailyCollector;
   private final KrxFuturesDailyCollector futuresDailyCollector;
 
   public KrxMarketDataService(
@@ -44,7 +53,7 @@ public class KrxMarketDataService {
       HoldingPriceSyncService holdingPriceSync,
       ExternalRestClientFactory clients,
       ExternalApiRetryExecutor retry,
-      KrxDerivativeIndexCollector derivativeIndexCollector,
+      KrxIndexDailyCollector indexDailyCollector,
       KrxFuturesDailyCollector futuresDailyCollector) {
     this.jdbc = jdbc;
     this.json = json;
@@ -52,7 +61,7 @@ public class KrxMarketDataService {
     this.holdingPriceSync = holdingPriceSync;
     this.client = clients.builder(baseUrl).build();
     this.retry = retry;
-    this.derivativeIndexCollector = derivativeIndexCollector;
+    this.indexDailyCollector = indexDailyCollector;
     this.futuresDailyCollector = futuresDailyCollector;
   }
 
@@ -98,7 +107,8 @@ public class KrxMarketDataService {
       collectedDates.forEach(collectedDate -> syncStockPrices(dataset, collectedDate));
       holdingPriceSync.refreshMarket("KO");
     }
-    if (dataset == KrxDataset.DERIVATIVE_INDEX_DAILY) derivativeIndexCollector.normalize(date);
+    if (STOCK_MASTER_DATASETS.contains(dataset)) syncStockMaster(dataset, date);
+    if (INDEX_DAILY_DATASETS.contains(dataset)) indexDailyCollector.normalize(dataset, date);
     if (dataset == KrxDataset.FUTURES_DAILY) futuresDailyCollector.normalize(date);
     return new CollectionResult(dataset.name(), date, received, count(dataset, date));
   }
@@ -203,6 +213,26 @@ public class KrxMarketDataService {
         .param("dataset", dataset.name())
         .param("date", date)
         .update();
+  }
+
+  private int syncStockMaster(KrxDataset dataset, LocalDate date) {
+    return jdbc.sql("""
+        INSERT INTO "TB_STK" ("MKT_CD","STK_CD","STK_NM","LIST_SCOPE","ASSET_TP","EXCH_NM",
+          "CURR","PRVDR","ACTV_YN","TICKER","CNTRY_CD","CURR_CD","AST_TP","STK_GRADE",
+          "REG_BUY_YN","ADD_BUY_YN","REBUY_YN","USE_YN","DEL_YN","CRT_USR_ID","UPD_USR_ID")
+        SELECT 'KO', COALESCE(NULLIF("PAYLOAD"->>'ISU_CD',''), "PAYLOAD"->>'ISU_SRT_CD'),
+          COALESCE(NULLIF("PAYLOAD"->>'ISU_NM',''), "PAYLOAD"->>'ISU_ABBRV'), 'DOMESTIC',
+          CASE WHEN COALESCE("PAYLOAD"->>'SECUGRP_NM','') ILIKE '%ETF%' THEN 'ETF' ELSE 'STOCK' END,
+          COALESCE(NULLIF("PAYLOAD"->>'MKT_NM',''),'KRX'), 'KRW', 'KRX', 'Y',
+          COALESCE(NULLIF("PAYLOAD"->>'ISU_SRT_CD',''), "PAYLOAD"->>'ISU_CD'), 'KR', 'KRW',
+          CASE WHEN COALESCE("PAYLOAD"->>'SECUGRP_NM','') ILIKE '%ETF%' THEN 'ETF' ELSE 'STOCK' END,
+          'CORE','N','N','N','Y','N','SYSTEM','SYSTEM'
+        FROM "TB_KRX_DATA_ROW" WHERE "DATA_CD"=:dataset AND "BASE_DT"=:date
+          AND COALESCE(NULLIF("PAYLOAD"->>'ISU_CD',''), "PAYLOAD"->>'ISU_SRT_CD') IS NOT NULL
+        ON CONFLICT ("STK_CD") DO UPDATE SET "STK_NM"=EXCLUDED."STK_NM",
+          "EXCH_NM"=EXCLUDED."EXCH_NM", "PRVDR"='KRX', "ACTV_YN"='Y', "USE_YN"='Y',
+          "DEL_YN"='N', "MOD_DT"=CURRENT_TIMESTAMP, "UPD_DTTM"=CURRENT_TIMESTAMP
+        """).param("dataset", dataset.name()).param("date", date).update();
   }
 
   private LocalDate parseDate(String value, LocalDate fallback) {

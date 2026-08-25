@@ -1,0 +1,19 @@
+-- V116의 KRX 전용 파생지수 정규화 테이블을 공통 지수 모델로 이관한다.
+INSERT INTO "TB_IDX" ("IDX_CD","IDX_NM","IDX_TP","MKT_CD","CNTRY_CD","CURR_CD","DATA_SRC_CD",
+  "SRC_SYMBOL","DFLT_YN","USE_YN","DEL_YN","CRT_USR_ID","UPD_USR_ID")
+SELECT DISTINCT CASE WHEN upper(replace("IDX_NM",' ',''))='VKOSPI' THEN 'VKOSPI'
+  ELSE 'KRX_' || substr(md5(coalesce("IDX_CLSS",'') || '|' || "IDX_NM"),1,26) END,
+  "IDX_NM",'MARKET','KRX','KR','KRW','KRX',left(coalesce("IDX_CLSS",'') || '|' || "IDX_NM",50),
+  'N','Y','N','SYSTEM','SYSTEM' FROM "TB_KRX_DRV_IDX_DAY"
+ON CONFLICT ("IDX_CD") DO NOTHING;
+
+INSERT INTO "TB_IDX_DAY" ("IDX_ID","TRADE_DT","IND_CD","IND_NM","CLS_VAL","CHG_VAL","CHG_RT",
+  "SRC_NM","OPEN_VAL","HIGH_VAL","LOW_VAL","TRD_VOL","TRD_VAL","DATA_SRC_CD","DATA_STS")
+SELECT i."IDX_ID",d."BASE_DT",i."IDX_CD",d."IDX_NM",d."CLS_IDX",d."CHG_IDX",d."CHG_RT",'KRX',
+  d."OPEN_IDX",d."HIGH_IDX",d."LOW_IDX",d."TRD_VOL",d."TRD_AMT",'KRX','FRESH'
+FROM "TB_KRX_DRV_IDX_DAY" d JOIN "TB_IDX" i ON i."IDX_CD"=CASE
+  WHEN upper(replace(d."IDX_NM",' ',''))='VKOSPI' THEN 'VKOSPI'
+  ELSE 'KRX_' || substr(md5(coalesce(d."IDX_CLSS",'') || '|' || d."IDX_NM"),1,26) END
+ON CONFLICT ("IDX_ID","TRADE_DT") DO NOTHING;
+
+DROP TABLE "TB_KRX_DRV_IDX_DAY";
