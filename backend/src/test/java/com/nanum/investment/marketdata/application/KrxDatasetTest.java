@@ -11,6 +11,8 @@ class KrxDatasetTest {
   void resolvesDatasetByKrxApiMethodName() {
     assertEquals("stk_bydd_trd", KrxDataset.KOSPI_STOCK_DAILY.apiMethod());
     assertEquals(KrxDataset.KOSPI_STOCK_DAILY, KrxDataset.fromApiMethod("stk_bydd_trd"));
+    assertEquals(KrxDataset.DERIVATIVE_INDEX_DAILY, KrxDataset.fromApiMethod("drvprod_dd_trd"));
+    assertEquals(KrxDataset.FUTURES_DAILY, KrxDataset.fromApiMethod("fut_bydd_trd"));
   }
 
   @Test

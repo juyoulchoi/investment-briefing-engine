@@ -7,6 +7,8 @@ import com.nanum.investment.common.infrastructure.external.ExternalApiRetryExecu
 import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;
 import com.nanum.investment.holding.application.HoldingPriceSyncService;
 import com.nanum.investment.marketdata.domain.KrxDataset;
+import com.nanum.investment.marketdata.infrastructure.KrxDerivativeIndexCollector;
+import com.nanum.investment.marketdata.infrastructure.KrxFuturesDailyCollector;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
@@ -31,6 +33,8 @@ public class KrxMarketDataService {
   private final String authKey;
   private final HoldingPriceSyncService holdingPriceSync;
   private final ExternalApiRetryExecutor retry;
+  private final KrxDerivativeIndexCollector derivativeIndexCollector;
+  private final KrxFuturesDailyCollector futuresDailyCollector;
 
   public KrxMarketDataService(
       JdbcClient jdbc,
@@ -39,13 +43,17 @@ public class KrxMarketDataService {
       @Value("${krx.auth-key:}") String authKey,
       HoldingPriceSyncService holdingPriceSync,
       ExternalRestClientFactory clients,
-      ExternalApiRetryExecutor retry) {
+      ExternalApiRetryExecutor retry,
+      KrxDerivativeIndexCollector derivativeIndexCollector,
+      KrxFuturesDailyCollector futuresDailyCollector) {
     this.jdbc = jdbc;
     this.json = json;
     this.authKey = authKey;
     this.holdingPriceSync = holdingPriceSync;
     this.client = clients.builder(baseUrl).build();
     this.retry = retry;
+    this.derivativeIndexCollector = derivativeIndexCollector;
+    this.futuresDailyCollector = futuresDailyCollector;
   }
 
   @Transactional
@@ -90,6 +98,8 @@ public class KrxMarketDataService {
       collectedDates.forEach(collectedDate -> syncStockPrices(dataset, collectedDate));
       holdingPriceSync.refreshMarket("KO");
     }
+    if (dataset == KrxDataset.DERIVATIVE_INDEX_DAILY) derivativeIndexCollector.normalize(date);
+    if (dataset == KrxDataset.FUTURES_DAILY) futuresDailyCollector.normalize(date);
     return new CollectionResult(dataset.name(), date, received, count(dataset, date));
   }
 
