@@ -46,7 +46,6 @@ public class ReferenceDataAdminController {
   }
 
   public record IndexRow(
-      Long indexId,
       String indexCode,
       String indexName,
       String indexEnglishName,
@@ -77,7 +76,7 @@ public class ReferenceDataAdminController {
       String currencyCode,
       AssetType assetType,
       StockGrade stockGrade,
-      Long baseIndexId,
+      String baseIndexCode,
       String sectorCode,
       String sectorName,
       String industryCode,
@@ -174,7 +173,6 @@ public class ReferenceDataAdminController {
 
   private IndexRow row(TbIdx x) {
     return new IndexRow(
-        x.getIndexId(),
         x.getIndexCode(),
         x.getIndexName(),
         x.getIndexEnglishName(),
@@ -212,7 +210,7 @@ public class ReferenceDataAdminController {
         x.getCurrencyCode(),
         x.getAssetType(),
         x.getStockGrade(),
-        x.getBaseIndex() == null ? null : x.getBaseIndex().getIndexId(),
+        x.getBaseIndex() == null ? null : x.getBaseIndex().getIndexCode(),
         x.getSectorCode(),
         x.getSectorName(),
         x.getIndustryCode(),

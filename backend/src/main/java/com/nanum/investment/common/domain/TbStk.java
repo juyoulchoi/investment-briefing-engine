@@ -47,7 +47,7 @@ public class TbStk {
   private StockGrade stockGrade;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "BASE_IDX_ID", foreignKey = @ForeignKey(name = "FK_TB_STK_01"))
+  @JoinColumn(name = "BASE_IDX_CD", foreignKey = @ForeignKey(name = "FK_TB_STK_01"))
   private TbIdx baseIndex;
 
   @Column(name = "SECT_CD", length = 30)

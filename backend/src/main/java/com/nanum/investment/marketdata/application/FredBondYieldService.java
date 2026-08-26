@@ -35,7 +35,7 @@ public class FredBondYieldService {
         jdbc.sql(
                 """
                 SELECT MAX(b."BASE_DT")
-                  FROM "TB_BOND_DAY" b
+                  FROM "TB_FRED_BOND_DAY" b
                   JOIN "TB_CD_DTL" c
                     ON c."CD_GRP"=:group AND c."CD_KEY"=b."BOND_CD" AND c."ACTV_YN"='Y'
                  WHERE c."CD_KEY"<>'ALL'
@@ -77,7 +77,7 @@ public class FredBondYieldService {
   SELECT b."BASE_DT" base_date,b."BOND_CD" bond_code,c."CD_NM" bond_name,b."CNTRY_CD" country_code,
    b."MATURITY_MON" maturity_months,b."YLD_RT" yield_rate,b."PREV_YLD_RT" previous_yield_rate,
    b."CHG_BP" change_basis_points,b."DATA_SRC_CD" data_source_code,b."DATA_STS" data_status
-  FROM "TB_BOND_DAY" b
+  FROM "TB_FRED_BOND_DAY" b
   JOIN "TB_CD_DTL" c
     ON c."CD_GRP"=:group AND c."CD_KEY"=b."BOND_CD" AND c."ACTV_YN"='Y'
   WHERE b."BASE_DT" BETWEEN :from AND :to
@@ -93,7 +93,7 @@ public class FredBondYieldService {
   private void save(BondYieldCollector.Yield value) {
     BigDecimal previous =
         jdbc.sql(
-                "SELECT \"YLD_RT\" FROM \"TB_BOND_DAY\" WHERE \"BOND_CD\"=:code AND \"BASE_DT\"<:day ORDER BY \"BASE_DT\" DESC LIMIT 1")
+                "SELECT \"YLD_RT\" FROM \"TB_FRED_BOND_DAY\" WHERE \"BOND_CD\"=:code AND \"BASE_DT\"<:day ORDER BY \"BASE_DT\" DESC LIMIT 1")
             .param("code", value.bondCode())
             .param("day", value.baseDate())
             .query(BigDecimal.class)
@@ -109,7 +109,7 @@ public class FredBondYieldService {
                 .setScale(4, RoundingMode.HALF_UP);
     jdbc.sql(
             """
-  INSERT INTO "TB_BOND_DAY"("BASE_DT","BOND_CD","BOND_NM","CNTRY_CD","MATURITY_MON","YLD_RT","PREV_YLD_RT","CHG_BP","DATA_SRC_CD","DATA_STS")
+  INSERT INTO "TB_FRED_BOND_DAY"("BASE_DT","BOND_CD","BOND_NM","CNTRY_CD","MATURITY_MON","YLD_RT","PREV_YLD_RT","CHG_BP","DATA_SRC_CD","DATA_STS")
   VALUES(:day,:code,:name,:country,:months,:rate,:previous,:bp,'FRED','FRESH')
   ON CONFLICT("BASE_DT","BOND_CD") DO UPDATE SET "BOND_NM"=EXCLUDED."BOND_NM","CNTRY_CD"=EXCLUDED."CNTRY_CD","MATURITY_MON"=EXCLUDED."MATURITY_MON","YLD_RT"=EXCLUDED."YLD_RT","PREV_YLD_RT"=EXCLUDED."PREV_YLD_RT","CHG_BP"=EXCLUDED."CHG_BP","DATA_SRC_CD"='FRED',"DATA_STS"='FRESH',"COLLECT_DTTM"=CURRENT_TIMESTAMP
   """)

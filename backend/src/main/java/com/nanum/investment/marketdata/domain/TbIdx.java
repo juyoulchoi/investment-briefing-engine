@@ -5,9 +5,7 @@ import java.time.OffsetDateTime;
 import lombok.*;
 
 @Entity
-@Table(
-    name = "\"TB_IDX\"",
-    uniqueConstraints = @UniqueConstraint(name = "UK_TB_IDX_01", columnNames = "IDX_CD"))
+@Table(name = "\"TB_IDX\"")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -15,10 +13,6 @@ import lombok.*;
 @Builder
 public class TbIdx {
   @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
-  @Column(name = "IDX_ID")
-  private Long indexId;
-
   @Column(name = "IDX_CD", nullable = false, length = 30)
   private String indexCode;
 

@@ -51,7 +51,7 @@ const cfg: Record<
       { key: "baseDate", label: "기준일", type: "date", required: true },
       { key: "marketSnapshotCode", label: "시장 스냅샷 코드", required: true },
       { key: "marketName", label: "시장명", required: true },
-      { key: "mainIndexId", label: "대표 기준지수", type: "index" },
+      { key: "mainIndexCode", label: "대표 기준지수", type: "index" },
       { key: "mainIndexValue", label: "대표지수 값", type: "number" },
       {
         key: "mainIndexChangeRate",
@@ -289,7 +289,7 @@ export default function MarketAnalysisAdmin({
         onChange={(e) =>
           setForm({
             ...form,
-            [f.key]: e.target.value ? Number(e.target.value) : null,
+            [f.key]: e.target.value || null,
           })
         }
       >
@@ -297,7 +297,7 @@ export default function MarketAnalysisAdmin({
         {indices
           .filter((i) => i.useYn === "Y")
           .map((i) => (
-            <option key={i.indexId} value={i.indexId}>
+            <option key={i.indexCode} value={i.indexCode}>
               {i.indexName} ({i.indexCode})
             </option>
           ))}

@@ -7,12 +7,11 @@ import java.time.*;
 import lombok.*;
 
 @Entity
+@IdClass(TbPrcDayId.class)
 @Table(
     name = "\"TB_PRC_DAY\"",
     uniqueConstraints =
-        @UniqueConstraint(
-            name = "UK_TB_PRC_DAY_01",
-            columnNames = {"STK_ID", "TRADE_DT"}))
+        @UniqueConstraint(name = "UK_TB_PRC_DAY_01", columnNames = {"STK_ID", "TRADE_DT"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -20,16 +19,16 @@ import lombok.*;
 @Builder
 public class TbPrcDay {
   @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
-  @Column(name = "PRC_DAY_ID")
-  private Long dailyPriceId;
+  @Column(name = "STK_CD", nullable = false, length = 30)
+  private String stockCode;
+
+  @Id
+  @Column(name = "TRADE_DT", nullable = false)
+  private LocalDate tradeDate;
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "STK_ID", nullable = false)
   private TbStk stock;
-
-  @Column(name = "TRADE_DT", nullable = false)
-  private LocalDate tradeDate;
 
   @Column(name = "OPEN_PRC", precision = 20, scale = 6)
   private BigDecimal openPrice;

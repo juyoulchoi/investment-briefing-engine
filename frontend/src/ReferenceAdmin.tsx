@@ -22,7 +22,7 @@ const meta: Record<
 > = {
   indices: {
     title: "기준지수",
-    id: "indexId",
+    id: "indexCode",
     columns: [
       ["indexCode", "지수 코드"],
       ["indexName", "지수명"],
@@ -143,7 +143,7 @@ const meta: Record<
       ["marketCode", "시장"],
       ["assetType", "자산 유형"],
       ["stockGrade", "등급"],
-      ["baseIndexId", "기준지수"],
+      ["baseIndexCode", "기준지수"],
       ["useYn", "사용"],
     ],
     fields: [
@@ -177,7 +177,7 @@ const meta: Record<
           ["THEME", "테마"],
         ],
       },
-      { key: "baseIndexId", label: "기준지수", type: "index" },
+      { key: "baseIndexCode", label: "기준지수", type: "index" },
       { key: "sectorCode", label: "섹터 코드" },
       { key: "sectorName", label: "섹터명" },
       { key: "industryCode", label: "산업 코드" },
@@ -336,8 +336,8 @@ export default function ReferenceAdmin({
       ),
     ),
     display = (key: string, v: any, r: Row) =>
-      key === "baseIndexId"
-        ? indices.find((i) => i.indexId === v)?.indexName || "-"
+      key === "baseIndexCode"
+        ? indices.find((i) => i.indexCode === v)?.indexName || "-"
         : key.endsWith("Amount")
             ? Number(v || 0).toLocaleString("ko-KR")
             : v === "Y"
@@ -470,9 +470,7 @@ export default function ReferenceAdmin({
                       onChange={(e) =>
                         setForm({
                           ...form,
-                          [f.key]: e.target.value
-                            ? Number(e.target.value)
-                            : null,
+                          [f.key]: e.target.value || null,
                         })
                       }
                     >
@@ -480,7 +478,7 @@ export default function ReferenceAdmin({
                       {indices
                         .filter((i) => i.useYn === "Y")
                         .map((i) => (
-                          <option key={i.indexId} value={i.indexId}>
+                          <option key={i.indexCode} value={i.indexCode}>
                             {i.indexName} ({i.indexCode})
                           </option>
                         ))}

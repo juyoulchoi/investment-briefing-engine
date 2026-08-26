@@ -45,7 +45,7 @@ public class YahooIndexService {
         period2 = to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
     JsonNode result = fetch(index.sourceSymbol(), period1, period2);
     int saved = save(index, result, from, to);
-    recalculate(index.id());
+    recalculate(index.code());
     return new CollectionResult(index.code(), index.sourceSymbol(), from, to, saved);
   }
 
@@ -58,7 +58,7 @@ public class YahooIndexService {
             """
   SELECT "IDX_CD" index_code,"IDX_NM" index_name,"IDX_NM_EN" index_name_en,"SRC_SYMBOL" yahoo_symbol,
    "MKT_CD" market_code,"CNTRY_CD" country_code,"CURR_CD" currency_code,"DFLT_YN" default_yn
-  FROM "TB_IDX" WHERE "DATA_SRC_CD"='YAHOO' AND "USE_YN"='Y' AND "DEL_YN"='N' ORDER BY "IDX_ID"
+  FROM "TB_IDX" WHERE "DATA_SRC_CD"='YAHOO' AND "USE_YN"='Y' AND "DEL_YN"='N' ORDER BY "IDX_CD"
   """)
         .query()
         .listOfRows();
@@ -72,10 +72,10 @@ public class YahooIndexService {
     d."OPEN_VAL" open_value,d."HIGH_VAL" high_value,d."LOW_VAL" low_value,d."CLS_VAL" close_value,
     d."PREV_CLS_VAL" previous_close,d."CHG_VAL" change_value,d."CHG_RT" change_rate,d."TRD_VOL" volume,
     d."HIGH_52W_VAL" high_52week,d."DD_52W_RT" drawdown_52week_rate,d."DATA_STS" data_status,d."COLLECT_DTTM" collected_at
-   FROM "TB_IDX_DAY" d JOIN "TB_IDX" i ON i."IDX_ID"=d."IDX_ID"
-   WHERE d."IDX_ID"=:id AND d."TRADE_DT" BETWEEN :from AND :to ORDER BY d."TRADE_DT"
+   FROM "TB_IDX_DAY" d JOIN "TB_IDX" i ON i."IDX_CD"=d."IDX_CD"
+   WHERE d."IDX_CD"=:id AND d."TRADE_DT" BETWEEN :from AND :to ORDER BY d."TRADE_DT"
    """)
-        .param("id", index.id())
+        .param("id", index.code())
         .param("from", from)
         .param("to", to)
         .query()
@@ -92,14 +92,14 @@ public class YahooIndexService {
   private List<IndexInfo> yahooIndices() {
     return jdbc.sql(
             """
-  SELECT "IDX_ID","IDX_CD","IDX_NM","SRC_SYMBOL" FROM "TB_IDX"
+  SELECT "IDX_CD","IDX_NM","SRC_SYMBOL" FROM "TB_IDX"
   WHERE "DATA_SRC_CD"='YAHOO' AND "USE_YN"='Y' AND "DEL_YN"='N'
     AND "IDX_CD" IN ('SP500','NASDAQ_COMPOSITE','DOW_JONES','PHLX_SEMICONDUCTOR','VIX','NIKKEI225')
-  ORDER BY "IDX_ID"
+  ORDER BY "IDX_CD"
   """)
         .query(
             (rs, n) ->
-                new IndexInfo(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4)))
+                new IndexInfo(rs.getString(1), rs.getString(2), rs.getString(3)))
         .list();
   }
 
@@ -107,13 +107,13 @@ public class YahooIndexService {
     String code = normalize(requestedCode);
     return jdbc.sql(
             """
-   SELECT "IDX_ID","IDX_CD","IDX_NM","SRC_SYMBOL" FROM "TB_IDX"
+   SELECT "IDX_CD","IDX_NM","SRC_SYMBOL" FROM "TB_IDX"
    WHERE "IDX_CD"=:code AND "DATA_SRC_CD"='YAHOO' AND "USE_YN"='Y' AND "DEL_YN"='N'
    """)
         .param("code", code)
         .query(
             (rs, n) ->
-                new IndexInfo(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4)))
+                new IndexInfo(rs.getString(1), rs.getString(2), rs.getString(3)))
         .optional()
         .orElseThrow(() -> new IllegalArgumentException("등록된 Yahoo 지수가 아닙니다: " + code));
   }
@@ -165,9 +165,9 @@ public class YahooIndexService {
                       .divide(previous, 4, RoundingMode.HALF_UP);
       jdbc.sql(
               """
-    INSERT INTO "TB_IDX_DAY"("TRADE_DT","IND_CD","IND_NM","CLS_VAL","CHG_VAL","CHG_RT","SRC_NM","OPEN_VAL","HIGH_VAL","LOW_VAL","TRD_VOL","IDX_ID","PREV_CLS_VAL","DATA_SRC_CD","DATA_STS")
+    INSERT INTO "TB_IDX_DAY"("TRADE_DT","IND_CD","IND_NM","CLS_VAL","CHG_VAL","CHG_RT","SRC_NM","OPEN_VAL","HIGH_VAL","LOW_VAL","TRD_VOL","IDX_CD","PREV_CLS_VAL","DATA_SRC_CD","DATA_STS")
     VALUES(:day,:code,:name,:close,:change,:rate,'YAHOO',:open,:high,:low,:volume,:id,:previous,'YAHOO','FRESH')
-    ON CONFLICT("IDX_ID","TRADE_DT") DO UPDATE SET "IND_CD"=EXCLUDED."IND_CD","IND_NM"=EXCLUDED."IND_NM","CLS_VAL"=EXCLUDED."CLS_VAL","CHG_VAL"=EXCLUDED."CHG_VAL","CHG_RT"=EXCLUDED."CHG_RT","SRC_NM"='YAHOO',"OPEN_VAL"=EXCLUDED."OPEN_VAL","HIGH_VAL"=EXCLUDED."HIGH_VAL","LOW_VAL"=EXCLUDED."LOW_VAL","TRD_VOL"=EXCLUDED."TRD_VOL","PREV_CLS_VAL"=EXCLUDED."PREV_CLS_VAL","DATA_SRC_CD"='YAHOO',"DATA_STS"='FRESH',"COLLECT_DTTM"=CURRENT_TIMESTAMP
+    ON CONFLICT("IDX_CD","TRADE_DT") DO UPDATE SET "IND_CD"=EXCLUDED."IND_CD","IND_NM"=EXCLUDED."IND_NM","CLS_VAL"=EXCLUDED."CLS_VAL","CHG_VAL"=EXCLUDED."CHG_VAL","CHG_RT"=EXCLUDED."CHG_RT","SRC_NM"='YAHOO',"OPEN_VAL"=EXCLUDED."OPEN_VAL","HIGH_VAL"=EXCLUDED."HIGH_VAL","LOW_VAL"=EXCLUDED."LOW_VAL","TRD_VOL"=EXCLUDED."TRD_VOL","PREV_CLS_VAL"=EXCLUDED."PREV_CLS_VAL","DATA_SRC_CD"='YAHOO',"DATA_STS"='FRESH',"COLLECT_DTTM"=CURRENT_TIMESTAMP
     """)
           .param("day", day)
           .param("code", index.code())
@@ -179,7 +179,7 @@ public class YahooIndexService {
           .param("high", decimal(value(quote.path("high"), i)))
           .param("low", decimal(value(quote.path("low"), i)))
           .param("volume", longValue(value(quote.path("volume"), i)))
-          .param("id", index.id())
+          .param("id", index.code())
           .param("previous", previous)
           .update();
       previous = close;
@@ -188,13 +188,13 @@ public class YahooIndexService {
     return saved;
   }
 
-  private void recalculate(long id) {
+  private void recalculate(String code) {
     jdbc.sql(
             """
-  WITH x AS (SELECT "IDX_DAY_ID",max("HIGH_VAL") OVER(PARTITION BY "IDX_ID" ORDER BY "TRADE_DT" ROWS BETWEEN 251 PRECEDING AND CURRENT ROW) h52,max("HIGH_VAL") OVER(PARTITION BY "IDX_ID") hall FROM "TB_IDX_DAY" WHERE "IDX_ID"=:id)
-  UPDATE "TB_IDX_DAY" d SET "HIGH_52W_VAL"=x.h52,"DD_52W_RT"=CASE WHEN x.h52<>0 THEN (d."CLS_VAL"-x.h52)/x.h52*100 END,"ALL_HIGH_VAL"=x.hall,"DD_HIGH_RT"=CASE WHEN x.hall<>0 THEN (d."CLS_VAL"-x.hall)/x.hall*100 END FROM x WHERE d."IDX_DAY_ID"=x."IDX_DAY_ID"
+  WITH x AS (SELECT "IDX_CD","TRADE_DT",max("HIGH_VAL") OVER(PARTITION BY "IDX_CD" ORDER BY "TRADE_DT" ROWS BETWEEN 251 PRECEDING AND CURRENT ROW) h52,max("HIGH_VAL") OVER(PARTITION BY "IDX_CD") hall FROM "TB_IDX_DAY" WHERE "IDX_CD"=:code)
+  UPDATE "TB_IDX_DAY" d SET "HIGH_52W_VAL"=x.h52,"DD_52W_RT"=CASE WHEN x.h52<>0 THEN (d."CLS_VAL"-x.h52)/x.h52*100 END,"ALL_HIGH_VAL"=x.hall,"DD_HIGH_RT"=CASE WHEN x.hall<>0 THEN (d."CLS_VAL"-x.hall)/x.hall*100 END FROM x WHERE d."IDX_CD"=x."IDX_CD" AND d."TRADE_DT"=x."TRADE_DT"
   """)
-        .param("id", id)
+        .param("code", code)
         .update();
   }
 
@@ -216,7 +216,7 @@ public class YahooIndexService {
     return node == null || node.isNull() || !node.isNumber() ? null : node.asLong();
   }
 
-  private record IndexInfo(long id, String code, String name, String sourceSymbol) {}
+  private record IndexInfo(String code, String name, String sourceSymbol) {}
 
   public record CollectionResult(
       String indexCode, String yahooSymbol, LocalDate from, LocalDate to, int savedCount) {}
