@@ -22,9 +22,9 @@ public class KrxIndexDailyCollector {
           WHEN upper(replace("PAYLOAD"->>'IDX_NM',' ','')) IN ('KOSDAQ','코스닥') THEN 'KOSDAQ'
           WHEN upper(replace("PAYLOAD"->>'IDX_NM',' ','')) IN ('KOSPI200','코스피200') THEN 'KOSPI200'
           WHEN upper(replace("PAYLOAD"->>'IDX_NM',' ','')) = 'VKOSPI' THEN 'VKOSPI'
-          ELSE 'KRX_' || substr(md5(coalesce("PAYLOAD"->>'IDX_CLSS','') || '|' || "PAYLOAD"->>'IDX_NM'),1,26) END,
+          ELSE 'KRX_' || substr(md5(coalesce("PAYLOAD"->>'IDX_CLSS','') || '|' || ("PAYLOAD"->>'IDX_NM')),1,26) END,
           "PAYLOAD"->>'IDX_NM','MARKET','KRX','KR','KRW','KRX',
-          left(coalesce("PAYLOAD"->>'IDX_CLSS','') || '|' || "PAYLOAD"->>'IDX_NM',50),'N','Y','N','SYSTEM','SYSTEM'
+          left(coalesce("PAYLOAD"->>'IDX_CLSS','') || '|' || ("PAYLOAD"->>'IDX_NM'),50),'N','Y','N','SYSTEM','SYSTEM'
         FROM "TB_KRX_DATA_ROW" WHERE "DATA_CD"=:dataset AND "BASE_DT"=:date
           AND NULLIF("PAYLOAD"->>'IDX_NM','') IS NOT NULL
         ON CONFLICT ("IDX_CD") DO UPDATE SET "IDX_NM"=EXCLUDED."IDX_NM", "DATA_SRC_CD"='KRX',
@@ -36,7 +36,7 @@ public class KrxIndexDailyCollector {
         SELECT i."IDX_CD", r."BASE_DT", i."IDX_CD", r."PAYLOAD"->>'IDX_NM',
           NULLIF(replace("PAYLOAD"->>'CLSPRC_IDX', ',', ''), '')::numeric,
           NULLIF(replace("PAYLOAD"->>'CMPPREVDD_IDX', ',', ''), '')::numeric,
-          NULLIF(replace("PAYLOAD"->>'FLUC_RT', ',', ''), '')::numeric,
+          NULLIF(replace("PAYLOAD"->>'FLUC_RT', ',', ''), '')::numeric, 'KRX',
           NULLIF(replace("PAYLOAD"->>'OPNPRC_IDX', ',', ''), '')::numeric,
           NULLIF(replace("PAYLOAD"->>'HGPRC_IDX', ',', ''), '')::numeric,
           NULLIF(replace("PAYLOAD"->>'LWPRC_IDX', ',', ''), '')::numeric,
@@ -47,7 +47,7 @@ public class KrxIndexDailyCollector {
           WHEN upper(replace(r."PAYLOAD"->>'IDX_NM',' ','')) IN ('KOSDAQ','코스닥') THEN 'KOSDAQ'
           WHEN upper(replace(r."PAYLOAD"->>'IDX_NM',' ','')) IN ('KOSPI200','코스피200') THEN 'KOSPI200'
           WHEN upper(replace(r."PAYLOAD"->>'IDX_NM',' ','')) = 'VKOSPI' THEN 'VKOSPI'
-          ELSE 'KRX_' || substr(md5(coalesce(r."PAYLOAD"->>'IDX_CLSS','') || '|' || r."PAYLOAD"->>'IDX_NM'),1,26) END
+          ELSE 'KRX_' || substr(md5(coalesce(r."PAYLOAD"->>'IDX_CLSS','') || '|' || (r."PAYLOAD"->>'IDX_NM')),1,26) END
         WHERE r."DATA_CD"=:dataset AND r."BASE_DT"=:date
         ON CONFLICT ("IDX_CD","TRADE_DT") DO UPDATE SET "CLS_VAL"=EXCLUDED."CLS_VAL",
           "CHG_VAL"=EXCLUDED."CHG_VAL", "CHG_RT"=EXCLUDED."CHG_RT", "OPEN_VAL"=EXCLUDED."OPEN_VAL",

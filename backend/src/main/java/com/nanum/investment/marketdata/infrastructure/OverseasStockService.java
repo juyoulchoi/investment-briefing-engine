@@ -201,7 +201,7 @@ public class OverseasStockService {
                   ("STK_ID","MKT_CD","STK_CD","TRADE_DT","OPEN_PRC","HIGH_PRC","LOW_PRC",
                    "CLS_PRC","ADJ_CLS_PRC","VOL","PRVDR","DATA_SRC_CD")
                 VALUES ((SELECT "STK_ID" FROM "TB_STK" WHERE "MKT_CD"='US' AND "STK_CD"=:symbol),'US',:symbol,:day,:open,:high,:low,:close,:adjusted,:volume,'YAHOO_FINANCE','YAHOO')
-                ON CONFLICT("MKT_CD","STK_CD","TRADE_DT") DO UPDATE SET
+                ON CONFLICT("STK_CD","TRADE_DT") DO UPDATE SET
                   "OPEN_PRC"=EXCLUDED."OPEN_PRC","HIGH_PRC"=EXCLUDED."HIGH_PRC",
                   "LOW_PRC"=EXCLUDED."LOW_PRC","CLS_PRC"=EXCLUDED."CLS_PRC",
                   "ADJ_CLS_PRC"=EXCLUDED."ADJ_CLS_PRC","VOL"=EXCLUDED."VOL",
