@@ -16,7 +16,7 @@ public enum KrxDataset {
   KOSPI_INDEX_DAILY("/svc/apis/idx/kospi_dd_trd", List.of("IDX_CLSS", "IDX_NM")),
   KOSDAQ_INDEX_DAILY("/svc/apis/idx/kosdaq_dd_trd", List.of("IDX_CLSS", "IDX_NM")),
   KRX_INDEX_DAILY("/svc/apis/idx/krx_dd_trd", List.of("IDX_CLSS", "IDX_NM")),
-  BOND_INDEX_DAILY("/svc/apis/idx/bon_dd_trd", List.of("IDX_CLSS", "IDX_NM")),
+  BOND_INDEX_DAILY("/svc/apis/idx/bon_dd_trd", List.of("BND_IDX_GRP_NM")),
   DERIVATIVE_INDEX_DAILY("/svc/apis/idx/drvprod_dd_trd", List.of("IDX_CLSS", "IDX_NM")),
   FUTURES_DAILY("/svc/apis/drv/fut_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD")),
   KOSPI_STOCK_FUTURES_DAILY("/svc/apis/drv/eqsfu_stk_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD")),
