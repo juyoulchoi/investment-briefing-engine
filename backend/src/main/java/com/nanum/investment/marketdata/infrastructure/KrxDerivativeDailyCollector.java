@@ -32,9 +32,9 @@ public class KrxDerivativeDailyCollector {
           "UPD_DTTM"=CURRENT_TIMESTAMP
         """).param("type",type).param("market",market).param("dataset",dataset.name()).param("date",date).update();
     return jdbc.sql("""
-        INSERT INTO "TB_DERIV_DAY" ("DERIV_ID","TRADE_DT","OPEN_PRC","HIGH_PRC","LOW_PRC","CLS_PRC",
+        INSERT INTO "TB_DERIV_DAY" ("ISU_CD","TRADE_DT","OPEN_PRC","HIGH_PRC","LOW_PRC","CLS_PRC",
           "SETTLE_PRC","CHG_AMT","CHG_RT","TRD_VOL","TURNOVER_AMT","OPEN_INT","DATA_SRC_CD","DATA_STS")
-        SELECT d."DERIV_ID",r."BASE_DT",
+        SELECT d."ISU_CD",r."BASE_DT",
           NULLIF(replace(r."PAYLOAD"->>'TDD_OPNPRC',',',''),'')::numeric,
           NULLIF(replace(r."PAYLOAD"->>'TDD_HGPRC',',',''),'')::numeric,
           NULLIF(replace(r."PAYLOAD"->>'TDD_LWPRC',',',''),'')::numeric,
@@ -48,7 +48,7 @@ public class KrxDerivativeDailyCollector {
           'KRX','FRESH' FROM "TB_KRX_DATA_ROW" r JOIN "TB_DERIV" d
           ON d."ISU_CD"=COALESCE(NULLIF(r."PAYLOAD"->>'ISU_CD',''),r."PAYLOAD"->>'ISU_SRT_CD')
         WHERE r."DATA_CD"=:dataset AND r."BASE_DT"=:date
-        ON CONFLICT ("DERIV_ID","TRADE_DT") DO UPDATE SET "OPEN_PRC"=EXCLUDED."OPEN_PRC",
+        ON CONFLICT ("ISU_CD","TRADE_DT") DO UPDATE SET "OPEN_PRC"=EXCLUDED."OPEN_PRC",
           "HIGH_PRC"=EXCLUDED."HIGH_PRC","LOW_PRC"=EXCLUDED."LOW_PRC","CLS_PRC"=EXCLUDED."CLS_PRC",
           "SETTLE_PRC"=EXCLUDED."SETTLE_PRC","CHG_AMT"=EXCLUDED."CHG_AMT","CHG_RT"=EXCLUDED."CHG_RT",
           "TRD_VOL"=EXCLUDED."TRD_VOL","TURNOVER_AMT"=EXCLUDED."TURNOVER_AMT","OPEN_INT"=EXCLUDED."OPEN_INT",

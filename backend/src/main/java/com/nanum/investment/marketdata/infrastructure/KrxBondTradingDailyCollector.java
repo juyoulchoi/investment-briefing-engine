@@ -32,9 +32,9 @@ public class KrxBondTradingDailyCollector {
           "USE_YN"='Y',"DEL_YN"='N',"UPD_DTTM"=CURRENT_TIMESTAMP
         """).param("market",market).param("dataset",dataset.name()).param("date",date).update();
     return jdbc.sql("""
-        INSERT INTO "TB_BOND_TRD_DAY" ("BOND_ID","TRADE_DT","OPEN_PRC","HIGH_PRC","LOW_PRC","CLS_PRC",
+        INSERT INTO "TB_BOND_TRD_DAY" ("ISU_CD","TRADE_DT","OPEN_PRC","HIGH_PRC","LOW_PRC","CLS_PRC",
           "CLS_YLD_RT","CHG_AMT","CHG_RT","TRD_VOL","TURNOVER_AMT","DATA_SRC_CD","DATA_STS")
-        SELECT b."BOND_ID",r."BASE_DT",NULLIF(replace(r."PAYLOAD"->>'TDD_OPNPRC',',',''),'')::numeric,
+        SELECT b."ISU_CD",r."BASE_DT",NULLIF(replace(r."PAYLOAD"->>'TDD_OPNPRC',',',''),'')::numeric,
           NULLIF(replace(r."PAYLOAD"->>'TDD_HGPRC',',',''),'')::numeric,
           NULLIF(replace(r."PAYLOAD"->>'TDD_LWPRC',',',''),'')::numeric,
           NULLIF(replace(r."PAYLOAD"->>'TDD_CLSPRC',',',''),'')::numeric,
@@ -46,7 +46,7 @@ public class KrxBondTradingDailyCollector {
         FROM "TB_KRX_DATA_ROW" r JOIN "TB_BOND" b
           ON b."ISU_CD"=COALESCE(NULLIF(r."PAYLOAD"->>'ISU_CD',''),r."PAYLOAD"->>'ISU_SRT_CD')
         WHERE r."DATA_CD"=:dataset AND r."BASE_DT"=:date
-        ON CONFLICT ("BOND_ID","TRADE_DT") DO UPDATE SET "OPEN_PRC"=EXCLUDED."OPEN_PRC",
+        ON CONFLICT ("ISU_CD","TRADE_DT") DO UPDATE SET "OPEN_PRC"=EXCLUDED."OPEN_PRC",
           "HIGH_PRC"=EXCLUDED."HIGH_PRC","LOW_PRC"=EXCLUDED."LOW_PRC","CLS_PRC"=EXCLUDED."CLS_PRC",
           "CLS_YLD_RT"=EXCLUDED."CLS_YLD_RT","CHG_AMT"=EXCLUDED."CHG_AMT","CHG_RT"=EXCLUDED."CHG_RT",
           "TRD_VOL"=EXCLUDED."TRD_VOL","TURNOVER_AMT"=EXCLUDED."TURNOVER_AMT",
