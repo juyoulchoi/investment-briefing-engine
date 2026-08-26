@@ -55,7 +55,7 @@ public class MarketSnapshotGenerationService {
     IndexPoint index =
         jdbc.sql(
                 """
-   SELECT i."IDX_ID",r.base_date,NULLIF(replace(r.payload->>'CLSPRC_IDX',',',''),'')::numeric,
+   SELECT i."IDX_CD",r.base_date,NULLIF(replace(r.payload->>'CLSPRC_IDX',',',''),'')::numeric,
     NULLIF(r.payload->>'FLUC_RT','')::numeric FROM tb_krx_data_row r JOIN "TB_IDX" i ON i."IDX_CD"='KOSPI'
    WHERE r.dataset_code='KOSPI_INDEX_DAILY' AND r.base_date<=:day AND r.payload->>'IDX_NM' IN ('코스피','KOSPI')
    ORDER BY r.base_date DESC LIMIT 1
@@ -64,7 +64,7 @@ public class MarketSnapshotGenerationService {
             .query(
                 (rs, n) ->
                     new IndexPoint(
-                        rs.getLong(1),
+                        rs.getString(1),
                         rs.getObject(2, LocalDate.class),
                         rs.getBigDecimal(3),
                         rs.getBigDecimal(4)))
@@ -92,7 +92,7 @@ public class MarketSnapshotGenerationService {
     Volatility volatility =
         jdbc.sql(
                 """
-   SELECT d."TRADE_DT",d."CLS_VAL",d."CHG_RT" FROM "TB_IDX_DAY" d JOIN "TB_IDX" i ON i."IDX_ID"=d."IDX_ID"
+   SELECT d."TRADE_DT",d."CLS_VAL",d."CHG_RT" FROM "TB_IDX_DAY" d JOIN "TB_IDX" i ON i."IDX_CD"=d."IDX_CD"
    WHERE i."IDX_CD"='VIX' AND d."TRADE_DT"<=:day ORDER BY d."TRADE_DT" DESC LIMIT 1
    """)
             .param("day", baseDate)
@@ -121,7 +121,7 @@ public class MarketSnapshotGenerationService {
   private IndexPoint latestIndex(String code, LocalDate baseDate) {
     return jdbc.sql(
             """
-  SELECT i."IDX_ID",d."TRADE_DT",d."CLS_VAL",d."CHG_RT" FROM "TB_IDX_DAY" d JOIN "TB_IDX" i ON i."IDX_ID"=d."IDX_ID"
+  SELECT i."IDX_CD",d."TRADE_DT",d."CLS_VAL",d."CHG_RT" FROM "TB_IDX_DAY" d JOIN "TB_IDX" i ON i."IDX_CD"=d."IDX_CD"
   WHERE i."IDX_CD"=:code AND d."TRADE_DT"<=:day ORDER BY d."TRADE_DT" DESC LIMIT 1
   """)
         .param("code", code)
@@ -129,7 +129,7 @@ public class MarketSnapshotGenerationService {
         .query(
             (rs, n) ->
                 new IndexPoint(
-                    rs.getLong(1),
+                    rs.getString(1),
                     rs.getObject(2, LocalDate.class),
                     rs.getBigDecimal(3),
                     rs.getBigDecimal(4)))
@@ -160,12 +160,12 @@ public class MarketSnapshotGenerationService {
     Long id =
         jdbc.sql(
                 """
-   INSERT INTO "TB_MKT_SNAP"("BASE_DT","MKT_SNAP_CD","MKT_NM","MAIN_IDX_ID","MAIN_IDX_VAL","MAIN_IDX_CHG_RT",
+   INSERT INTO "TB_MKT_SNAP"("BASE_DT","MKT_SNAP_CD","MKT_NM","MAIN_IDX_CD","MAIN_IDX_VAL","MAIN_IDX_CHG_RT",
     "EXCH_RT","EXCH_CHG_RT","VOL_IDX_VAL","VOL_IDX_CHG_RT","ADV_STK_CNT","DECL_STK_CNT","UNCH_STK_CNT","MKT_BREADTH_RT",
     "TURNOVER_AMT","DATA_SRC_CD","DATA_STS","DATA_AGE_MIN","LAST_OK_DTTM","RAW_REF")
    VALUES(:day,:code,:name,:indexId,:indexValue,:indexChange,:fx,:fxChange,:volatility,:volatilityChange,:advancing,:declining,:unchanged,:breadth,
     :turnover,:source,:status,:age,CURRENT_TIMESTAMP,:reference)
-   ON CONFLICT("BASE_DT","MKT_SNAP_CD") DO UPDATE SET "MKT_NM"=EXCLUDED."MKT_NM","MAIN_IDX_ID"=EXCLUDED."MAIN_IDX_ID",
+   ON CONFLICT("BASE_DT","MKT_SNAP_CD") DO UPDATE SET "MKT_NM"=EXCLUDED."MKT_NM","MAIN_IDX_CD"=EXCLUDED."MAIN_IDX_CD",
     "MAIN_IDX_VAL"=EXCLUDED."MAIN_IDX_VAL","MAIN_IDX_CHG_RT"=EXCLUDED."MAIN_IDX_CHG_RT","EXCH_RT"=EXCLUDED."EXCH_RT",
     "EXCH_CHG_RT"=EXCLUDED."EXCH_CHG_RT","VOL_IDX_VAL"=EXCLUDED."VOL_IDX_VAL","VOL_IDX_CHG_RT"=EXCLUDED."VOL_IDX_CHG_RT",
     "ADV_STK_CNT"=EXCLUDED."ADV_STK_CNT","DECL_STK_CNT"=EXCLUDED."DECL_STK_CNT","UNCH_STK_CNT"=EXCLUDED."UNCH_STK_CNT",
@@ -220,7 +220,7 @@ public class MarketSnapshotGenerationService {
             .divide(BigDecimal.valueOf(directional), 4, RoundingMode.HALF_UP);
   }
 
-  private record IndexPoint(Long id, LocalDate date, BigDecimal value, BigDecimal change) {}
+  private record IndexPoint(String id, LocalDate date, BigDecimal value, BigDecimal change) {}
 
   private record Fx(LocalDate date, BigDecimal rate, BigDecimal change) {}
 

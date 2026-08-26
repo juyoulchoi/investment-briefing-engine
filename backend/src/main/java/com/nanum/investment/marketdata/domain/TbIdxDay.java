@@ -6,12 +6,13 @@ import java.time.*;
 import lombok.*;
 
 @Entity
+@IdClass(TbIdxDayId.class)
 @Table(
     name = "\"TB_IDX_DAY\"",
     uniqueConstraints =
         @UniqueConstraint(
             name = "UK_TB_IDX_DAY_01",
-            columnNames = {"IDX_ID", "TRADE_DT"}))
+            columnNames = {"IDX_CD", "TRADE_DT"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -19,16 +20,16 @@ import lombok.*;
 @Builder
 public class TbIdxDay {
   @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
-  @Column(name = "IDX_DAY_ID")
-  private Long indexDayId;
+  @Column(name = "IDX_CD", nullable = false, length = 30)
+  private String indexCode;
 
-  @ManyToOne(fetch = FetchType.LAZY, optional = false)
-  @JoinColumn(name = "IDX_ID", nullable = false)
-  private TbIdx index;
-
+  @Id
   @Column(name = "TRADE_DT", nullable = false)
   private LocalDate tradeDate;
+
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "IDX_CD", nullable = false, insertable = false, updatable = false)
+  private TbIdx index;
 
   @Column(name = "OPEN_VAL", precision = 20, scale = 6)
   private BigDecimal openValue;

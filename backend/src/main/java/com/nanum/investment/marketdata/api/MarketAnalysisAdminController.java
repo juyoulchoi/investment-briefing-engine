@@ -41,7 +41,7 @@ public class MarketAnalysisAdminController {
       @NotNull LocalDate baseDate,
       @NotBlank @Size(max = 30) String marketSnapshotCode,
       @NotBlank @Size(max = 100) String marketName,
-      Long mainIndexId,
+      @Size(max = 30) String mainIndexCode,
       BigDecimal mainIndexValue,
       BigDecimal mainIndexChangeRate,
       BigDecimal foreignNetAmount,
@@ -58,7 +58,7 @@ public class MarketAnalysisAdminController {
       LocalDate baseDate,
       String marketSnapshotCode,
       String marketName,
-      Long mainIndexId,
+      String mainIndexCode,
       String mainIndexName,
       BigDecimal mainIndexValue,
       BigDecimal mainIndexChangeRate,
@@ -193,10 +193,10 @@ public class MarketAnalysisAdminController {
     x.setMarketSnapshotCode(b.marketSnapshotCode());
     x.setMarketName(b.marketName());
     x.setMainIndex(
-        b.mainIndexId() == null
+        b.mainIndexCode() == null
             ? null
             : indices
-                .findById(b.mainIndexId())
+                .findById(b.mainIndexCode())
                 .filter(v -> "N".equals(v.getDeleteYn()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND)));
     x.setMainIndexValue(b.mainIndexValue());
@@ -231,7 +231,7 @@ public class MarketAnalysisAdminController {
         x.getBaseDate(),
         x.getMarketSnapshotCode(),
         x.getMarketName(),
-        x.getMainIndex() == null ? null : x.getMainIndex().getIndexId(),
+        x.getMainIndex() == null ? null : x.getMainIndex().getIndexCode(),
         x.getMainIndex() == null ? null : x.getMainIndex().getIndexName(),
         x.getMainIndexValue(),
         x.getMainIndexChangeRate(),

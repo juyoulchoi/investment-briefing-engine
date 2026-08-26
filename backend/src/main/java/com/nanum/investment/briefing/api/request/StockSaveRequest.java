@@ -13,7 +13,7 @@ public record StockSaveRequest(
     @NotBlank @Size(max = 10) String currencyCode,
     @NotNull AssetType assetType,
     @NotNull StockGrade stockGrade,
-    Long baseIndexId,
+    @Size(max = 30) String baseIndexCode,
     @Size(max = 30) String sectorCode,
     @Size(max = 100) String sectorName,
     @Size(max = 30) String industryCode,

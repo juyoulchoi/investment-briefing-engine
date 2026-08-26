@@ -33,7 +33,7 @@ public class TbMktSnap {
   private String marketName;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "MAIN_IDX_ID")
+  @JoinColumn(name = "MAIN_IDX_CD")
   private TbIdx mainIndex;
 
   @Column(name = "MAIN_IDX_VAL", precision = 20, scale = 6)

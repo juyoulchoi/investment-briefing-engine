@@ -31,9 +31,9 @@ public class KrxIndexDailyCollector {
           "USE_YN"='Y', "DEL_YN"='N', "UPD_DTTM"=CURRENT_TIMESTAMP, "UPD_USR_ID"='SYSTEM'
         """).param("dataset", dataset.name()).param("date", date).update();
     return jdbc.sql("""
-        INSERT INTO "TB_IDX_DAY" ("IDX_ID","TRADE_DT","IND_CD","IND_NM","CLS_VAL","CHG_VAL","CHG_RT",
+        INSERT INTO "TB_IDX_DAY" ("IDX_CD","TRADE_DT","IND_CD","IND_NM","CLS_VAL","CHG_VAL","CHG_RT",
           "SRC_NM","OPEN_VAL","HIGH_VAL","LOW_VAL","TRD_VOL","TRD_VAL","DATA_SRC_CD","DATA_STS")
-        SELECT i."IDX_ID", r."BASE_DT", i."IDX_CD", r."PAYLOAD"->>'IDX_NM',
+        SELECT i."IDX_CD", r."BASE_DT", i."IDX_CD", r."PAYLOAD"->>'IDX_NM',
           NULLIF(replace("PAYLOAD"->>'CLSPRC_IDX', ',', ''), '')::numeric,
           NULLIF(replace("PAYLOAD"->>'CMPPREVDD_IDX', ',', ''), '')::numeric,
           NULLIF(replace("PAYLOAD"->>'FLUC_RT', ',', ''), '')::numeric,
@@ -49,7 +49,7 @@ public class KrxIndexDailyCollector {
           WHEN upper(replace(r."PAYLOAD"->>'IDX_NM',' ','')) = 'VKOSPI' THEN 'VKOSPI'
           ELSE 'KRX_' || substr(md5(coalesce(r."PAYLOAD"->>'IDX_CLSS','') || '|' || r."PAYLOAD"->>'IDX_NM'),1,26) END
         WHERE r."DATA_CD"=:dataset AND r."BASE_DT"=:date
-        ON CONFLICT ("IDX_ID","TRADE_DT") DO UPDATE SET "CLS_VAL"=EXCLUDED."CLS_VAL",
+        ON CONFLICT ("IDX_CD","TRADE_DT") DO UPDATE SET "CLS_VAL"=EXCLUDED."CLS_VAL",
           "CHG_VAL"=EXCLUDED."CHG_VAL", "CHG_RT"=EXCLUDED."CHG_RT", "OPEN_VAL"=EXCLUDED."OPEN_VAL",
           "HIGH_VAL"=EXCLUDED."HIGH_VAL", "LOW_VAL"=EXCLUDED."LOW_VAL", "TRD_VOL"=EXCLUDED."TRD_VOL",
           "TRD_VAL"=EXCLUDED."TRD_VAL", "DATA_SRC_CD"='KRX', "DATA_STS"='FRESH',

@@ -218,7 +218,7 @@ public class FredMacroService {
     if (bond == null || value.value() == null) return;
     BigDecimal previous =
         jdbc.sql(
-                "SELECT \"YLD_RT\" FROM \"TB_BOND_DAY\" WHERE \"BOND_CD\"=:code AND \"BASE_DT\"<:day ORDER BY \"BASE_DT\" DESC LIMIT 1")
+                "SELECT \"YLD_RT\" FROM \"TB_FRED_BOND_DAY\" WHERE \"BOND_CD\"=:code AND \"BASE_DT\"<:day ORDER BY \"BASE_DT\" DESC LIMIT 1")
             .param("code", code)
             .param("day", value.observationDate())
             .query(BigDecimal.class)
@@ -228,7 +228,7 @@ public class FredMacroService {
         previous == null ? null : value.value().subtract(previous).multiply(new BigDecimal("100"));
     jdbc.sql(
             """
-        INSERT INTO "TB_BOND_DAY"("BASE_DT","BOND_CD","BOND_NM","CNTRY_CD","MATURITY_MON","YLD_RT","PREV_YLD_RT","CHG_BP","DATA_SRC_CD","DATA_STS")
+        INSERT INTO "TB_FRED_BOND_DAY"("BASE_DT","BOND_CD","BOND_NM","CNTRY_CD","MATURITY_MON","YLD_RT","PREV_YLD_RT","CHG_BP","DATA_SRC_CD","DATA_STS")
         VALUES(:day,:code,:name,'US',:months,:rate,:previous,:bp,'FRED','FRESH')
         ON CONFLICT("BASE_DT","BOND_CD") DO UPDATE SET "BOND_NM"=EXCLUDED."BOND_NM","YLD_RT"=EXCLUDED."YLD_RT",
           "PREV_YLD_RT"=EXCLUDED."PREV_YLD_RT","CHG_BP"=EXCLUDED."CHG_BP","DATA_STS"='FRESH',"COLLECT_DTTM"=CURRENT_TIMESTAMP

@@ -169,7 +169,7 @@ public class MarketDataConsistencyService {
                 """
    SELECT i."IDX_CD",d."TRADE_DT",d."CLS_VAL",d."CHG_RT",d."DATA_STS" FROM "TB_IDX" i
    LEFT JOIN LATERAL(SELECT "TRADE_DT","CLS_VAL","CHG_RT","DATA_STS" FROM "TB_IDX_DAY" x
-    WHERE x."IDX_ID"=i."IDX_ID" AND x."TRADE_DT"<=:day ORDER BY x."TRADE_DT" DESC LIMIT 1)d ON true
+    WHERE x."IDX_CD"=i."IDX_CD" AND x."TRADE_DT"<=:day ORDER BY x."TRADE_DT" DESC LIMIT 1)d ON true
    WHERE i."IDX_CD" IN ('SP500','VIX') ORDER BY i."IDX_CD"
    """)
             .param("day", baseDate)
@@ -256,7 +256,7 @@ public class MarketDataConsistencyService {
     for (String code : BOND_CODES) {
       LatestRow row =
           jdbc.sql(
-                  "SELECT \"BOND_CD\",\"BASE_DT\",\"YLD_RT\",\"CHG_BP\",\"DATA_STS\" FROM \"TB_BOND_DAY\" WHERE \"BOND_CD\"=:code AND \"BASE_DT\"<=:day ORDER BY \"BASE_DT\" DESC LIMIT 1")
+                  "SELECT \"BOND_CD\",\"BASE_DT\",\"YLD_RT\",\"CHG_BP\",\"DATA_STS\" FROM \"TB_FRED_BOND_DAY\" WHERE \"BOND_CD\"=:code AND \"BASE_DT\"<=:day ORDER BY \"BASE_DT\" DESC LIMIT 1")
               .param("code", code)
               .param("day", baseDate)
               .query(

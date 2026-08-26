@@ -6,11 +6,12 @@ import java.time.*;
 import lombok.*;
 
 @Entity
+@IdClass(TbBondDayId.class)
 @Table(
-    name = "\"TB_BOND_DAY\"",
+    name = "\"TB_FRED_BOND_DAY\"",
     uniqueConstraints =
         @UniqueConstraint(
-            name = "UK_TB_BOND_DAY_01",
+            name = "PK_TB_FRED_BOND_DAY",
             columnNames = {"BASE_DT", "BOND_CD"}))
 @Getter
 @Setter
@@ -19,15 +20,12 @@ import lombok.*;
 @Builder
 public class TbBondDay {
   @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
-  @Column(name = "BOND_DAY_ID")
-  private Long bondDayId;
-
-  @Column(name = "BASE_DT", nullable = false)
-  private LocalDate baseDate;
-
   @Column(name = "BOND_CD", nullable = false, length = 30)
   private String bondCode;
+
+  @Id
+  @Column(name = "BASE_DT", nullable = false)
+  private LocalDate baseDate;
 
   @Column(name = "BOND_NM", nullable = false, length = 100)
   private String bondName;

@@ -631,7 +631,7 @@ public class OperationalDataAdminController {
     GROUP BY "ACCT_ID"
   ) hw ON hw."ACCT_ID"=r."ACCT_ID"
   LEFT JOIN "TB_STK_SET" ss ON ss."ACCT_TP"=r."ACCT_TP" AND ss."STK_CD"=r."STK_CD"
-  LEFT JOIN "TB_IDX" i ON i."IDX_ID"=s."BASE_IDX_ID"
+  LEFT JOIN "TB_IDX" i ON i."IDX_CD"=s."BASE_IDX_CD"
   LEFT JOIN "TB_CD_DTL" ig ON ig."CD_GRP"='INVESTMENT_GRADE' AND ig."CD_NM"=r."INV_GRD" AND ig."ACTV_YN"='Y'
   WHERE r."DEL_YN"='N'
   ORDER BY a."DISP_SEQ",s."STK_NM",r."STK_CD"

@@ -115,7 +115,7 @@ public class BriefingRawDataService {
     out.put(
         "BOND_YIELDS",
         rows(
-            "SELECT \"BOND_CD\" bond_code,\"BOND_NM\" bond_name,\"YLD_RT\" yield_rate,\"PREV_YLD_RT\" previous_yield_rate,\"CHG_BP\" change_basis_points,\"DATA_STS\" data_status FROM \"TB_BOND_DAY\" WHERE \"BASE_DT\"=(SELECT max(\"BASE_DT\") FROM \"TB_BOND_DAY\" WHERE \"BASE_DT\"<=:day) ORDER BY \"BOND_CD\"",
+            "SELECT \"BOND_CD\" bond_code,\"BOND_NM\" bond_name,\"YLD_RT\" yield_rate,\"PREV_YLD_RT\" previous_yield_rate,\"CHG_BP\" change_basis_points,\"DATA_STS\" data_status FROM \"TB_FRED_BOND_DAY\" WHERE \"BASE_DT\"=(SELECT max(\"BASE_DT\") FROM \"TB_FRED_BOND_DAY\" WHERE \"BASE_DT\"<=:day) ORDER BY \"BOND_CD\"",
             date,
             null));
     out.put(

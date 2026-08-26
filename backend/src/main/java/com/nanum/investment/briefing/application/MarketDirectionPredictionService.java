@@ -22,7 +22,7 @@ public class MarketDirectionPredictionService {
         SELECT round("MKT_SCR")::int, round("RISK_SCR")::int, "MKT_REGIME",
                (SELECT max("BASE_DT") FROM "TB_MKT_SNAP" WHERE "BASE_DT"<=:day),
                (SELECT max("BASE_DT") FROM "TB_EXCH_DAY" WHERE "BASE_DT"<=:day),
-               (SELECT max("BASE_DT") FROM "TB_BOND_DAY" WHERE "BASE_DT"<=:day)
+               (SELECT max("BASE_DT") FROM "TB_FRED_BOND_DAY" WHERE "BASE_DT"<=:day)
         FROM "TB_INV_DEC" WHERE "BASE_DT"=:day AND "LATEST_YN"='Y'
         ORDER BY "CALC_SEQ" DESC LIMIT 1
         """).param("day", date).query((rs,n) -> new DirectionInput(
