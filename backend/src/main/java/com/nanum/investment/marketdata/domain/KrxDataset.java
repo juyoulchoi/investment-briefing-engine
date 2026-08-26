@@ -27,7 +27,9 @@ public enum KrxDataset {
   GOVERNMENT_BOND_DAILY("/svc/apis/bon/kts_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD")),
   GENERAL_BOND_DAILY("/svc/apis/bon/bnd_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD")),
   SMALL_BOND_DAILY("/svc/apis/bon/smb_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD")),
-  ETF_DAILY("/svc/apis/etp/etf_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD"));
+  ETF_DAILY("/svc/apis/etp/etf_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD")),
+  ETN_DAILY("/svc/apis/etp/etn_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD")),
+  ELW_DAILY("/svc/apis/etp/elw_bydd_trd", List.of("ISU_CD", "ISU_SRT_CD"));
 
   private final String path;
   private final List<String> keys;

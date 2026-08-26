@@ -28,7 +28,8 @@ public class KrxMarketDataService {
   private static final Set<KrxDataset> STOCK_DAILY_DATASETS =
       Set.of(KrxDataset.KOSPI_STOCK_DAILY, KrxDataset.KOSDAQ_STOCK_DAILY,
           KrxDataset.KONEX_STOCK_DAILY, KrxDataset.SUBSCRIPTION_WARRANT_DAILY,
-          KrxDataset.SUBSCRIPTION_RIGHT_DAILY, KrxDataset.ETF_DAILY);
+          KrxDataset.SUBSCRIPTION_RIGHT_DAILY, KrxDataset.ETF_DAILY,
+          KrxDataset.ETN_DAILY, KrxDataset.ELW_DAILY);
   private static final Set<KrxDataset> STOCK_MASTER_DATASETS =
       Set.of(KrxDataset.KOSPI_STOCK_MASTER, KrxDataset.KOSDAQ_STOCK_MASTER,
           KrxDataset.ALL_STOCK_MASTER, KrxDataset.KONEX_STOCK_MASTER);
@@ -209,7 +210,7 @@ public class KrxMarketDataService {
                   AND r."BASE_DT" = :date
                   AND NULLIF(r."PAYLOAD"->>'TDD_CLSPRC', '') IS NOT NULL
                 ORDER BY r."BASE_DT", r."PAYLOAD"->>'ISU_CD'
-                ON CONFLICT ("MKT_CD", "STK_CD", "TRADE_DT") DO UPDATE
+                ON CONFLICT ("STK_CD", "TRADE_DT") DO UPDATE
                 SET "OPEN_PRC" = EXCLUDED."OPEN_PRC",
                     "HIGH_PRC" = EXCLUDED."HIGH_PRC",
                     "LOW_PRC" = EXCLUDED."LOW_PRC",
