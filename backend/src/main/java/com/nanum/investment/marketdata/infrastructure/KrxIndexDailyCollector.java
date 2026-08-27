@@ -18,6 +18,9 @@ public class KrxIndexDailyCollector {
         INSERT INTO "TB_IDX" ("IDX_CD","IDX_NM","IDX_TP","MKT_CD","CNTRY_CD","CURR_CD",
           "DATA_SRC_CD","SRC_SYMBOL","DFLT_YN","USE_YN","DEL_YN","CRT_USR_ID","UPD_USR_ID")
         SELECT DISTINCT CASE
+          WHEN :dataset='DERIVATIVE_INDEX_DAILY'
+            AND trim("PAYLOAD"->>'IDX_CLSS')='옵션지수'
+            AND trim("PAYLOAD"->>'IDX_NM')='코스피 200 변동성지수' THEN 'VKOSPI'
           WHEN upper(replace(coalesce("PAYLOAD"->>'IDX_NM',"PAYLOAD"->>'BND_IDX_GRP_NM'),' ','')) IN ('KOSPI','코스피') THEN 'KOSPI'
           WHEN upper(replace(coalesce("PAYLOAD"->>'IDX_NM',"PAYLOAD"->>'BND_IDX_GRP_NM'),' ','')) IN ('KOSDAQ','코스닥') THEN 'KOSDAQ'
           WHEN upper(replace(coalesce("PAYLOAD"->>'IDX_NM',"PAYLOAD"->>'BND_IDX_GRP_NM'),' ','')) IN ('KOSPI200','코스피200') THEN 'KOSPI200'
@@ -43,6 +46,9 @@ public class KrxIndexDailyCollector {
           NULLIF(replace("PAYLOAD"->>'ACC_TRDVOL', ',', ''), '')::numeric,
           NULLIF(replace("PAYLOAD"->>'ACC_TRDVAL', ',', ''), '')::numeric, 'KRX','FRESH'
         FROM "TB_KRX_DATA_ROW" r JOIN "TB_IDX" i ON i."IDX_CD" = CASE
+          WHEN :dataset='DERIVATIVE_INDEX_DAILY'
+            AND trim(r."PAYLOAD"->>'IDX_CLSS')='옵션지수'
+            AND trim(r."PAYLOAD"->>'IDX_NM')='코스피 200 변동성지수' THEN 'VKOSPI'
           WHEN upper(replace(coalesce(r."PAYLOAD"->>'IDX_NM',r."PAYLOAD"->>'BND_IDX_GRP_NM'),' ','')) IN ('KOSPI','코스피') THEN 'KOSPI'
           WHEN upper(replace(coalesce(r."PAYLOAD"->>'IDX_NM',r."PAYLOAD"->>'BND_IDX_GRP_NM'),' ','')) IN ('KOSDAQ','코스닥') THEN 'KOSDAQ'
           WHEN upper(replace(coalesce(r."PAYLOAD"->>'IDX_NM',r."PAYLOAD"->>'BND_IDX_GRP_NM'),' ','')) IN ('KOSPI200','코스피200') THEN 'KOSPI200'
