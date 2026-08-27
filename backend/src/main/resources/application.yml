@@ -41,6 +41,15 @@ fred:
   circuit-breaker:
     failure-threshold: ${FRED_CIRCUIT_FAILURE_THRESHOLD:5}
     open-duration: ${FRED_CIRCUIT_OPEN_DURATION:60s}
+kofia:
+  base-url: ${KOFIA_BASE_URL:https://freesis.kofia.or.kr}
+  connect-timeout: ${KOFIA_CONNECT_TIMEOUT:5s}
+  read-timeout: ${KOFIA_READ_TIMEOUT:30s}
+  collection:
+    min-request-interval: ${KOFIA_MIN_REQUEST_INTERVAL:250ms}
+  circuit-breaker:
+    failure-threshold: ${KOFIA_CIRCUIT_FAILURE_THRESHOLD:5}
+    open-duration: ${KOFIA_CIRCUIT_OPEN_DURATION:60s}
 springdoc:
   api-docs:
     enabled: true
