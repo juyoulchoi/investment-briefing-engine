@@ -20,6 +20,7 @@ public record HoldingApiResponse(
     BigDecimal profitLossRate,
     BigDecimal targetWeight,
     BigDecimal currentWeight,
+    BigDecimal investmentAssetWeight,
     WeightStatus weightStatus,
     String weightStatusName,
     HoldingStatus holdingStatus) {}

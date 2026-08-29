@@ -13,10 +13,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.jdbc.core.simple.JdbcClient;
 
 @ExtendWith(MockitoExtension.class)
 class PortfolioWeightRefreshServiceTest {
   @Mock private TbHoldRepository holdings;
+  @Mock private JdbcClient jdbc;
 
   @Test
   void refreshesEveryActiveHoldingInTheAccountAndClearsExcludedHolding() {
@@ -31,14 +33,14 @@ class PortfolioWeightRefreshServiceTest {
     when(holdings.findAllByAccount_AccountIdAndDeleteYn(1L, "N"))
         .thenReturn(List.of(under, over, excluded));
 
-    new PortfolioWeightRefreshService(holdings, new PortfolioWeightService())
+    new PortfolioWeightRefreshService(holdings, new PortfolioWeightService(), jdbc)
         .refreshAccount(account);
 
-    assertThat(under.getCurrentWeight()).isEqualByComparingTo("50.0000");
-    assertThat(under.getWeightDifferenceRate()).isEqualByComparingTo("-20.0000");
+    assertThat(under.getCurrentWeight()).isEqualByComparingTo("44.4444");
+    assertThat(under.getWeightDifferenceRate()).isEqualByComparingTo("-25.5556");
     assertThat(under.getWeightStatus()).isEqualTo(WeightStatus.UNDERWEIGHT);
-    assertThat(over.getCurrentWeight()).isEqualByComparingTo("50.0000");
-    assertThat(over.getWeightDifferenceRate()).isEqualByComparingTo("30.0000");
+    assertThat(over.getCurrentWeight()).isEqualByComparingTo("44.4444");
+    assertThat(over.getWeightDifferenceRate()).isEqualByComparingTo("24.4444");
     assertThat(over.getWeightStatus()).isEqualTo(WeightStatus.OVERWEIGHT);
     assertThat(under.getCalculatedDateTime()).isEqualTo(over.getCalculatedDateTime());
     assertThat(excluded.getCurrentWeight()).isNull();
@@ -57,7 +59,7 @@ class PortfolioWeightRefreshServiceTest {
     TbHold holding = holding(account, "250", null, "Y");
     when(holdings.findAllByAccount_AccountIdAndDeleteYn(2L, "N")).thenReturn(List.of(holding));
 
-    new PortfolioWeightRefreshService(holdings, new PortfolioWeightService())
+    new PortfolioWeightRefreshService(holdings, new PortfolioWeightService(), jdbc)
         .refreshAccount(account);
 
     assertThat(holding.getCurrentWeight()).isEqualByComparingTo("100.0000");

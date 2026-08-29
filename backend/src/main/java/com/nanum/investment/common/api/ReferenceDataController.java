@@ -106,10 +106,13 @@ public class ReferenceDataController {
   public ApiResponse<PageResponse<HoldingApiResponse>> holdings(
       @RequestParam Long accountId, Pageable pageable, HttpServletRequest req) {
     Map<String, String> weightStatusNames = commonCodes.activeNames("WGT_STS");
+    List<TbHold> rows =
+        holdings.findAllByAccount_AccountIdAndUseYnAndDeleteYn(accountId, "Y", "N");
+    java.math.BigDecimal totalEvaluation = totalEvaluation(rows);
     return ok(
         page(
-            holdings.findAllByAccount_AccountIdAndUseYnAndDeleteYn(accountId, "Y", "N").stream()
-                .map(h -> holding(h, weightStatusNames))
+            rows.stream()
+                .map(h -> holding(h, weightStatusNames, totalEvaluation))
                 .toList(),
             pageable),
         req);
@@ -122,8 +125,10 @@ public class ReferenceDataController {
       @PathVariable Long accountId,
       @Valid @RequestBody HoldingBatchUpdateRequest body,
       HttpServletRequest req) {
-    return ok(
-        holdingManagement.updateAccount(accountId, body).stream().map(this::holding).toList(), req);
+    List<TbHold> rows = holdingManagement.updateAccount(accountId, body);
+    java.math.BigDecimal totalEvaluation = totalEvaluation(rows);
+    Map<String, String> weightStatusNames = commonCodes.activeNames("WGT_STS");
+    return ok(rows.stream().map(h -> holding(h, weightStatusNames, totalEvaluation)).toList(), req);
   }
 
   @PatchMapping("/holdings/{id}")
@@ -174,10 +179,16 @@ public class ReferenceDataController {
   }
 
   private HoldingApiResponse holding(TbHold h) {
-    return holding(h, commonCodes.activeNames("WGT_STS"));
+    return holding(
+        h,
+        commonCodes.activeNames("WGT_STS"),
+        totalEvaluation(
+            holdings.findAllByAccount_AccountIdAndUseYnAndDeleteYn(
+                h.getAccount().getAccountId(), "Y", "N")));
   }
 
-  private HoldingApiResponse holding(TbHold h, Map<String, String> weightStatusNames) {
+  private HoldingApiResponse holding(
+      TbHold h, Map<String, String> weightStatusNames, java.math.BigDecimal totalEvaluation) {
     return new HoldingApiResponse(
         h.getHoldingId(),
         h.getAccount().getAccountId(),
@@ -194,9 +205,25 @@ public class ReferenceDataController {
         h.getProfitLossRate(),
         h.getTargetWeight(),
         h.getCurrentWeight(),
+        percentage(h.getEvaluationAmount(), totalEvaluation),
         h.getWeightStatus(),
         h.getWeightStatus() == null ? null : weightStatusNames.get(h.getWeightStatus().name()),
         h.getHoldingStatus());
+  }
+
+  private java.math.BigDecimal totalEvaluation(List<TbHold> rows) {
+    return rows.stream()
+        .map(TbHold::getEvaluationAmount)
+        .filter(java.util.Objects::nonNull)
+        .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+  }
+
+  private java.math.BigDecimal percentage(
+      java.math.BigDecimal amount, java.math.BigDecimal total) {
+    if (amount == null || total == null || total.signum() <= 0) return null;
+    return amount
+        .multiply(new java.math.BigDecimal("100"))
+        .divide(total, 4, java.math.RoundingMode.HALF_UP);
   }
 
   private String accountName(AccountType type) {

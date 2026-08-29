@@ -60,6 +60,7 @@ type Holding = {
   profitLossRate: number;
   targetWeight: number | null;
   currentWeight: number | null;
+  investmentAssetWeight: number | null;
   weightStatus: string | null;
   weightStatusName: string | null;
   holdingStatus: string;
@@ -1031,6 +1032,7 @@ function Holdings() {
           profitLossRate: Number(r.profitLossRate || 0),
           targetWeight: r.targetWeight,
           currentWeight: r.currentWeight ?? null,
+          investmentAssetWeight: null,
           weightStatus: r.weightStatus ?? null,
           weightStatusName: r.weightStatusName ?? null,
           holdingStatus: r.holdingStatus,
@@ -1199,19 +1201,20 @@ function Holdings() {
             "평가금액",
             "손익률",
             "목표비중",
-            "현재비중",
+            "계좌 전체 비중",
+            "투자자산 내 비중",
             "비중상태",
           ]}
         >
           {loading ? (
             <tr>
-              <td colSpan={isDomestic ? 12 : 10} className="data-state">
+              <td colSpan={isDomestic ? 13 : 11} className="data-state">
                 보유종목을 불러오는 중입니다.
               </td>
             </tr>
           ) : rows.length === 0 && !error ? (
             <tr>
-              <td colSpan={isDomestic ? 12 : 10} className="data-state">
+              <td colSpan={isDomestic ? 13 : 11} className="data-state">
                 등록된 보유종목이 없습니다.
               </td>
             </tr>
@@ -1351,6 +1354,11 @@ function Holdings() {
                   {h.currentWeight == null
                     ? "-"
                     : `${Number(h.currentWeight).toFixed(2)}%`}
+                </td>
+                <td>
+                  {h.investmentAssetWeight == null
+                    ? "-"
+                    : `${Number(h.investmentAssetWeight).toFixed(2)}%`}
                 </td>
                 <td title={h.weightStatus ?? undefined}>
                   {h.weightStatusName ?? "-"}

@@ -65,7 +65,7 @@ const config: Record<
       ["fractionalSharePurchaseAmount", "소수점주 매입금액"],
       ["currentPrice", "현재가"],
       ["targetWeight", "목표비중"],
-      ["currentWeight", "현재비중"],
+      ["currentWeight", "계좌 전체 비중"],
       ["weightStatusName", "비중상태"],
       ["holdingStatus", "상태"],
     ],
@@ -147,7 +147,7 @@ const config: Record<
       ["stockName", "종목명"],
       ["stockGrade", "종목등급"],
       ["targetWeight", "목표비중"],
-      ["currentWeight", "현재비중"],
+      ["currentWeight", "계좌 전체 비중"],
       ["buyBasis", "매수단위"],
       ["appliedSchedule", "현재 적용주기"],
       ["appliedValue", "현재 적용금액"],
@@ -597,7 +597,7 @@ export default function OperationsAdmin({
     ["stockGrade", "종목등급"],
     ["benchmarkName", "기준지수"],
     ["targetWeight", "목표비중"],
-    ["currentWeight", "현재비중"],
+    ["currentWeight", "계좌 전체 비중"],
     ["recommendedValue", "추천금액"],
   ];
   const regularBuyDetailRow: Row = {

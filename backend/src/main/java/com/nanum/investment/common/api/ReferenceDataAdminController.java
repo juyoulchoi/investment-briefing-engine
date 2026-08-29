@@ -13,6 +13,7 @@ import com.nanum.investment.common.infrastructure.repository.TbStkRepository;
 import com.nanum.investment.common.response.ApiResponse;
 import com.nanum.investment.common.web.TraceIdUtils;
 import com.nanum.investment.holding.domain.TbCashRsv;
+import com.nanum.investment.holding.application.PortfolioWeightRefreshService;
 import com.nanum.investment.holding.infrastructure.repository.TbCashRsvRepository;
 import com.nanum.investment.marketdata.domain.DataSourceCode;
 import com.nanum.investment.marketdata.domain.IndexType;
@@ -33,16 +34,19 @@ public class ReferenceDataAdminController {
   private final TbAcctRepository accounts;
   private final TbStkRepository stocks;
   private final TbCashRsvRepository cashReserves;
+  private final PortfolioWeightRefreshService portfolioWeights;
 
   public ReferenceDataAdminController(
       TbIdxRepository indices,
       TbAcctRepository accounts,
       TbStkRepository stocks,
-      TbCashRsvRepository cashReserves) {
+      TbCashRsvRepository cashReserves,
+      PortfolioWeightRefreshService portfolioWeights) {
     this.indices = indices;
     this.accounts = accounts;
     this.stocks = stocks;
     this.cashReserves = cashReserves;
+    this.portfolioWeights = portfolioWeights;
   }
 
   public record IndexRow(
@@ -149,7 +153,9 @@ public class ReferenceDataAdminController {
       throw new BusinessException(ErrorCode.INVALID_REQUEST, "예수금은 대기 현금보다 작을 수 없습니다.");
     apply(x, b);
     x.setUpdatedUserId("ADMIN");
-    return ok(row(accounts.save(x)), r);
+    TbAcct saved = accounts.save(x);
+    portfolioWeights.refreshAccount(saved);
+    return ok(row(saved), r);
   }
 
   @GetMapping("/stocks")
