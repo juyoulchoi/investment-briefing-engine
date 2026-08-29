@@ -370,6 +370,22 @@ button {
 .accounts > div > * {
   text-align: left;
 }
+.accounts .account-name,
+.accounts .account-value {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.accounts .account-name small,
+.accounts .account-value small {
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .accounts small,
 .accounts em {
   text-align: left;
