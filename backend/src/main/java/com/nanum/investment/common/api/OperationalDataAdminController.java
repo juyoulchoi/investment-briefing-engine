@@ -429,8 +429,9 @@ public class OperationalDataAdminController {
     x.setBuyQuantity(b.buyQuantity());
     RegularBuyStatus status = b.buyStatus();
     String userPause = nvl(b.userPauseYn(), "N");
+    boolean stoppedOrPaused = status == RegularBuyStatus.STOPPED || "Y".equals(userPause);
     x.setBuyStatus(status);
-    x.setPauseReason(pauseReason(b.pauseReason()));
+    x.setPauseReason(stoppedOrPaused ? pauseReason(b.pauseReason()) : null);
     x.setUserPauseYn(userPause);
     x.setAutoCalculateYn(nvl(b.autoCalculateYn(), "Y"));
     x.setLegacyActiveYn(status == RegularBuyStatus.ACTIVE ? "Y" : "N");
@@ -498,7 +499,7 @@ public class OperationalDataAdminController {
             .param("reason", reason)
             .query(Long.class)
             .single();
-    if (count == 0) throw new BusinessException(ErrorCode.INVALID_REQUEST, "유효하지 않은 일시정지 사유입니다.");
+    if (count == 0) throw new BusinessException(ErrorCode.INVALID_REQUEST, "유효하지 않은 정지 사유입니다.");
     return reason;
   }
 
