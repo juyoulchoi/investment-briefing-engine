@@ -44,6 +44,9 @@ public class DashboardController {
       String accountType,
       BigDecimal totalAsset,
       BigDecimal evaluationAmount,
+      BigDecimal etfEvaluationAmount,
+      BigDecimal etfAssetAmount,
+      BigDecimal etfEvaluationRatio,
       BigDecimal costAmount,
       BigDecimal cashAmount,
       long holdingCount,
@@ -120,33 +123,53 @@ public class DashboardController {
   private List<AccountSummary> accounts() {
     return jdbc.sql(
             """
+                WITH exchange_rate AS (
+                     SELECT COALESCE((
+                              SELECT "EXCH_RT"
+                                FROM "TB_EXCH_DAY"
+                               WHERE "BASE_CURR_CD"='USD' AND "QUOTE_CURR_CD"='KRW'
+                               ORDER BY "BASE_DT" DESC
+                               LIMIT 1
+                            ), 1) AS usd_krw
+                )
                 SELECT a."ACCT_TP",
-                       COALESCE(sum(h."EVL_AMT"),0)+a."CASH_AMT" AS total_asset,
-                       COALESCE(sum(h."EVL_AMT"),0) AS evaluation_amount,
-                       COALESCE(sum(h."AVG_PRC"*h."HOLD_QTY"*h."EXCH_RT"),0) AS cost_amount,
+                       COALESCE(sum(CASE WHEN a."ACCT_TP"='OVERSEAS' THEN h."ORG_EVL_AMT"*x.usd_krw ELSE h."EVL_AMT" END),0)+a."CASH_AMT" AS total_asset,
+                       COALESCE(sum(CASE WHEN a."ACCT_TP"='OVERSEAS' THEN h."ORG_EVL_AMT"*x.usd_krw ELSE h."EVL_AMT" END),0) AS evaluation_amount,
+                       COALESCE(sum(CASE WHEN s."AST_TP"='ETF' THEN CASE WHEN a."ACCT_TP"='OVERSEAS' THEN h."ORG_EVL_AMT"*x.usd_krw ELSE h."EVL_AMT" END ELSE 0 END),0) AS etf_evaluation_amount,
+                       COALESCE(sum(CASE WHEN s."AST_TP"='ETF' THEN CASE WHEN a."ACCT_TP"='OVERSEAS' THEN h."ORG_EVL_AMT"*x.usd_krw ELSE h."EVL_AMT" END ELSE 0 END),0)+a."CASH_AMT" AS etf_asset_amount,
+                       CASE WHEN COALESCE(sum(CASE WHEN s."AST_TP"='ETF' THEN CASE WHEN a."ACCT_TP"='OVERSEAS' THEN h."ORG_EVL_AMT"*x.usd_krw ELSE h."EVL_AMT" END ELSE 0 END),0)+a."CASH_AMT"=0 THEN 0
+                            ELSE round(COALESCE(sum(CASE WHEN s."AST_TP"='ETF' THEN CASE WHEN a."ACCT_TP"='OVERSEAS' THEN h."ORG_EVL_AMT"*x.usd_krw ELSE h."EVL_AMT" END ELSE 0 END),0)*100
+                                 /(COALESCE(sum(CASE WHEN s."AST_TP"='ETF' THEN CASE WHEN a."ACCT_TP"='OVERSEAS' THEN h."ORG_EVL_AMT"*x.usd_krw ELSE h."EVL_AMT" END ELSE 0 END),0)+a."CASH_AMT"),4) END AS etf_evaluation_ratio,
+                       COALESCE(sum(CASE WHEN a."ACCT_TP"='OVERSEAS' THEN h."AVG_PRC"*h."HOLD_QTY"*x.usd_krw ELSE h."AVG_PRC"*h."HOLD_QTY"*h."EXCH_RT" END),0) AS cost_amount,
                        a."CASH_AMT" AS cash_amount,
                        count(h."HOLD_ID") AS holding_count,max(h."PRC_BASE_DT") AS price_base_date,
                        CASE WHEN a."ACCT_TP"='OVERSEAS' THEN 'USD' ELSE 'KRW' END AS currency_code,
                        CASE WHEN a."ACCT_TP"='OVERSEAS'
-                            THEN COALESCE(sum(h."ORG_EVL_AMT"),0)
+                            THEN COALESCE(sum(h."ORG_EVL_AMT"),0)+a."CASH_AMT"/x.usd_krw
                             ELSE COALESCE(sum(h."EVL_AMT"),0)+a."CASH_AMT" END AS display_total_asset,
                        CASE WHEN a."ACCT_TP"='OVERSEAS' THEN COALESCE(sum(h."ORG_EVL_AMT"),0)
                             ELSE COALESCE(sum(h."EVL_AMT"),0) END AS display_evaluation_amount,
                        CASE WHEN a."ACCT_TP"='OVERSEAS' THEN COALESCE(sum(h."AVG_PRC"*h."HOLD_QTY"),0)
                             ELSE COALESCE(sum(h."AVG_PRC"*h."HOLD_QTY"*h."EXCH_RT"),0) END AS display_cost_amount,
-                       a."CASH_AMT" AS display_cash_amount
+                       CASE WHEN a."ACCT_TP"='OVERSEAS' THEN a."CASH_AMT"/x.usd_krw ELSE a."CASH_AMT" END AS display_cash_amount
                   FROM "TB_ACCT" a
+                  CROSS JOIN exchange_rate x
                   LEFT JOIN "TB_HOLD" h ON h."ACCT_ID"=a."ACCT_ID"
                        AND h."USE_YN"='Y' AND h."DEL_YN"='N'
+                  LEFT JOIN "TB_STK" s ON s."STK_ID"=h."STK_ID"
                  WHERE a."DEL_YN"='N'
-                 GROUP BY a."ACCT_ID",a."ACCT_TP",a."DISP_SEQ",a."CASH_AMT",a."RSV_CASH_AMT"
+                 GROUP BY a."ACCT_ID",a."ACCT_TP",a."DISP_SEQ",a."CASH_AMT",a."RSV_CASH_AMT",x.usd_krw
                  ORDER BY a."DISP_SEQ"
                 """)
         .query(
             (rs, rowNum) ->
                 new AccountSummary(
                     rs.getString("ACCT_TP"), rs.getBigDecimal("total_asset"),
-                    rs.getBigDecimal("evaluation_amount"), rs.getBigDecimal("cost_amount"),
+                    rs.getBigDecimal("evaluation_amount"),
+                    rs.getBigDecimal("etf_evaluation_amount"),
+                    rs.getBigDecimal("etf_asset_amount"),
+                    rs.getBigDecimal("etf_evaluation_ratio"),
+                    rs.getBigDecimal("cost_amount"),
                     rs.getBigDecimal("cash_amount"), rs.getLong("holding_count"),
                     rs.getObject("price_base_date", LocalDate.class), rs.getString("currency_code"),
                     rs.getBigDecimal("display_total_asset"),
