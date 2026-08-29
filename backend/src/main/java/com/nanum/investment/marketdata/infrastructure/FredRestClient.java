@@ -21,9 +21,8 @@ public class FredRestClient implements FredClient {
   private final RestClient client;
   private final String baseUrl;
   private final String apiKey;
-  private final ExternalApiRetryExecutor retry;
+  private final ExternalApiCallExecutor externalCalls;
   private final CircuitBreakerSupport circuitBreaker;
-  private final ExternalApiLogService logs;
   private final FredRequestRateLimiter limiter;
   private final int failureThreshold;
   private final Duration openDuration;
@@ -35,9 +34,8 @@ public class FredRestClient implements FredClient {
       @Value("${fred.read-timeout:30s}") Duration readTimeout,
       @Value("${fred.circuit-breaker.failure-threshold:5}") int failureThreshold,
       @Value("${fred.circuit-breaker.open-duration:60s}") Duration openDuration,
-      ExternalApiRetryExecutor retry,
+      ExternalApiCallExecutor externalCalls,
       CircuitBreakerSupport circuitBreaker,
-      ExternalApiLogService logs,
       FredRequestRateLimiter limiter) {
     HttpClient httpClient =
         HttpClient.newBuilder()
@@ -54,9 +52,8 @@ public class FredRestClient implements FredClient {
             .build();
     this.baseUrl = baseUrl;
     this.apiKey = apiKey;
-    this.retry = retry;
+    this.externalCalls = externalCalls;
     this.circuitBreaker = circuitBreaker;
-    this.logs = logs;
     this.limiter = limiter;
     this.failureThreshold = failureThreshold;
     this.openDuration = openDuration;
@@ -114,17 +111,16 @@ public class FredRestClient implements FredClient {
       String aggregation) {
     requireApiKey();
     limiter.acquire(0);
-    OffsetDateTime requestedAt = OffsetDateTime.now();
     String url = baseUrl + path + "?series_id=" + code + "&api_key=" + apiKey;
-    try {
-      JsonNode body =
+    JsonNode body =
           circuitBreaker.execute(
               "FRED",
               failureThreshold,
               openDuration,
               () ->
-                  retry.execute(
-                      "fred." + code,
+                  externalCalls.execute(
+                      new ExternalApiCallExecutor.Call(
+                          "fred." + code, "FRED", code, "GET", url, null),
                       () ->
                           client
                               .get()
@@ -150,42 +146,9 @@ public class FredRestClient implements FredClient {
                                   })
                               .retrieve()
                               .body(JsonNode.class)));
-      if (body == null || body.has("error_code"))
-        throw new IllegalStateException("FRED 응답을 처리하지 못했습니다: " + code);
-      logs.save(
-          UUID.randomUUID().toString(),
-          "FRED",
-          code,
-          "GET",
-          url,
-          null,
-          200,
-          body.toString(),
-          true,
-          0,
-          requestedAt,
-          null);
-      return body;
-    } catch (RuntimeException error) {
-      Integer status =
-          error instanceof RestClientResponseException response
-              ? response.getStatusCode().value()
-              : null;
-      logs.save(
-          UUID.randomUUID().toString(),
-          "FRED",
-          code,
-          "GET",
-          url,
-          null,
-          status,
-          null,
-          false,
-          0,
-          requestedAt,
-          error.getMessage());
-      throw error;
-    }
+    if (body == null || body.has("error_code"))
+      throw new IllegalStateException("FRED 응답을 처리하지 못했습니다: " + code);
+    return body;
   }
 
   private void requireApiKey() {

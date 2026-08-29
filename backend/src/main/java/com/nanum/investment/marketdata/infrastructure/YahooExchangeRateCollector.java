@@ -1,7 +1,8 @@
 package com.nanum.investment.marketdata.infrastructure;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.nanum.investment.common.infrastructure.external.ExternalApiRetryExecutor;
+import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor;
+import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor.Call;
 import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
 import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;
 import java.time.*;
@@ -14,7 +15,8 @@ import org.springframework.web.client.RestClient;
 public class YahooExchangeRateCollector implements ExchangeRateCollector {
   private static final Map<String, String> SYMBOLS = Map.of("USD/KRW", "KRW=X");
   private final RestClient client;
-  private final ExternalApiRetryExecutor retry;
+  private final ExternalApiCallExecutor externalCalls;
+  private final String baseUrl;
   private final YahooRequestRateLimiter limiter;
   private final CircuitBreakerSupport circuitBreaker;
   private final int failureThreshold;
@@ -29,7 +31,7 @@ public class YahooExchangeRateCollector implements ExchangeRateCollector {
       @Value("${overseas.yahoo.circuit-breaker.failure-threshold:5}") int failureThreshold,
       @Value("${overseas.yahoo.circuit-breaker.open-duration:60s}") Duration openDuration,
       ExternalRestClientFactory clients,
-      ExternalApiRetryExecutor retry,
+      ExternalApiCallExecutor externalCalls,
       CircuitBreakerSupport circuitBreaker,
       YahooRequestRateLimiter limiter) {
     this.client =
@@ -38,7 +40,8 @@ public class YahooExchangeRateCollector implements ExchangeRateCollector {
             .defaultHeader("User-Agent", "Mozilla/5.0 investment-briefing-engine/1.0")
             .defaultHeader("Accept", "application/json")
             .build();
-    this.retry = retry;
+    this.externalCalls = externalCalls;
+    this.baseUrl = baseUrl;
     this.limiter = limiter;
     this.circuitBreaker = circuitBreaker;
     this.failureThreshold = failureThreshold;
@@ -65,7 +68,9 @@ public class YahooExchangeRateCollector implements ExchangeRateCollector {
     limiter.acquire();
     JsonNode response = circuitBreaker.execute(
         "YAHOO:EXCHANGE", failureThreshold, openDuration,
-        () -> retry.execute("yahoo.exchange", () -> client
+        () -> externalCalls.execute(
+            new Call("yahoo.exchange", "YAHOO", "EXCHANGE:" + symbol, "GET", baseUrl + "/" + symbol, null),
+            () -> client
                     .get()
                     .uri(
                         u ->

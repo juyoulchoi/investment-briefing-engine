@@ -3,7 +3,8 @@ package com.nanum.investment.marketdata.infrastructure;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nanum.investment.common.infrastructure.external.CollectionResult;
 import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
-import com.nanum.investment.common.infrastructure.external.ExternalApiRetryExecutor;
+import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor;
+import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor.Call;
 import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;
 import java.math.*;
 import java.time.*;
@@ -17,7 +18,8 @@ import org.springframework.web.client.RestClient;
 public class YahooIndexService {
   private final JdbcClient jdbc;
   private final RestClient client;
-  private final ExternalApiRetryExecutor retry;
+  private final ExternalApiCallExecutor externalCalls;
+  private final String baseUrl;
   private final YahooRequestRateLimiter limiter;
   private final CircuitBreakerSupport circuitBreaker;
   private final int failureThreshold;
@@ -33,11 +35,12 @@ public class YahooIndexService {
       @Value("${overseas.yahoo.circuit-breaker.failure-threshold:5}") int failureThreshold,
       @Value("${overseas.yahoo.circuit-breaker.open-duration:60s}") Duration openDuration,
       ExternalRestClientFactory clients,
-      ExternalApiRetryExecutor retry,
+      ExternalApiCallExecutor externalCalls,
       CircuitBreakerSupport circuitBreaker,
       YahooRequestRateLimiter limiter) {
     this.jdbc = jdbc;
-    this.retry = retry;
+    this.externalCalls = externalCalls;
+    this.baseUrl = baseUrl;
     this.limiter = limiter;
     this.circuitBreaker = circuitBreaker;
     this.failureThreshold = failureThreshold;
@@ -139,7 +142,9 @@ public class YahooIndexService {
     limiter.acquire();
     JsonNode response = circuitBreaker.execute(
         "YAHOO:INDEX", failureThreshold, openDuration,
-        () -> retry.execute("yahoo.index", () -> client
+        () -> externalCalls.execute(
+            new Call("yahoo.index", "YAHOO", "INDEX:" + symbol, "GET", baseUrl + "/" + symbol, null),
+            () -> client
                     .get()
                     .uri(
                         uri ->

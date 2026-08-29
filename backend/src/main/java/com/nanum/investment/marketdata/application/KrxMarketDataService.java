@@ -4,7 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nanum.investment.common.infrastructure.external.CollectionResult;
 import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
-import com.nanum.investment.common.infrastructure.external.ExternalApiRetryExecutor;
+import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor;
+import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor.Call;
 import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;
 import com.nanum.investment.holding.application.HoldingPriceSyncService;
 import com.nanum.investment.marketdata.domain.KrxDataset;
@@ -53,7 +54,8 @@ public class KrxMarketDataService {
   private final RestClient client;
   private final String authKey;
   private final HoldingPriceSyncService holdingPriceSync;
-  private final ExternalApiRetryExecutor retry;
+  private final ExternalApiCallExecutor externalCalls;
+  private final String baseUrl;
   private final KrxIndexDailyCollector indexDailyCollector;
   private final KrxDerivativeDailyCollector derivativeDailyCollector;
   private final KrxBondTradingDailyCollector bondTradingDailyCollector;
@@ -73,7 +75,7 @@ public class KrxMarketDataService {
       @Value("${krx.circuit-breaker.open-duration:60s}") Duration circuitOpenDuration,
       HoldingPriceSyncService holdingPriceSync,
       ExternalRestClientFactory clients,
-      ExternalApiRetryExecutor retry,
+      ExternalApiCallExecutor externalCalls,
       CircuitBreakerSupport circuitBreaker,
       KrxRequestRateLimiter rateLimiter,
       KrxIndexDailyCollector indexDailyCollector,
@@ -82,9 +84,10 @@ public class KrxMarketDataService {
     this.jdbc = jdbc;
     this.json = json;
     this.authKey = authKey;
+    this.baseUrl = baseUrl;
     this.holdingPriceSync = holdingPriceSync;
     this.client = clients.builder(baseUrl, connectTimeout, readTimeout).build();
-    this.retry = retry;
+    this.externalCalls = externalCalls;
     this.rateLimiter = rateLimiter;
     this.circuitBreaker = circuitBreaker;
     this.circuitFailureThreshold = circuitFailureThreshold;
@@ -100,7 +103,10 @@ public class KrxMarketDataService {
     rateLimiter.acquire();
     JsonNode response = circuitBreaker.execute(
         "KRX:" + dataset.name(), circuitFailureThreshold, circuitOpenDuration,
-        () -> retry.execute("krx." + dataset.name(), () -> client
+        () -> externalCalls.execute(
+            new Call("krx." + dataset.name(), "KRX", dataset.name(), "GET",
+                baseUrl + dataset.path() + "?basDd=" + date.format(DateTimeFormatter.BASIC_ISO_DATE), null),
+            () -> client
                     .get()
                     .uri(
                         uri ->

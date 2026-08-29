@@ -1,7 +1,8 @@
 package com.nanum.investment.marketdata.infrastructure;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.nanum.investment.common.infrastructure.external.ExternalApiRetryExecutor;
+import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor;
+import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor.Call;
 import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
 import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;
 import com.nanum.investment.holding.application.HoldingPriceSyncService;
@@ -25,7 +26,8 @@ public class OverseasStockService {
   private final JdbcClient jdbc;
   private final RestClient client;
   private final HoldingPriceSyncService holdingPriceSync;
-  private final ExternalApiRetryExecutor retry;
+  private final ExternalApiCallExecutor externalCalls;
+  private final String baseUrl;
   private final YahooRequestRateLimiter limiter;
   private final CircuitBreakerSupport circuitBreaker;
   private final int failureThreshold;
@@ -42,7 +44,7 @@ public class OverseasStockService {
       @Value("${overseas.yahoo.circuit-breaker.open-duration:60s}") Duration openDuration,
       HoldingPriceSyncService holdingPriceSync,
       ExternalRestClientFactory clients,
-      ExternalApiRetryExecutor retry,
+      ExternalApiCallExecutor externalCalls,
       CircuitBreakerSupport circuitBreaker,
       YahooRequestRateLimiter limiter) {
     this.jdbc = jdbc;
@@ -53,7 +55,8 @@ public class OverseasStockService {
             .defaultHeader("Accept", "application/json")
             .build();
     this.holdingPriceSync = holdingPriceSync;
-    this.retry = retry;
+    this.externalCalls = externalCalls;
+    this.baseUrl = baseUrl;
     this.limiter = limiter;
     this.circuitBreaker = circuitBreaker;
     this.failureThreshold = failureThreshold;
@@ -177,7 +180,9 @@ public class OverseasStockService {
     limiter.acquire();
     JsonNode response = circuitBreaker.execute(
         "YAHOO:STOCK", failureThreshold, openDuration,
-        () -> retry.execute("yahoo.stock", () -> client.get().uri(uri).retrieve().body(JsonNode.class)));
+        () -> externalCalls.execute(
+            new Call("yahoo.stock", "YAHOO", "STOCK:" + symbol, "GET", baseUrl + "/" + symbol, null),
+            () -> client.get().uri(uri).retrieve().body(JsonNode.class)));
     JsonNode chart = response == null ? null : response.path("chart");
     if (chart == null || !chart.path("error").isNull() || chart.path("result").isEmpty())
       throw new IllegalStateException(
