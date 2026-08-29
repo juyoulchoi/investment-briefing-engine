@@ -350,9 +350,6 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
     type: Account["accountType"];
     value: number;
     evaluation: number;
-    etfEvaluation: number;
-    etfAsset: number;
-    etfRatio: number;
     cost: number;
     cash: number;
     displayValue: number;
@@ -379,9 +376,6 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
               type: a.accountType,
               value: Number(a.totalAsset || 0),
               evaluation: Number(a.evaluationAmount || 0),
-              etfEvaluation: Number(a.etfEvaluationAmount || 0),
-              etfAsset: Number(a.etfAssetAmount || 0),
-              etfRatio: Number(a.etfEvaluationRatio || 0),
               cost: Number(a.costAmount || 0),
               cash: Number(a.cashAmount || 0),
               displayValue: Number(a.displayTotalAsset || 0),
@@ -538,11 +532,6 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
                         ? usd(a.displayCash)
                         : won(a.cash)
                     }
-                    etfRatio={
-                      a.etfEvaluation > 0
-                        ? `${a.etfRatio.toFixed(1)}%`
-                        : null
-                    }
                   />
                 ))}
               </div>
@@ -660,14 +649,12 @@ function Account({
   p,
   g,
   cash,
-  etfRatio,
 }: {
   n: string;
   v: string;
   p: string;
   g: string;
   cash: string;
-  etfRatio: string | null;
 }) {
   return (
     <div>
@@ -678,7 +665,6 @@ function Account({
       </b>
       <span className="account-value">
         {v}
-        {etfRatio && <small>ETF 비중 {etfRatio}</small>}
       </span>
       <small>{p}</small>
       <em className={g[0] === "+" ? "pos" : g[0] === "-" ? "neg" : ""}>{g}</em>
