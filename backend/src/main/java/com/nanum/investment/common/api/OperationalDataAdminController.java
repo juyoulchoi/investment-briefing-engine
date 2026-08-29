@@ -478,13 +478,13 @@ public class OperationalDataAdminController {
   }
 
   private void applyAppliedSchedule(TbRegBuy x, RegularBuyRequest b) {
-    boolean stoppedByUser =
-        b.buyStatus() == RegularBuyStatus.STOPPED && "Y".equals(nvl(b.userPauseYn(), "N"));
+    boolean scheduleCleared =
+        b.buyStatus() == RegularBuyStatus.STOPPED || "Y".equals(nvl(b.userPauseYn(), "N"));
     x.setLegacyCycleType(b.appliedCycle());
     x.setLegacyWeekDays(
-        !stoppedByUser && b.appliedCycle().equals("WEEKLY") ? b.appliedWeekDays() : null);
+        !scheduleCleared && b.appliedCycle().equals("WEEKLY") ? b.appliedWeekDays() : null);
     String monthDays =
-        !stoppedByUser && b.appliedCycle().equals("MONTHLY") ? b.appliedMonthDays() : null;
+        !scheduleCleared && b.appliedCycle().equals("MONTHLY") ? b.appliedMonthDays() : null;
     x.setAppliedMonthDays(monthDays);
     x.setLegacyMonthDay(monthDays == null ? null : Integer.valueOf(monthDays.split(",")[0]));
   }
