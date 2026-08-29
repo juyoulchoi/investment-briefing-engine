@@ -338,6 +338,7 @@ export default function OperationsAdmin({
     [error, setError] = useState(""),
     [saving, setSaving] = useState(false),
     [query, setQuery] = useState(""),
+    [appliedCycleFilter, setAppliedCycleFilter] = useState(""),
     [buyStatusFilter, setBuyStatusFilter] = useState(""),
     [userPauseFilter, setUserPauseFilter] = useState(""),
     [selectedAccount, setSelectedAccount] = useState<string>("DOMESTIC");
@@ -520,6 +521,9 @@ export default function OperationsAdmin({
       .filter(
         (r) =>
           (kind !== "regular-buys" || r.accountType === selectedAccount) &&
+          (kind !== "regular-buys" ||
+            !appliedCycleFilter ||
+            r.appliedCycle === appliedCycleFilter) &&
           (kind !== "regular-buys" ||
             !buyStatusFilter ||
             r.buyStatus === buyStatusFilter) &&
@@ -896,6 +900,7 @@ export default function OperationsAdmin({
                 onChange={(e) => {
                   setSelectedAccount(e.target.value);
                   setQuery("");
+                  setAppliedCycleFilter("");
                   setBuyStatusFilter("");
                   setUserPauseFilter("");
                 }}
@@ -913,6 +918,17 @@ export default function OperationsAdmin({
                 placeholder="종목 코드 또는 종목명 검색"
                 aria-label="종목 검색"
               />
+              <select
+                className="status-filter"
+                value={appliedCycleFilter}
+                onChange={(e) => setAppliedCycleFilter(e.target.value)}
+                aria-label="모으기 주기 검색"
+              >
+                <option value="">모으기 주기</option>
+                <option value="DAILY">매일</option>
+                <option value="WEEKLY">매주</option>
+                <option value="MONTHLY">매월</option>
+              </select>
               <select
                 className="status-filter"
                 value={buyStatusFilter}
