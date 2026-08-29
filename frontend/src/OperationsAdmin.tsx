@@ -153,7 +153,7 @@ const config: Record<
       ["appliedValue", "현재 적용금액"],
       ["buyStatus", "매수상태"],
       ["userPauseYn", "사용자 일시정지"],
-      ["pauseReason", "일시정지 사유"],
+      ["pauseReason", "정지 사유"],
     ],
     defaults: {
       buyCycle: "MONTHLY",
@@ -268,7 +268,7 @@ const config: Record<
       },
       {
         key: "pauseReason",
-        label: "일시정지 사유",
+        label: "정지 사유",
         type: "select",
         options: [["", "선택 안 함"]],
       },
@@ -806,6 +806,7 @@ export default function OperationsAdmin({
           fixedBaseField(f.key) ||
           (kind === "regular-buys" &&
             f.key === "pauseReason" &&
+            form.buyStatus !== "STOPPED" &&
             form.userPauseYn !== "Y")
         }
         value={form[f.key] ?? ""}
@@ -815,6 +816,9 @@ export default function OperationsAdmin({
             setForm({
               ...form,
               buyStatus: value,
+              ...(value !== "STOPPED" && form.userPauseYn !== "Y"
+                ? { pauseReason: null }
+                : {}),
               ...(value === "STOPPED"
                 ? { appliedWeekDays: null, appliedMonthDays: null }
                 : {}),
@@ -823,7 +827,9 @@ export default function OperationsAdmin({
             setForm({
               ...form,
               userPauseYn: value,
-              ...(value === "N" ? { pauseReason: null } : {}),
+              ...(value !== "Y" && form.buyStatus !== "STOPPED"
+                ? { pauseReason: null }
+                : {}),
               ...(value === "Y"
                 ? { appliedWeekDays: null, appliedMonthDays: null }
                 : {}),
