@@ -1032,7 +1032,7 @@ function Holdings() {
           profitLossRate: Number(r.profitLossRate || 0),
           targetWeight: r.targetWeight,
           currentWeight: r.currentWeight ?? null,
-          investmentAssetWeight: null,
+          investmentAssetWeight: r.investmentAssetWeight ?? null,
           weightStatus: r.weightStatus ?? null,
           weightStatusName: r.weightStatusName ?? null,
           holdingStatus: r.holdingStatus,

@@ -103,6 +103,7 @@ public class OperationalDataAdminController {
       BigDecimal profitLossRate,
       BigDecimal targetWeight,
       BigDecimal currentWeight,
+      BigDecimal investmentAssetWeight,
       WeightStatus weightStatus,
       String weightStatusName,
       HoldingStatus holdingStatus,
@@ -534,6 +535,7 @@ public class OperationalDataAdminController {
         x.getProfitLossRate(),
         x.getTargetWeight(),
         currentWeight,
+        percentage(x.getEvaluationAmount(), accountTotal),
         x.getWeightStatus(),
         x.getWeightStatus() == null ? null : weightStatusNames.get(x.getWeightStatus().name()),
         x.getHoldingStatus(),
@@ -553,6 +555,13 @@ public class OperationalDataAdminController {
         .param("accountId", accountId)
         .query(BigDecimal.class)
         .single();
+  }
+
+  private BigDecimal percentage(BigDecimal amount, BigDecimal total) {
+    if (amount == null || total == null || total.signum() <= 0) return null;
+    return amount
+        .multiply(new BigDecimal("100"))
+        .divide(total, 4, RoundingMode.HALF_UP);
   }
 
   private RegularBuyRow row(TbRegBuy x) {
