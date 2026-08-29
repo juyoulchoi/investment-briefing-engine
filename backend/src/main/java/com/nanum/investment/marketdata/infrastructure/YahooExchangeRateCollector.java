@@ -14,6 +14,7 @@ public class YahooExchangeRateCollector implements ExchangeRateCollector {
   private static final Map<String, String> SYMBOLS = Map.of("USD/KRW", "KRW=X");
   private final RestClient client;
   private final ExternalApiRetryExecutor retry;
+  private final YahooRequestRateLimiter limiter;
 
   public YahooExchangeRateCollector(
       @Value("${exchange-rate.yahoo.base-url:${overseas.yahoo.base-url}}") String baseUrl,
@@ -22,7 +23,8 @@ public class YahooExchangeRateCollector implements ExchangeRateCollector {
       @Value("${exchange-rate.yahoo.read-timeout:${overseas.yahoo.read-timeout:30s}}")
           Duration readTimeout,
       ExternalRestClientFactory clients,
-      ExternalApiRetryExecutor retry) {
+      ExternalApiRetryExecutor retry,
+      YahooRequestRateLimiter limiter) {
     this.client =
         clients
             .builder(baseUrl, connectTimeout, readTimeout)
@@ -30,6 +32,7 @@ public class YahooExchangeRateCollector implements ExchangeRateCollector {
             .defaultHeader("Accept", "application/json")
             .build();
     this.retry = retry;
+    this.limiter = limiter;
   }
 
   @Override
@@ -49,8 +52,10 @@ public class YahooExchangeRateCollector implements ExchangeRateCollector {
     if (symbol == null) throw new IllegalArgumentException("지원하지 않는 통화쌍입니다: " + base + "/" + quote);
     long period1 = from.atStartOfDay(ZoneOffset.UTC).toEpochSecond(),
         period2 = to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
+    limiter.acquire();
     JsonNode response =
         retry.execute(
+            "yahoo.exchange",
             () ->
                 client
                     .get()

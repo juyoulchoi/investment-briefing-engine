@@ -17,6 +17,7 @@ public class YahooIndexService {
   private final JdbcClient jdbc;
   private final RestClient client;
   private final ExternalApiRetryExecutor retry;
+  private final YahooRequestRateLimiter limiter;
 
   public YahooIndexService(
       JdbcClient jdbc,
@@ -26,9 +27,11 @@ public class YahooIndexService {
       @Value("${overseas.yahoo.index.read-timeout:${overseas.yahoo.read-timeout:30s}}")
           Duration readTimeout,
       ExternalRestClientFactory clients,
-      ExternalApiRetryExecutor retry) {
+      ExternalApiRetryExecutor retry,
+      YahooRequestRateLimiter limiter) {
     this.jdbc = jdbc;
     this.retry = retry;
+    this.limiter = limiter;
     this.client =
         clients
             .builder(baseUrl, connectTimeout, readTimeout)
@@ -123,8 +126,10 @@ public class YahooIndexService {
   }
 
   private JsonNode fetch(String symbol, long period1, long period2) {
+    limiter.acquire();
     JsonNode response =
         retry.execute(
+            "yahoo.index",
             () ->
                 client
                     .get()

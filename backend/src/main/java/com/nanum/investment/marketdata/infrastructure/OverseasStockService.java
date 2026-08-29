@@ -6,6 +6,7 @@ import com.nanum.investment.common.infrastructure.external.ExternalRestClientFac
 import com.nanum.investment.holding.application.HoldingPriceSyncService;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -24,22 +25,29 @@ public class OverseasStockService {
   private final RestClient client;
   private final HoldingPriceSyncService holdingPriceSync;
   private final ExternalApiRetryExecutor retry;
+  private final YahooRequestRateLimiter limiter;
 
   public OverseasStockService(
       JdbcClient jdbc,
       @Value("${overseas.yahoo.base-url}") String baseUrl,
+      @Value("${overseas.yahoo.stock.connect-timeout:${overseas.yahoo.connect-timeout:5s}}")
+          Duration connectTimeout,
+      @Value("${overseas.yahoo.stock.read-timeout:${overseas.yahoo.read-timeout:30s}}")
+          Duration readTimeout,
       HoldingPriceSyncService holdingPriceSync,
       ExternalRestClientFactory clients,
-      ExternalApiRetryExecutor retry) {
+      ExternalApiRetryExecutor retry,
+      YahooRequestRateLimiter limiter) {
     this.jdbc = jdbc;
     this.client =
         clients
-            .builder(baseUrl)
+            .builder(baseUrl, connectTimeout, readTimeout)
             .defaultHeader("User-Agent", "Mozilla/5.0 investment-briefing-engine/1.0")
             .defaultHeader("Accept", "application/json")
             .build();
     this.holdingPriceSync = holdingPriceSync;
     this.retry = retry;
+    this.limiter = limiter;
   }
 
   @Transactional
@@ -156,7 +164,10 @@ public class OverseasStockService {
   private JsonNode fetch(
       String symbol,
       java.util.function.Function<org.springframework.web.util.UriBuilder, java.net.URI> uri) {
-    JsonNode response = retry.execute(() -> client.get().uri(uri).retrieve().body(JsonNode.class));
+    limiter.acquire();
+    JsonNode response =
+        retry.execute(
+            "yahoo.stock", () -> client.get().uri(uri).retrieve().body(JsonNode.class));
     JsonNode chart = response == null ? null : response.path("chart");
     if (chart == null || !chart.path("error").isNull() || chart.path("result").isEmpty())
       throw new IllegalStateException(

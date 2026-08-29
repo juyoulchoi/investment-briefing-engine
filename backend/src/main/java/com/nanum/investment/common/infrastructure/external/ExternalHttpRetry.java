@@ -14,8 +14,12 @@ public final class ExternalHttpRetry {
   private ExternalHttpRetry() {}
 
   public static boolean isRetryable(Throwable error) {
+    return isRetryable(error, RETRYABLE);
+  }
+
+  public static boolean isRetryable(Throwable error, Set<Integer> retryableStatuses) {
     if (error instanceof RestClientResponseException response)
-      return RETRYABLE.contains(response.getStatusCode().value());
+      return retryableStatuses.contains(response.getStatusCode().value());
     if (!(error instanceof ResourceAccessException)) return false;
     for (Throwable cause = error; cause != null; cause = cause.getCause())
       if (cause instanceof SocketTimeoutException

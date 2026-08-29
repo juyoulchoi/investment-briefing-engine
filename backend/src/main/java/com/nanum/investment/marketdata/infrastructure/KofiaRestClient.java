@@ -89,6 +89,7 @@ public class KofiaRestClient implements KofiaClient {
               openDuration,
               () ->
                   retry.execute(
+                      "kofia." + dataset.name(),
                       () ->
                           client
                               .post()

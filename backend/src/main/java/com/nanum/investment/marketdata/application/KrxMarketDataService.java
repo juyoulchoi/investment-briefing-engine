@@ -8,6 +8,7 @@ import com.nanum.investment.common.infrastructure.external.ExternalRestClientFac
 import com.nanum.investment.holding.application.HoldingPriceSyncService;
 import com.nanum.investment.marketdata.domain.KrxDataset;
 import com.nanum.investment.marketdata.infrastructure.KrxIndexDailyCollector;
+import com.nanum.investment.marketdata.infrastructure.KrxRequestRateLimiter;
 import com.nanum.investment.marketdata.infrastructure.KrxBondTradingDailyCollector;
 import com.nanum.investment.marketdata.infrastructure.KrxDerivativeDailyCollector;
 import java.time.LocalDate;
@@ -55,6 +56,7 @@ public class KrxMarketDataService {
   private final KrxIndexDailyCollector indexDailyCollector;
   private final KrxDerivativeDailyCollector derivativeDailyCollector;
   private final KrxBondTradingDailyCollector bondTradingDailyCollector;
+  private final KrxRequestRateLimiter rateLimiter;
 
   public KrxMarketDataService(
       JdbcClient jdbc,
@@ -66,6 +68,7 @@ public class KrxMarketDataService {
       HoldingPriceSyncService holdingPriceSync,
       ExternalRestClientFactory clients,
       ExternalApiRetryExecutor retry,
+      KrxRequestRateLimiter rateLimiter,
       KrxIndexDailyCollector indexDailyCollector,
       KrxDerivativeDailyCollector derivativeDailyCollector,
       KrxBondTradingDailyCollector bondTradingDailyCollector) {
@@ -75,6 +78,7 @@ public class KrxMarketDataService {
     this.holdingPriceSync = holdingPriceSync;
     this.client = clients.builder(baseUrl, connectTimeout, readTimeout).build();
     this.retry = retry;
+    this.rateLimiter = rateLimiter;
     this.indexDailyCollector = indexDailyCollector;
     this.derivativeDailyCollector = derivativeDailyCollector;
     this.bondTradingDailyCollector = bondTradingDailyCollector;
@@ -83,8 +87,10 @@ public class KrxMarketDataService {
   @Transactional
   public CollectionResult collect(KrxDataset dataset, LocalDate date) {
     if (!StringUtils.hasText(authKey)) throw new IllegalStateException("KRX_AUTH_KEY가 필요합니다.");
+    rateLimiter.acquire();
     JsonNode response =
         retry.execute(
+            "krx." + dataset.name(),
             () ->
                 client
                     .get()

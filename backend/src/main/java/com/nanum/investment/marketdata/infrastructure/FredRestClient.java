@@ -124,6 +124,7 @@ public class FredRestClient implements FredClient {
               openDuration,
               () ->
                   retry.execute(
+                      "fred." + code,
                       () ->
                           client
                               .get()
