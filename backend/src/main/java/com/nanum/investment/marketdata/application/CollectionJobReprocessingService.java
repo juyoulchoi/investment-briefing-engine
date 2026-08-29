@@ -41,7 +41,7 @@ public class CollectionJobReprocessingService {
     Map<String, Object> job = jdbc.sql("SELECT * FROM \"TB_KRX_CLCT_JOB\" WHERE \"ID\"=:id")
         .param("id", original).query().singleRow();
     int retryNo = nextRetry(job);
-    List<String> datasets = jdbc.sql("SELECT \"DATA_CD\" FROM \"TB_KRX_CLCT_JOB_ITEM\" WHERE \"JOB_ID\"=:id AND \"ST\"<>'SUCCESS'")
+    List<String> datasets = jdbc.sql("SELECT \"DATA_CD\" FROM \"TB_KRX_CLCT_JOB_ITEM\" WHERE \"JOB_ID\"=:id AND \"ST\" IN ('COLLECTION_FAILED','NO_DATA_UNEXPECTED','NOT_AUTHORIZED','FAILED')")
         .param("id", original).query(String.class).list();
     requireFailures(datasets.size());
     UUID root = root(job, original);
@@ -50,7 +50,7 @@ public class CollectionJobReprocessingService {
         .param("orig", original).param("root", root).param("retryNo", retryNo).param("max", max(job)).update();
     datasets.forEach(dataset -> jdbc.sql("INSERT INTO \"TB_KRX_CLCT_JOB_ITEM\"(\"JOB_ID\",\"DATA_CD\",\"ST\",\"RETRY_CNT\") VALUES(:job,:dataset,'PENDING',:retryNo)")
         .param("job", retry).param("dataset", dataset).param("retryNo", retryNo).update());
-    jdbc.sql("UPDATE \"TB_KRX_CLCT_JOB_ITEM\" SET \"ST\"='RETRIED',\"RETRY_CNT\"=:retryNo WHERE \"JOB_ID\"=:id AND \"ST\"<>'SUCCESS'")
+    jdbc.sql("UPDATE \"TB_KRX_CLCT_JOB_ITEM\" SET \"ST\"='RETRIED',\"RETRY_CNT\"=:retryNo WHERE \"JOB_ID\"=:id AND \"ST\" IN ('COLLECTION_FAILED','NO_DATA_UNEXPECTED','NOT_AUTHORIZED','FAILED')")
         .param("id", original).param("retryNo", retryNo).update();
     LocalDate day = ((Date) job.get("BASE_DT")).toLocalDate();
     afterCommit(() -> krxRunner.runNow(retry, day, datasets.stream().map(KrxDataset::valueOf).toList(), 0));

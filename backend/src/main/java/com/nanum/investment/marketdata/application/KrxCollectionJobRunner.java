@@ -15,14 +15,17 @@ public class KrxCollectionJobRunner {
   private final KrxMarketDataService collector;
   private final KrxCollectionJobRepository jobs;
   private final com.nanum.investment.marketdata.infrastructure.KrxRequestRateLimiter rateLimiter;
+  private final KrxCollectionOutcomeClassifier outcomes;
 
   public KrxCollectionJobRunner(
       KrxMarketDataService collector,
       KrxCollectionJobRepository jobs,
-      com.nanum.investment.marketdata.infrastructure.KrxRequestRateLimiter rateLimiter) {
+      com.nanum.investment.marketdata.infrastructure.KrxRequestRateLimiter rateLimiter,
+      KrxCollectionOutcomeClassifier outcomes) {
     this.collector = collector;
     this.jobs = jobs;
     this.rateLimiter = rateLimiter;
+    this.outcomes = outcomes;
   }
 
   @Async("krxCollectorExecutor")
@@ -36,13 +39,18 @@ public class KrxCollectionJobRunner {
     try {
       for (KrxDataset dataset : datasets) {
         LocalDateTime startedAt = LocalDateTime.now();
+        String preclassified = outcomes.beforeRequest(baseDate);
+        if (preclassified != null) {
+          jobs.saveItem(jobId, dataset.name(), preclassified, 0, 0, null, startedAt);
+          continue;
+        }
         try {
           rateLimiter.acquire(requestIntervalMillis);
           var result = collector.collect(dataset, baseDate);
           jobs.saveItem(
               jobId,
               dataset.name(),
-              "SUCCESS",
+              outcomes.afterSuccess(result.receivedCount()),
               result.receivedCount(),
               result.storedCount(),
               null,
@@ -51,14 +59,15 @@ public class KrxCollectionJobRunner {
           jobs.saveItem(
               jobId,
               dataset.name(),
-              "HTTP_" + exception.getStatusCode().value(),
+              exception.getStatusCode().value() == 401 || exception.getStatusCode().value() == 403
+                  ? "NOT_AUTHORIZED" : "COLLECTION_FAILED",
               0,
               0,
               trim(exception.getResponseBodyAsString()),
               startedAt);
         } catch (RuntimeException exception) {
           jobs.saveItem(
-              jobId, dataset.name(), "FAILED", 0, 0, trim(exception.getMessage()), startedAt);
+              jobId, dataset.name(), "COLLECTION_FAILED", 0, 0, trim(exception.getMessage()), startedAt);
         }
       }
     } finally {

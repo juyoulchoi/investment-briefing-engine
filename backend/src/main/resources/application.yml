@@ -25,6 +25,8 @@ krx:
   circuit-breaker:
     failure-threshold: ${KRX_CIRCUIT_FAILURE_THRESHOLD:5}
     open-duration: ${KRX_CIRCUIT_OPEN_DURATION:60s}
+  eod-publication-zone: ${KRX_EOD_PUBLICATION_ZONE:Asia/Seoul}
+  eod-publication-time: ${KRX_EOD_PUBLICATION_TIME:18:00}
 overseas:
   yahoo:
     base-url: ${YAHOO_FINANCE_BASE_URL:https://query2.finance.yahoo.com/v8/finance/chart}
