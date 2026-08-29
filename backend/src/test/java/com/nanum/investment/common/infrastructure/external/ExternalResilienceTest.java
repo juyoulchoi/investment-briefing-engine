@@ -67,6 +67,23 @@ class ExternalResilienceTest {
   }
 
   @Test
+  void circuitAllowsOneHalfOpenProbeAndClosesAfterSuccess() {
+    CircuitBreakerSupport circuit = new CircuitBreakerSupport();
+    assertThatThrownBy(
+        () ->
+            circuit.execute(
+                "KRX",
+                1,
+                Duration.ZERO,
+                () -> {
+                  throw new IllegalStateException("down");
+                }));
+
+    assertThat(circuit.execute("KRX", 1, Duration.ZERO, () -> "recovered")).isEqualTo("recovered");
+    assertThat(circuit.isOpen("KRX", Duration.ZERO)).isFalse();
+  }
+
+  @Test
   void apiLogMasksSecretsAndLimitsSize() {
     ApiLogMasker masker = new ApiLogMasker();
     String masked =

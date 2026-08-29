@@ -2,6 +2,7 @@ package com.nanum.investment.marketdata.infrastructure;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nanum.investment.common.infrastructure.external.CollectionResult;
+import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
 import com.nanum.investment.common.infrastructure.external.ExternalApiRetryExecutor;
 import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;
 import java.math.*;
@@ -18,6 +19,9 @@ public class YahooIndexService {
   private final RestClient client;
   private final ExternalApiRetryExecutor retry;
   private final YahooRequestRateLimiter limiter;
+  private final CircuitBreakerSupport circuitBreaker;
+  private final int failureThreshold;
+  private final Duration openDuration;
 
   public YahooIndexService(
       JdbcClient jdbc,
@@ -26,12 +30,18 @@ public class YahooIndexService {
           Duration connectTimeout,
       @Value("${overseas.yahoo.index.read-timeout:${overseas.yahoo.read-timeout:30s}}")
           Duration readTimeout,
+      @Value("${overseas.yahoo.circuit-breaker.failure-threshold:5}") int failureThreshold,
+      @Value("${overseas.yahoo.circuit-breaker.open-duration:60s}") Duration openDuration,
       ExternalRestClientFactory clients,
       ExternalApiRetryExecutor retry,
+      CircuitBreakerSupport circuitBreaker,
       YahooRequestRateLimiter limiter) {
     this.jdbc = jdbc;
     this.retry = retry;
     this.limiter = limiter;
+    this.circuitBreaker = circuitBreaker;
+    this.failureThreshold = failureThreshold;
+    this.openDuration = openDuration;
     this.client =
         clients
             .builder(baseUrl, connectTimeout, readTimeout)
@@ -127,11 +137,9 @@ public class YahooIndexService {
 
   private JsonNode fetch(String symbol, long period1, long period2) {
     limiter.acquire();
-    JsonNode response =
-        retry.execute(
-            "yahoo.index",
-            () ->
-                client
+    JsonNode response = circuitBreaker.execute(
+        "YAHOO:INDEX", failureThreshold, openDuration,
+        () -> retry.execute("yahoo.index", () -> client
                     .get()
                     .uri(
                         uri ->
@@ -142,7 +150,7 @@ public class YahooIndexService {
                                 .queryParam("events", "div,splits")
                                 .build())
                     .retrieve()
-                    .body(JsonNode.class));
+                    .body(JsonNode.class)));
     JsonNode chart = response == null ? null : response.path("chart");
     if (chart == null || !chart.path("error").isNull() || chart.path("result").isEmpty())
       throw new IllegalStateException(

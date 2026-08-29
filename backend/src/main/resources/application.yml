@@ -22,6 +22,9 @@ krx:
   read-timeout: ${KRX_READ_TIMEOUT:30s}
   collection:
     min-request-interval: ${KRX_MIN_REQUEST_INTERVAL:250ms}
+  circuit-breaker:
+    failure-threshold: ${KRX_CIRCUIT_FAILURE_THRESHOLD:5}
+    open-duration: ${KRX_CIRCUIT_OPEN_DURATION:60s}
 overseas:
   yahoo:
     base-url: ${YAHOO_FINANCE_BASE_URL:https://query2.finance.yahoo.com/v8/finance/chart}
@@ -35,6 +38,9 @@ overseas:
       read-timeout: ${YAHOO_STOCK_READ_TIMEOUT:${YAHOO_READ_TIMEOUT:30s}}
     collection:
       min-request-interval: ${YAHOO_MIN_REQUEST_INTERVAL:250ms}
+    circuit-breaker:
+      failure-threshold: ${YAHOO_CIRCUIT_FAILURE_THRESHOLD:5}
+      open-duration: ${YAHOO_CIRCUIT_OPEN_DURATION:60s}
 exchange-rate:
   yahoo:
     connect-timeout: ${YAHOO_EXCHANGE_CONNECT_TIMEOUT:${YAHOO_CONNECT_TIMEOUT:5s}}

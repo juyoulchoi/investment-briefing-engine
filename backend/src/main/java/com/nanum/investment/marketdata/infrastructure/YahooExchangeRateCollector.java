@@ -2,6 +2,7 @@ package com.nanum.investment.marketdata.infrastructure;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nanum.investment.common.infrastructure.external.ExternalApiRetryExecutor;
+import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
 import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;
 import java.time.*;
 import java.util.*;
@@ -15,6 +16,9 @@ public class YahooExchangeRateCollector implements ExchangeRateCollector {
   private final RestClient client;
   private final ExternalApiRetryExecutor retry;
   private final YahooRequestRateLimiter limiter;
+  private final CircuitBreakerSupport circuitBreaker;
+  private final int failureThreshold;
+  private final Duration openDuration;
 
   public YahooExchangeRateCollector(
       @Value("${exchange-rate.yahoo.base-url:${overseas.yahoo.base-url}}") String baseUrl,
@@ -22,8 +26,11 @@ public class YahooExchangeRateCollector implements ExchangeRateCollector {
           Duration connectTimeout,
       @Value("${exchange-rate.yahoo.read-timeout:${overseas.yahoo.read-timeout:30s}}")
           Duration readTimeout,
+      @Value("${overseas.yahoo.circuit-breaker.failure-threshold:5}") int failureThreshold,
+      @Value("${overseas.yahoo.circuit-breaker.open-duration:60s}") Duration openDuration,
       ExternalRestClientFactory clients,
       ExternalApiRetryExecutor retry,
+      CircuitBreakerSupport circuitBreaker,
       YahooRequestRateLimiter limiter) {
     this.client =
         clients
@@ -33,6 +40,9 @@ public class YahooExchangeRateCollector implements ExchangeRateCollector {
             .build();
     this.retry = retry;
     this.limiter = limiter;
+    this.circuitBreaker = circuitBreaker;
+    this.failureThreshold = failureThreshold;
+    this.openDuration = openDuration;
   }
 
   @Override
@@ -53,11 +63,9 @@ public class YahooExchangeRateCollector implements ExchangeRateCollector {
     long period1 = from.atStartOfDay(ZoneOffset.UTC).toEpochSecond(),
         period2 = to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
     limiter.acquire();
-    JsonNode response =
-        retry.execute(
-            "yahoo.exchange",
-            () ->
-                client
+    JsonNode response = circuitBreaker.execute(
+        "YAHOO:EXCHANGE", failureThreshold, openDuration,
+        () -> retry.execute("yahoo.exchange", () -> client
                     .get()
                     .uri(
                         u ->
@@ -68,7 +76,7 @@ public class YahooExchangeRateCollector implements ExchangeRateCollector {
                                 .queryParam("events", "div,splits")
                                 .build())
                     .retrieve()
-                    .body(JsonNode.class));
+                    .body(JsonNode.class)));
     JsonNode chart = response == null ? null : response.path("chart");
     if (chart == null || !chart.path("error").isNull() || chart.path("result").isEmpty())
       throw new IllegalStateException(

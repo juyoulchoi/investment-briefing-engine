@@ -2,6 +2,7 @@ package com.nanum.investment.marketdata.infrastructure;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nanum.investment.common.infrastructure.external.ExternalApiRetryExecutor;
+import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
 import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;
 import com.nanum.investment.holding.application.HoldingPriceSyncService;
 import java.math.BigDecimal;
@@ -26,6 +27,9 @@ public class OverseasStockService {
   private final HoldingPriceSyncService holdingPriceSync;
   private final ExternalApiRetryExecutor retry;
   private final YahooRequestRateLimiter limiter;
+  private final CircuitBreakerSupport circuitBreaker;
+  private final int failureThreshold;
+  private final Duration openDuration;
 
   public OverseasStockService(
       JdbcClient jdbc,
@@ -34,9 +38,12 @@ public class OverseasStockService {
           Duration connectTimeout,
       @Value("${overseas.yahoo.stock.read-timeout:${overseas.yahoo.read-timeout:30s}}")
           Duration readTimeout,
+      @Value("${overseas.yahoo.circuit-breaker.failure-threshold:5}") int failureThreshold,
+      @Value("${overseas.yahoo.circuit-breaker.open-duration:60s}") Duration openDuration,
       HoldingPriceSyncService holdingPriceSync,
       ExternalRestClientFactory clients,
       ExternalApiRetryExecutor retry,
+      CircuitBreakerSupport circuitBreaker,
       YahooRequestRateLimiter limiter) {
     this.jdbc = jdbc;
     this.client =
@@ -48,6 +55,9 @@ public class OverseasStockService {
     this.holdingPriceSync = holdingPriceSync;
     this.retry = retry;
     this.limiter = limiter;
+    this.circuitBreaker = circuitBreaker;
+    this.failureThreshold = failureThreshold;
+    this.openDuration = openDuration;
   }
 
   @Transactional
@@ -165,9 +175,9 @@ public class OverseasStockService {
       String symbol,
       java.util.function.Function<org.springframework.web.util.UriBuilder, java.net.URI> uri) {
     limiter.acquire();
-    JsonNode response =
-        retry.execute(
-            "yahoo.stock", () -> client.get().uri(uri).retrieve().body(JsonNode.class));
+    JsonNode response = circuitBreaker.execute(
+        "YAHOO:STOCK", failureThreshold, openDuration,
+        () -> retry.execute("yahoo.stock", () -> client.get().uri(uri).retrieve().body(JsonNode.class)));
     JsonNode chart = response == null ? null : response.path("chart");
     if (chart == null || !chart.path("error").isNull() || chart.path("result").isEmpty())
       throw new IllegalStateException(

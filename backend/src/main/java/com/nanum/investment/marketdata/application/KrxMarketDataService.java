@@ -3,6 +3,7 @@ package com.nanum.investment.marketdata.application;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nanum.investment.common.infrastructure.external.CollectionResult;
+import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
 import com.nanum.investment.common.infrastructure.external.ExternalApiRetryExecutor;
 import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;
 import com.nanum.investment.holding.application.HoldingPriceSyncService;
@@ -57,6 +58,9 @@ public class KrxMarketDataService {
   private final KrxDerivativeDailyCollector derivativeDailyCollector;
   private final KrxBondTradingDailyCollector bondTradingDailyCollector;
   private final KrxRequestRateLimiter rateLimiter;
+  private final CircuitBreakerSupport circuitBreaker;
+  private final int circuitFailureThreshold;
+  private final Duration circuitOpenDuration;
 
   public KrxMarketDataService(
       JdbcClient jdbc,
@@ -65,9 +69,12 @@ public class KrxMarketDataService {
       @Value("${krx.auth-key:}") String authKey,
       @Value("${krx.connect-timeout:5s}") Duration connectTimeout,
       @Value("${krx.read-timeout:30s}") Duration readTimeout,
+      @Value("${krx.circuit-breaker.failure-threshold:5}") int circuitFailureThreshold,
+      @Value("${krx.circuit-breaker.open-duration:60s}") Duration circuitOpenDuration,
       HoldingPriceSyncService holdingPriceSync,
       ExternalRestClientFactory clients,
       ExternalApiRetryExecutor retry,
+      CircuitBreakerSupport circuitBreaker,
       KrxRequestRateLimiter rateLimiter,
       KrxIndexDailyCollector indexDailyCollector,
       KrxDerivativeDailyCollector derivativeDailyCollector,
@@ -79,6 +86,9 @@ public class KrxMarketDataService {
     this.client = clients.builder(baseUrl, connectTimeout, readTimeout).build();
     this.retry = retry;
     this.rateLimiter = rateLimiter;
+    this.circuitBreaker = circuitBreaker;
+    this.circuitFailureThreshold = circuitFailureThreshold;
+    this.circuitOpenDuration = circuitOpenDuration;
     this.indexDailyCollector = indexDailyCollector;
     this.derivativeDailyCollector = derivativeDailyCollector;
     this.bondTradingDailyCollector = bondTradingDailyCollector;
@@ -88,11 +98,9 @@ public class KrxMarketDataService {
   public CollectionResult collect(KrxDataset dataset, LocalDate date) {
     if (!StringUtils.hasText(authKey)) throw new IllegalStateException("KRX_AUTH_KEY가 필요합니다.");
     rateLimiter.acquire();
-    JsonNode response =
-        retry.execute(
-            "krx." + dataset.name(),
-            () ->
-                client
+    JsonNode response = circuitBreaker.execute(
+        "KRX:" + dataset.name(), circuitFailureThreshold, circuitOpenDuration,
+        () -> retry.execute("krx." + dataset.name(), () -> client
                     .get()
                     .uri(
                         uri ->
@@ -101,7 +109,7 @@ public class KrxMarketDataService {
                                 .build())
                     .header("AUTH_KEY", authKey)
                     .retrieve()
-                    .body(JsonNode.class));
+                    .body(JsonNode.class)));
     JsonNode rows = response == null ? null : response.path("OutBlock_1");
     if (rows == null || !rows.isArray())
       throw new IllegalStateException("KRX 응답에 OutBlock_1 배열이 없습니다.");
