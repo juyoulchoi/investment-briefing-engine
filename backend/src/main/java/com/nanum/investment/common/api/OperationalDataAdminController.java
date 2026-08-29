@@ -428,9 +428,9 @@ public class OperationalDataAdminController {
     x.setBaseBuyQuantity(BigDecimal.ONE);
     x.setBuyQuantity(b.buyQuantity());
     RegularBuyStatus status = b.buyStatus();
-    String userPause = status == RegularBuyStatus.ACTIVE ? nvl(b.userPauseYn(), "N") : "N";
+    String userPause = nvl(b.userPauseYn(), "N");
     x.setBuyStatus(status);
-    x.setPauseReason(b.pauseReason());
+    x.setPauseReason(pauseReason(b.pauseReason()));
     x.setUserPauseYn(userPause);
     x.setAutoCalculateYn(nvl(b.autoCalculateYn(), "Y"));
     x.setLegacyActiveYn(status == RegularBuyStatus.ACTIVE ? "Y" : "N");
@@ -469,7 +469,7 @@ public class OperationalDataAdminController {
     x.setMinimumBuyAmount(new BigDecimal("10000"));
     x.setBaseBuyQuantity(BigDecimal.ONE);
     x.setBuyStatus(RegularBuyStatus.PAUSED);
-    x.setPauseReason("기본 설정");
+    x.setPauseReason("비중 적정");
     x.setUserPauseYn("N");
     x.setAutoCalculateYn("Y");
     x.setRuleVersionNumber(1);
@@ -478,11 +478,28 @@ public class OperationalDataAdminController {
   }
 
   private void applyAppliedSchedule(TbRegBuy x, RegularBuyRequest b) {
+    boolean stoppedByUser =
+        b.buyStatus() == RegularBuyStatus.STOPPED && "Y".equals(nvl(b.userPauseYn(), "N"));
     x.setLegacyCycleType(b.appliedCycle());
-    x.setLegacyWeekDays(b.appliedCycle().equals("WEEKLY") ? b.appliedWeekDays() : null);
-    String monthDays = b.appliedCycle().equals("MONTHLY") ? b.appliedMonthDays() : null;
+    x.setLegacyWeekDays(
+        !stoppedByUser && b.appliedCycle().equals("WEEKLY") ? b.appliedWeekDays() : null);
+    String monthDays =
+        !stoppedByUser && b.appliedCycle().equals("MONTHLY") ? b.appliedMonthDays() : null;
     x.setAppliedMonthDays(monthDays);
     x.setLegacyMonthDay(monthDays == null ? null : Integer.valueOf(monthDays.split(",")[0]));
+  }
+
+  private String pauseReason(String value) {
+    if (value == null || value.isBlank()) return null;
+    String reason = value.trim();
+    Long count =
+        jdbc.sql(
+                "SELECT COUNT(*) FROM \"TB_CD_DTL\" WHERE \"CD_GRP\"='REG_BUY_PAUSE_REASON' AND \"CD_NM\"=:reason AND \"ACTV_YN\"='Y'")
+            .param("reason", reason)
+            .query(Long.class)
+            .single();
+    if (count == 0) throw new BusinessException(ErrorCode.INVALID_REQUEST, "유효하지 않은 일시정지 사유입니다.");
+    return reason;
   }
 
   private void apply(TbCashRsv x, CashReserveRequest b) {
