@@ -18,11 +18,22 @@ server:
 krx:
   base-url: ${KRX_BASE_URL:https://data-dbg.krx.co.kr}
   auth-key: ${KRX_AUTH_KEY:}
+  connect-timeout: ${KRX_CONNECT_TIMEOUT:5s}
+  read-timeout: ${KRX_READ_TIMEOUT:30s}
   collection:
     min-request-interval: ${KRX_MIN_REQUEST_INTERVAL:250ms}
 overseas:
   yahoo:
     base-url: ${YAHOO_FINANCE_BASE_URL:https://query2.finance.yahoo.com/v8/finance/chart}
+    connect-timeout: ${YAHOO_CONNECT_TIMEOUT:5s}
+    read-timeout: ${YAHOO_READ_TIMEOUT:30s}
+    index:
+      connect-timeout: ${YAHOO_INDEX_CONNECT_TIMEOUT:${YAHOO_CONNECT_TIMEOUT:5s}}
+      read-timeout: ${YAHOO_INDEX_READ_TIMEOUT:${YAHOO_READ_TIMEOUT:30s}}
+exchange-rate:
+  yahoo:
+    connect-timeout: ${YAHOO_EXCHANGE_CONNECT_TIMEOUT:${YAHOO_CONNECT_TIMEOUT:5s}}
+    read-timeout: ${YAHOO_EXCHANGE_READ_TIMEOUT:${YAHOO_READ_TIMEOUT:30s}}
 investment:
   rules:
     max-regular-buy-multiplier: 3.0

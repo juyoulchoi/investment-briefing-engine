@@ -21,13 +21,17 @@ public class YahooIndexService {
   public YahooIndexService(
       JdbcClient jdbc,
       @Value("${overseas.yahoo.base-url}") String baseUrl,
+      @Value("${overseas.yahoo.index.connect-timeout:${overseas.yahoo.connect-timeout:5s}}")
+          Duration connectTimeout,
+      @Value("${overseas.yahoo.index.read-timeout:${overseas.yahoo.read-timeout:30s}}")
+          Duration readTimeout,
       ExternalRestClientFactory clients,
       ExternalApiRetryExecutor retry) {
     this.jdbc = jdbc;
     this.retry = retry;
     this.client =
         clients
-            .builder(baseUrl)
+            .builder(baseUrl, connectTimeout, readTimeout)
             .defaultHeader("User-Agent", "Mozilla/5.0 investment-briefing-engine/1.0")
             .defaultHeader("Accept", "application/json")
             .build();

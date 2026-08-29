@@ -11,6 +11,7 @@ import com.nanum.investment.marketdata.infrastructure.KrxIndexDailyCollector;
 import com.nanum.investment.marketdata.infrastructure.KrxBondTradingDailyCollector;
 import com.nanum.investment.marketdata.infrastructure.KrxDerivativeDailyCollector;
 import java.time.LocalDate;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
@@ -60,6 +61,8 @@ public class KrxMarketDataService {
       ObjectMapper json,
       @Value("${krx.base-url}") String baseUrl,
       @Value("${krx.auth-key:}") String authKey,
+      @Value("${krx.connect-timeout:5s}") Duration connectTimeout,
+      @Value("${krx.read-timeout:30s}") Duration readTimeout,
       HoldingPriceSyncService holdingPriceSync,
       ExternalRestClientFactory clients,
       ExternalApiRetryExecutor retry,
@@ -70,7 +73,7 @@ public class KrxMarketDataService {
     this.json = json;
     this.authKey = authKey;
     this.holdingPriceSync = holdingPriceSync;
-    this.client = clients.builder(baseUrl).build();
+    this.client = clients.builder(baseUrl, connectTimeout, readTimeout).build();
     this.retry = retry;
     this.indexDailyCollector = indexDailyCollector;
     this.derivativeDailyCollector = derivativeDailyCollector;

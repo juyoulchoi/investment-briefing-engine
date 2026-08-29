@@ -17,11 +17,15 @@ public class YahooExchangeRateCollector implements ExchangeRateCollector {
 
   public YahooExchangeRateCollector(
       @Value("${exchange-rate.yahoo.base-url:${overseas.yahoo.base-url}}") String baseUrl,
+      @Value("${exchange-rate.yahoo.connect-timeout:${overseas.yahoo.connect-timeout:5s}}")
+          Duration connectTimeout,
+      @Value("${exchange-rate.yahoo.read-timeout:${overseas.yahoo.read-timeout:30s}}")
+          Duration readTimeout,
       ExternalRestClientFactory clients,
       ExternalApiRetryExecutor retry) {
     this.client =
         clients
-            .builder(baseUrl)
+            .builder(baseUrl, connectTimeout, readTimeout)
             .defaultHeader("User-Agent", "Mozilla/5.0 investment-briefing-engine/1.0")
             .defaultHeader("Accept", "application/json")
             .build();
