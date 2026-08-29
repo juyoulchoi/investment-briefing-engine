@@ -668,12 +668,16 @@ function Account({
   return (
     <div>
       <i />
-      <b>{n}</b>
-      <span>{v}</span>
+      <b className="account-name">
+        {n}
+        <small>예수금 {cash}</small>
+      </b>
+      <span className="account-value">
+        {v}
+        <small>ETF 비중 {etfRatio}</small>
+      </span>
       <small>{p}</small>
       <em className={g[0] === "+" ? "pos" : g[0] === "-" ? "neg" : ""}>{g}</em>
-      <small>예수금 {cash}</small>
-      <small>ETF 비중 {etfRatio}</small>
     </div>
   );
 }
