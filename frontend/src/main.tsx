@@ -538,7 +538,11 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
                         ? usd(a.displayCash)
                         : won(a.cash)
                     }
-                    etfRatio={`${a.etfRatio.toFixed(1)}%`}
+                    etfRatio={
+                      a.etfEvaluation > 0
+                        ? `${a.etfRatio.toFixed(1)}%`
+                        : null
+                    }
                   />
                 ))}
               </div>
@@ -663,7 +667,7 @@ function Account({
   p: string;
   g: string;
   cash: string;
-  etfRatio: string;
+  etfRatio: string | null;
 }) {
   return (
     <div>
@@ -674,7 +678,7 @@ function Account({
       </b>
       <span className="account-value">
         {v}
-        <small>ETF 비중 {etfRatio}</small>
+        {etfRatio && <small>ETF 비중 {etfRatio}</small>}
       </span>
       <small>{p}</small>
       <em className={g[0] === "+" ? "pos" : g[0] === "-" ? "neg" : ""}>{g}</em>
