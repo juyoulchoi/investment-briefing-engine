@@ -270,14 +270,7 @@ const config: Record<
         key: "pauseReason",
         label: "일시정지 사유",
         type: "select",
-        options: [
-          ["", "선택 안 함"],
-          ["기본 설정", "기본 설정"],
-          ["비중 초과", "비중 초과"],
-          ["사용자 일시정지", "사용자 일시정지"],
-          ["매수 조건 미충족", "매수 조건 미충족"],
-          ["투자 전략 변경", "투자 전략 변경"],
-        ],
+        options: [["", "선택 안 함"]],
       },
       { key: "memo", label: "비고", wide: true },
     ],
@@ -338,6 +331,7 @@ export default function OperationsAdmin({
     [stocks, setStocks] = useState<Row[]>([]),
     [accountHoldings, setAccountHoldings] = useState<Row[]>([]),
     [investmentGrades, setInvestmentGrades] = useState<Row[]>([]),
+    [pauseReasons, setPauseReasons] = useState<Row[]>([]),
     [loading, setLoading] = useState(true),
     [editing, setEditing] = useState<Row | null>(null),
     [form, setForm] = useState<Row>({}),
@@ -351,7 +345,7 @@ export default function OperationsAdmin({
     setLoading(true);
     setError("");
     try {
-      const [data, a, s, h, grades] = await Promise.all([
+      const [data, a, s, h, grades, reasons] = await Promise.all([
         call<Row[]>(`/api/v1/admin/operations/${k}`),
         accounts.length
           ? Promise.resolve(accounts)
@@ -365,12 +359,21 @@ export default function OperationsAdmin({
         investmentGrades.length
           ? Promise.resolve(investmentGrades)
           : call<Row[]>("/api/v1/admin/operations/investment-grades"),
+        pauseReasons.length
+          ? Promise.resolve(pauseReasons)
+          : fetch("/api/v1/common-codes/REG_BUY_PAUSE_REASON").then(
+              (response) => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.json() as Promise<Row[]>;
+              },
+            ),
       ]);
       setRows(data);
       setAccounts(a);
       setStocks(s);
       setAccountHoldings(h);
       setInvestmentGrades(grades);
+      setPauseReasons(reasons);
     } catch (e) {
       setError(e instanceof Error ? e.message : "데이터 조회에 실패했습니다.");
     } finally {
@@ -425,6 +428,12 @@ export default function OperationsAdmin({
   };
   const normalizedRegularBuyForm = (value: Row) => {
     if (kind !== "regular-buys") return value;
+    if (value.buyStatus === "STOPPED" && value.userPauseYn === "Y")
+      return {
+        ...value,
+        appliedWeekDays: null,
+        appliedMonthDays: null,
+      };
     if (value.appliedCycle === "WEEKLY")
       return { ...value, appliedMonthDays: null };
     if (value.appliedCycle === "MONTHLY")
@@ -784,9 +793,6 @@ export default function OperationsAdmin({
         disabled={
           fixedBaseField(f.key) ||
           (kind === "regular-buys" &&
-            f.key === "userPauseYn" &&
-            form.buyStatus !== "ACTIVE") ||
-          (kind === "regular-buys" &&
             f.key === "pauseReason" &&
             form.userPauseYn !== "Y")
         }
@@ -797,13 +803,18 @@ export default function OperationsAdmin({
             setForm({
               ...form,
               buyStatus: value,
-              userPauseYn: value === "ACTIVE" ? form.userPauseYn : "N",
+              ...(value === "STOPPED" && form.userPauseYn === "Y"
+                ? { appliedWeekDays: null, appliedMonthDays: null }
+                : {}),
             });
           else if (kind === "regular-buys" && f.key === "userPauseYn")
             setForm({
               ...form,
               userPauseYn: value,
               ...(value === "N" ? { pauseReason: null } : {}),
+              ...(value === "Y" && form.buyStatus === "STOPPED"
+                ? { appliedWeekDays: null, appliedMonthDays: null }
+                : {}),
             });
           else if (kind === "regular-buys" && f.key === "buyBasis")
             setForm({
@@ -823,7 +834,10 @@ export default function OperationsAdmin({
           else setForm({ ...form, [f.key]: value });
         }}
       >
-        {f.options?.map((o) => (
+        {(kind === "regular-buys" && f.key === "pauseReason"
+          ? [["", "선택 안 함"], ...pauseReasons.map((r) => [r.name, r.name])]
+          : f.options
+        )?.map((o) => (
           <option key={o[0]} value={o[0]}>
             {o[1]}
           </option>
