@@ -428,7 +428,7 @@ export default function OperationsAdmin({
   };
   const normalizedRegularBuyForm = (value: Row) => {
     if (kind !== "regular-buys") return value;
-    if (value.buyStatus === "STOPPED" && value.userPauseYn === "Y")
+    if (value.buyStatus === "STOPPED" || value.userPauseYn === "Y")
       return {
         ...value,
         appliedWeekDays: null,
@@ -759,7 +759,11 @@ export default function OperationsAdmin({
           <button
             type="button"
             key={v}
-            disabled={fixedBaseField(f.key)}
+            disabled={
+              fixedBaseField(f.key) ||
+              (kind === "regular-buys" &&
+                (form.buyStatus === "STOPPED" || form.userPauseYn === "Y"))
+            }
             className={csvValues(f.key).includes(v) ? "selected" : ""}
             onClick={() =>
               toggleCsv(f.key, v, ["MON", "TUE", "WED", "THU", "FRI"])
@@ -775,6 +779,10 @@ export default function OperationsAdmin({
           <button
             type="button"
             key={v}
+            disabled={
+              kind === "regular-buys" &&
+              (form.buyStatus === "STOPPED" || form.userPauseYn === "Y")
+            }
             className={csvValues(f.key).includes(v) ? "selected" : ""}
             onClick={() =>
               toggleCsv(
@@ -803,7 +811,7 @@ export default function OperationsAdmin({
             setForm({
               ...form,
               buyStatus: value,
-              ...(value === "STOPPED" && form.userPauseYn === "Y"
+              ...(value === "STOPPED"
                 ? { appliedWeekDays: null, appliedMonthDays: null }
                 : {}),
             });
@@ -812,7 +820,7 @@ export default function OperationsAdmin({
               ...form,
               userPauseYn: value,
               ...(value === "N" ? { pauseReason: null } : {}),
-              ...(value === "Y" && form.buyStatus === "STOPPED"
+              ...(value === "Y"
                 ? { appliedWeekDays: null, appliedMonthDays: null }
                 : {}),
             });
