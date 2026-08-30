@@ -7,7 +7,12 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "tb_brf_acct_strg")
+@Table(
+    name = "tb_brf_acct_strg",
+    uniqueConstraints =
+        @UniqueConstraint(
+            name = "UK_TB_BRF_ACCT_STRG_01",
+            columnNames = {"briefing_id", "account_type_group", "account_type"}))
 @Getter
 @Setter
 @NoArgsConstructor
