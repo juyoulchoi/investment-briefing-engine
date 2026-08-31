@@ -1,6 +1,8 @@
 package com.nanum.investment.briefing.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.nanum.investment.briefing.application.AlgorithmPerformanceService;
+import com.nanum.investment.briefing.application.DatasetBaselineService;
 import com.nanum.investment.briefing.application.HistoricalMarketRecalculationService;
 import com.nanum.investment.briefing.application.LegacyBriefingImportService;
 import com.nanum.investment.briefing.application.MarketOutcomeEvaluationService;
@@ -31,15 +33,21 @@ public class LegacyBriefingController {
   private final HistoricalMarketRecalculationService recalculations;
   private final JdbcClient jdbc;
   private final MarketOutcomeEvaluationService outcomes;
+  private final DatasetBaselineService datasets;
+  private final AlgorithmPerformanceService performance;
 
   public LegacyBriefingController(
       LegacyBriefingImportService importer,
       HistoricalMarketRecalculationService recalculations,
       MarketOutcomeEvaluationService outcomes,
+      DatasetBaselineService datasets,
+      AlgorithmPerformanceService performance,
       JdbcClient jdbc) {
     this.importer = importer;
     this.recalculations = recalculations;
     this.outcomes = outcomes;
+    this.datasets = datasets;
+    this.performance = performance;
     this.jdbc = jdbc;
   }
 
@@ -121,11 +129,34 @@ public class LegacyBriefingController {
   }
 
   @PostMapping("/outcomes")
-  @io.swagger.v3.oas.annotations.Operation(summary = "KOSPI·KOSDAQ·S&P500 D+1/5/20/60 시장성과 계산")
+  @io.swagger.v3.oas.annotations.Operation(summary = "KOSPI·KOSDAQ·S&P500 D+1/5/10/20/60 시장성과 계산")
   public ApiResponse<MarketOutcomeEvaluationService.BatchResult> outcomes(
       @Valid @RequestBody OutcomeRequest input, HttpServletRequest request) {
     return ApiResponse.success(
         outcomes.evaluate(input.from(), input.to()), TraceIdUtils.resolve(request));
+  }
+
+  @GetMapping("/datasets/{version}")
+  @io.swagger.v3.oas.annotations.Operation(summary = "동결 데이터셋 기준선과 CORE·SUPPLEMENT·FUTURE 항목 조회")
+  public ApiResponse<DatasetBaselineService.DatasetBaseline> dataset(
+      @org.springframework.web.bind.annotation.PathVariable String version,
+      HttpServletRequest request) {
+    return ApiResponse.success(datasets.baseline(version), TraceIdUtils.resolve(request));
+  }
+
+  @GetMapping("/performance")
+  @io.swagger.v3.oas.annotations.Operation(summary = "LEGACY와 현재 알고리즘의 하락 조기경보 성능 비교")
+  public ApiResponse<AlgorithmPerformanceService.PerformanceComparison> performance(
+      @RequestParam LocalDate from,
+      @RequestParam LocalDate to,
+      @RequestParam(defaultValue = "KOSPI") String target,
+      @RequestParam(defaultValue = "20") int horizon,
+      @RequestParam(defaultValue = "60") BigDecimal warningThreshold,
+      @RequestParam(defaultValue = "-5") BigDecimal drawdownThreshold,
+      HttpServletRequest request) {
+    return ApiResponse.success(
+        performance.compare(from, to, target, horizon, warningThreshold, drawdownThreshold),
+        TraceIdUtils.resolve(request));
   }
 
   public record RecalculationRequest(

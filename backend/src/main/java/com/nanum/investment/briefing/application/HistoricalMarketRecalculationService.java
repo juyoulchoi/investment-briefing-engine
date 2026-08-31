@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class HistoricalMarketRecalculationService {
+  private static final String ALGORITHM_VERSION = "MARKET_ALGORITHM_V2";
+  private static final String DATASET_VERSION = "DATASET_V1";
   private static final List<String> REQUIRED_KRX =
       List.of("KOSPI_INDEX_DAILY", "KOSPI_STOCK_DAILY", "KOSDAQ_STOCK_DAILY", "ETF_DAILY");
   private final JdbcClient jdbc;
@@ -316,8 +318,9 @@ public class HistoricalMarketRecalculationService {
     return jdbc.sql(
             """
             INSERT INTO "TB_HIST_RECALC_RUN"("CASE_ID","LEGACY_BRF_ID","BASE_DT","RULE_VER","CODE_VER","RECONSTRUCTION_MODE",
-             "PORTFOLIO_MODE","DATA_STS","RUN_STS")
-            VALUES(:caseId,:legacyId,:baseDate,:ruleVersion,:codeVersion,'AS_OF_RECONSTRUCTED','MARKET_ONLY','PARTIAL','RUNNING')
+             "PORTFOLIO_MODE","DATA_STS","RUN_STS","ALGORITHM_VER","DATASET_VER","INPUT_COVERAGE_RT","RECONSTRUCTION_QUALITY","LOOKAHEAD_CHECK_YN")
+            VALUES(:caseId,:legacyId,:baseDate,:ruleVersion,:codeVersion,'AS_OF_RECONSTRUCTED','MARKET_ONLY','PARTIAL','RUNNING',
+                   :algorithmVersion,:datasetVersion,0,'PARTIAL','N')
             RETURNING "HIST_RECALC_RUN_ID"
             """)
         .param("legacyId", legacyId)
@@ -325,6 +328,8 @@ public class HistoricalMarketRecalculationService {
         .param("baseDate", baseDate)
         .param("ruleVersion", ruleVersion)
         .param("codeVersion", codeVersion)
+        .param("algorithmVersion", ALGORITHM_VERSION)
+        .param("datasetVersion", DATASET_VERSION)
         .query(Long.class)
         .single();
   }
@@ -354,6 +359,16 @@ public class HistoricalMarketRecalculationService {
         .param("id", runId)
         .update();
     storeInputLineage(runId, inputs, missing);
+    jdbc.sql(
+            """
+            UPDATE "TB_HIST_RECALC_RUN" r SET
+             "INPUT_COVERAGE_RT"=COALESCE((SELECT round(100.0*count(*) FILTER (WHERE i."AVAILABLE_YN"='Y')/NULLIF(count(*),0),4)
+               FROM "TB_HIST_RECALC_INPUT" i WHERE i."HIST_RECALC_RUN_ID"=r."HIST_RECALC_RUN_ID"),0),
+             "RECONSTRUCTION_QUALITY"=CASE WHEN "DATA_STS"='COMPLETE' THEN 'FULL' ELSE 'PARTIAL' END
+             WHERE r."HIST_RECALC_RUN_ID"=:id
+            """)
+        .param("id", runId)
+        .update();
   }
 
   private void storeInputLineage(Long runId, HistoricalInputs inputs, List<String> missingInputs) {

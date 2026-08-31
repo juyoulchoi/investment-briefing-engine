@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MarketOutcomeEvaluationService {
   private static final List<String> TARGETS = List.of("KOSPI", "KOSDAQ", "SP500");
-  private static final List<Integer> HORIZONS = List.of(1, 5, 20, 60);
+  private static final List<Integer> HORIZONS = List.of(1, 5, 10, 20, 60);
   private static final String EVALUATION_VERSION = "OUTCOME_V1";
   private static final String DATA_VERSION = "HIST_20260830_V1";
   private final JdbcClient jdbc;
