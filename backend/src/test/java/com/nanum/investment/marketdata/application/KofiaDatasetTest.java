@@ -15,6 +15,10 @@ class KofiaDatasetTest {
         .isEqualTo(KofiaDataset.CREDIT_BALANCE_TREND);
     assertThat(KofiaDataset.fromCode("STATSCU0100000070BO"))
         .isEqualTo(KofiaDataset.CREDIT_BALANCE_TREND);
+    assertThat(KofiaDataset.fromCode("STATSCU0100000140"))
+        .isEqualTo(KofiaDataset.SECURITIES_LENDING_TREND);
+    assertThat(KofiaDataset.fromCode("STATSCU0100000060BO"))
+        .isEqualTo(KofiaDataset.MARKET_FUNDS_TREND);
   }
 
   @Test

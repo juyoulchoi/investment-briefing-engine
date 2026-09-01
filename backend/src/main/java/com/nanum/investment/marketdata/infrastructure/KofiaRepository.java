@@ -61,8 +61,65 @@ public class KofiaRepository {
           .param("hash", rowHash)
           .update();
       if (dataset == KofiaDataset.CREDIT_BALANCE_TREND) saveCreditBalance(row, rowHash);
+      if (dataset == KofiaDataset.SECURITIES_LENDING_TREND) saveSecuritiesLending(row, rowHash);
+      if (dataset == KofiaDataset.MARKET_FUNDS_TREND) saveMarketFunds(row, rowHash);
     }
     return rows.size();
+  }
+
+  private void saveSecuritiesLending(KofiaClient.KofiaRow row, String hash) {
+    JsonNode p = row.payload();
+    jdbc.sql(
+            """
+        INSERT INTO "TB_KOFIA_SEC_LEND_DAY"("BASE_DT","ITEM_CD","ITEM_NM","CONTRACT_QTY",
+          "REPAY_QTY","BALANCE_QTY","BALANCE_MKT_AMT","RAW_HASH")
+        VALUES(:day,'ALL',:name,:contract,:repay,:balanceQty,:balanceAmt,:hash)
+        ON CONFLICT("BASE_DT","ITEM_CD") DO UPDATE SET
+          "ITEM_NM"=EXCLUDED."ITEM_NM","CONTRACT_QTY"=EXCLUDED."CONTRACT_QTY",
+          "REPAY_QTY"=EXCLUDED."REPAY_QTY","BALANCE_QTY"=EXCLUDED."BALANCE_QTY",
+          "BALANCE_MKT_AMT"=EXCLUDED."BALANCE_MKT_AMT","RAW_HASH"=EXCLUDED."RAW_HASH",
+          "DATA_STS"='FRESH',"COLLECT_DTTM"=CURRENT_TIMESTAMP,
+          "UPD_DTTM"=CASE WHEN "TB_KOFIA_SEC_LEND_DAY"."RAW_HASH"<>EXCLUDED."RAW_HASH"
+            THEN CURRENT_TIMESTAMP ELSE "TB_KOFIA_SEC_LEND_DAY"."UPD_DTTM" END
+        """)
+        .param("day", row.baseDate())
+        .param("name", p.path("TMPV2").asText("전체"))
+        .param("contract", decimal(p, "TMPV3"))
+        .param("repay", decimal(p, "TMPV4"))
+        .param("balanceQty", decimal(p, "TMPV5"))
+        .param("balanceAmt", decimal(p, "TMPV6"))
+        .param("hash", hash)
+        .update();
+  }
+
+  private void saveMarketFunds(KofiaClient.KofiaRow row, String hash) {
+    JsonNode p = row.payload();
+    jdbc.sql(
+            """
+        INSERT INTO "TB_KOFIA_MKT_FUND_DAY"("BASE_DT","INVESTOR_DEPOSIT_AMT","DERIV_DEPOSIT_AMT",
+          "CUSTOMER_RP_BALANCE_AMT","RECEIVABLE_AMT","FORCED_LIQUIDATION_AMT",
+          "FORCED_LIQUIDATION_RT","RAW_HASH")
+        VALUES(:day,:v2,:v3,:v4,:v5,:v6,:v7,:hash)
+        ON CONFLICT("BASE_DT") DO UPDATE SET
+          "INVESTOR_DEPOSIT_AMT"=EXCLUDED."INVESTOR_DEPOSIT_AMT",
+          "DERIV_DEPOSIT_AMT"=EXCLUDED."DERIV_DEPOSIT_AMT",
+          "CUSTOMER_RP_BALANCE_AMT"=EXCLUDED."CUSTOMER_RP_BALANCE_AMT",
+          "RECEIVABLE_AMT"=EXCLUDED."RECEIVABLE_AMT",
+          "FORCED_LIQUIDATION_AMT"=EXCLUDED."FORCED_LIQUIDATION_AMT",
+          "FORCED_LIQUIDATION_RT"=EXCLUDED."FORCED_LIQUIDATION_RT",
+          "RAW_HASH"=EXCLUDED."RAW_HASH","DATA_STS"='FRESH',"COLLECT_DTTM"=CURRENT_TIMESTAMP,
+          "UPD_DTTM"=CASE WHEN "TB_KOFIA_MKT_FUND_DAY"."RAW_HASH"<>EXCLUDED."RAW_HASH"
+            THEN CURRENT_TIMESTAMP ELSE "TB_KOFIA_MKT_FUND_DAY"."UPD_DTTM" END
+        """)
+        .param("day", row.baseDate())
+        .param("v2", decimal(p, "TMPV2"))
+        .param("v3", decimal(p, "TMPV3"))
+        .param("v4", decimal(p, "TMPV4"))
+        .param("v5", decimal(p, "TMPV5"))
+        .param("v6", decimal(p, "TMPV6"))
+        .param("v7", decimal(p, "TMPV7"))
+        .param("hash", hash)
+        .update();
   }
 
   private void saveCreditBalance(KofiaClient.KofiaRow row, String hash) {

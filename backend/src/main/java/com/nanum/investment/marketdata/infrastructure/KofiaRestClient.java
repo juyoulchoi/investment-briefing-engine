@@ -57,20 +57,16 @@ public class KofiaRestClient implements KofiaClient {
 
   @Override
   public KofiaResponse collect(KofiaDataset dataset, LocalDate from, LocalDate to) {
-    Map<String, Object> search =
-        Map.of(
-            "tmpV40",
-            "1000000",
-            "tmpV41",
-            "1",
-            "tmpV1",
-            "D",
-            "tmpV45",
-            from.format(DATE),
-            "tmpV46",
-            to.format(DATE),
-            "OBJ_NM",
-            dataset.objectName());
+    Map<String, Object> search = new java.util.LinkedHashMap<>();
+    search.put("tmpV40", "1000000");
+    if (dataset == KofiaDataset.SECURITIES_LENDING_TREND) {
+      search.put("tmpV41", "1");
+      search.put("tmpV72", "");
+    }
+    search.put("tmpV1", "D");
+    search.put("tmpV45", from.format(DATE));
+    search.put("tmpV46", to.format(DATE));
+    search.put("OBJ_NM", dataset.objectName());
     Map<String, Object> request = Map.of("dmSearch", search);
     JsonNode response;
     response =
@@ -96,8 +92,10 @@ public class KofiaRestClient implements KofiaClient {
     List<KofiaRow> rows = new ArrayList<>();
     for (JsonNode row : response.path("ds1")) {
       String date = row.path("TMPV1").asText();
-      if (!date.matches("\\d{8}"))
+      if (!date.matches("\\d{8}")) {
+        if (date.equals("합계") || date.equals("평균")) continue;
         throw new IllegalStateException("KOFIA 행의 기준일(TMPV1)이 올바르지 않습니다: " + date);
+      }
       rows.add(new KofiaRow(LocalDate.parse(date, DATE), row));
     }
     return new KofiaResponse(response, List.copyOf(rows));

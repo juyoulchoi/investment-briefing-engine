@@ -8,6 +8,16 @@ public enum KofiaDataset {
       "STATSCU0100000070",
       "STATSCU0100000070BO",
       "주식 > 신용공여현황 > 신용공여 잔고 추이",
+      "/meta/getMetaDataList.do"),
+  SECURITIES_LENDING_TREND(
+      "STATSCU0100000140",
+      "STATSCU0100000140BO",
+      "주식 > 대차거래 > 대차거래추이",
+      "/meta/getMetaDataList.do"),
+  MARKET_FUNDS_TREND(
+      "STATSCU0100000060",
+      "STATSCU0100000060BO",
+      "주식 > 증시자금 > 증시자금추이",
       "/meta/getMetaDataList.do");
 
   private final String serviceId;
