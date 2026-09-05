@@ -26,6 +26,10 @@ public class OpenAiBriefingAiClient implements BriefingAiClient {
             데이터가 없는 경우 임의 추정하지 않고 '데이터 부족'이라고 표시한다.
             사실과 해석을 구분하고 매수·매도 권유가 아닌 계산 결과 설명으로 작성하라.
             confirmedValues는 입력 JSON의 confirmedValues 객체를 한 글자도 의미 변경 없이 그대로 복사하라.
+            title과 items의 title, summary, content는 자연스러운 한국어로 작성하라.
+            내부 영문 코드, 데이터셋 코드, 신호 코드를 사용자 설명 문장에 그대로 노출하지 말고 한국어 의미로 풀어 써라.
+            다만 종목 티커, 지수의 공식 명칭, 통화 코드처럼 번역하면 식별이 어려운 고유명사는 필요한 경우에만 영문을 병기할 수 있다.
+            briefingType, confirmedValues, itemCode, signalCode는 시스템 계약값이므로 번역하거나 변경하지 않는다.
             items에는 다음 15개 코드를 정확히 한 번씩 순서대로 작성하라:
             MARKET_RISK, MARKET_PHASE, US_MARKET, KR_MARKET_PREVIOUS, KR_MARKET_OUTLOOK,
             MARKET_DIRECTION, SECTOR_SIGNALS, REGULAR_BUY, ACCOUNT_ACTIONS, HOLDING_SIGNALS,
@@ -226,5 +230,4 @@ public class OpenAiBriefingAiClient implements BriefingAiClient {
       return "응답을 해석할 수 없음";
     }
   }
-
 }

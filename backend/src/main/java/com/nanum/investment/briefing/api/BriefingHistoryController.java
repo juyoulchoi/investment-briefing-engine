@@ -1,11 +1,14 @@
 package com.nanum.investment.briefing.api;
 
+import com.nanum.investment.briefing.application.BriefingItemCatalog;
+import com.nanum.investment.common.application.CommonCodeLookupService;
 import com.nanum.investment.common.response.ApiResponse;
 import com.nanum.investment.common.web.TraceIdUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,33 +23,46 @@ import org.springframework.web.server.ResponseStatusException;
 @io.swagger.v3.oas.annotations.tags.Tag(name = "브리핑", description = "투자 브리핑 조회 및 생성 API")
 public class BriefingHistoryController {
   private final JdbcClient jdbc;
+  private final CommonCodeLookupService commonCodes;
 
-  public BriefingHistoryController(JdbcClient jdbc) {
+  public BriefingHistoryController(JdbcClient jdbc, CommonCodeLookupService commonCodes) {
     this.jdbc = jdbc;
+    this.commonCodes = commonCodes;
   }
 
   public record HistoryRow(
       Long briefingId,
       LocalDate baseDate,
       String briefingType,
+      String briefingTypeLabel,
       String title,
       String summary,
       String status,
+      String statusLabel,
       String publishedYn,
       BigDecimal confidenceRate,
       BigDecimal marketScore,
-      String marketRegime) {}
+      String marketRegime,
+      String marketRegimeLabel) {}
 
-  public record DetailItem(String itemCode, String summary, String content, String signalCode) {}
+  public record DetailItem(
+      String itemCode,
+      String itemTitle,
+      String summary,
+      String content,
+      String signalCode,
+      String signalLabel) {}
 
   public record BriefingDetail(
       Long briefingId,
       LocalDate baseDate,
       String briefingType,
+      String briefingTypeLabel,
       String title,
       String summary,
       String body,
       String status,
+      String statusLabel,
       String publishedYn,
       BigDecimal confidenceRate,
       List<DetailItem> items) {}
@@ -71,6 +87,7 @@ public class BriefingHistoryController {
           case "DAILY", "WEEKLY", "MONTHLY" -> type.toUpperCase();
           default -> "DAILY";
         };
+    Map<String, String> labels = commonCodes.activeNames("DASHBOARD_LABEL");
     List<HistoryRow> rows =
         jdbc.sql(
                 """
@@ -88,13 +105,16 @@ public class BriefingHistoryController {
                         rs.getLong("BRF_ID"),
                         rs.getObject("BASE_DT", LocalDate.class),
                         rs.getString("BRF_TP"),
+                        label(labels, rs.getString("BRF_TP")),
                         rs.getString("TITLE"),
                         rs.getString("SUMMARY_TXT"),
                         rs.getString("BRF_STS"),
+                        label(labels, rs.getString("BRF_STS")),
                         rs.getString("PUBL_YN"),
                         rs.getBigDecimal("CONF_RT"),
                         rs.getBigDecimal("MKT_SCR"),
-                        rs.getString("MKT_REGIME")))
+                        rs.getString("MKT_REGIME"),
+                        label(labels, rs.getString("MKT_REGIME"))))
             .list();
     return ApiResponse.success(rows, TraceIdUtils.resolve(request));
   }
@@ -102,6 +122,7 @@ public class BriefingHistoryController {
   @GetMapping("/{id}")
   @io.swagger.v3.oas.annotations.Operation(summary = "브리핑 상세 조회")
   public ApiResponse<BriefingDetail> detail(@PathVariable Long id, HttpServletRequest request) {
+    Map<String, String> labels = commonCodes.activeNames("DASHBOARD_LABEL");
     DetailHeader header =
         jdbc.sql(
                 """
@@ -135,21 +156,32 @@ public class BriefingHistoryController {
             .query(
                 (rs, rowNum) ->
                     new DetailItem(
-                        rs.getString("ITEM_CD"), rs.getString("ITEM_SUM"),
-                        rs.getString("ITEM_CONT"), rs.getString("SIG_CD")))
+                        rs.getString("ITEM_CD"),
+                        BriefingItemCatalog.titleOf(rs.getString("ITEM_CD")),
+                        rs.getString("ITEM_SUM"),
+                        rs.getString("ITEM_CONT"),
+                        rs.getString("SIG_CD"),
+                        label(labels, rs.getString("SIG_CD"))))
             .list();
     return ApiResponse.success(
         new BriefingDetail(
             header.briefingId(),
             header.baseDate(),
             header.briefingType(),
+            label(labels, header.briefingType()),
             header.title(),
             header.summary(),
             header.body(),
             header.status(),
+            label(labels, header.status()),
             header.publishedYn(),
             header.confidenceRate(),
             items),
         TraceIdUtils.resolve(request));
+  }
+
+  private static String label(Map<String, String> labels, String code) {
+    if (code == null) return null;
+    return labels.getOrDefault(code, code);
   }
 }

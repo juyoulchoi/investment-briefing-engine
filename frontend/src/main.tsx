@@ -1769,29 +1769,36 @@ function History({
     briefingId: number;
     baseDate: string;
     briefingType: string;
+    briefingTypeLabel: string;
     title: string;
     summary: string | null;
     status: string;
+    statusLabel: string;
     publishedYn: string;
     confidenceRate: number;
     marketScore: number | null;
     marketRegime: string | null;
+    marketRegimeLabel: string | null;
   };
   type Detail = {
     briefingId: number;
     baseDate: string;
     briefingType: string;
+    briefingTypeLabel: string;
     title: string;
     summary: string | null;
     body: string | null;
     status: string;
+    statusLabel: string;
     publishedYn: string;
     confidenceRate: number;
     items: {
       itemCode: string;
+      itemTitle: string;
       summary: string;
       content: string;
       signalCode: string | null;
+      signalLabel: string | null;
     }[];
   };
   const [rows, setRows] = useState<Row[]>([]),
@@ -1864,7 +1871,8 @@ function History({
               <article key={item.itemCode}>
                 <b>{String(i + 1).padStart(2, "0")}</b>
                 <div>
-                  <h3>{item.summary}</h3>
+                  <h3>{item.itemTitle}</h3>
+                  <p>{item.summary}</p>
                   <p>{item.content}</p>
                 </div>
               </article>
@@ -1907,7 +1915,7 @@ function History({
                 )}
               </em>
               <Badge buy={r.publishedYn === "Y"}>
-                {statusLabel[r.status] || r.status}
+                {r.statusLabel || statusLabel[r.status] || r.status}
               </Badge>
               <button
                 className="history-arrow"
