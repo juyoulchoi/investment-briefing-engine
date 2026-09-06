@@ -30,7 +30,10 @@ public class KofiaCatalogService {
   public SyncView sync() {
     JsonNode favorites = client.favorites();
     Set<String> normalized =
-        Arrays.stream(KofiaDataset.values()).map(KofiaDataset::serviceId).collect(Collectors.toSet());
+        Arrays.stream(KofiaDataset.values())
+            .filter(KofiaDataset::normalized)
+            .map(KofiaDataset::serviceId)
+            .collect(Collectors.toSet());
     int count = 0;
     for (JsonNode favorite : favorites.path("dsResultList")) {
       limiter.acquire(0);

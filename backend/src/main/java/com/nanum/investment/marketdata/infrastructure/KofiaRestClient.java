@@ -57,16 +57,9 @@ public class KofiaRestClient implements KofiaClient {
 
   @Override
   public KofiaResponse collect(KofiaDataset dataset, LocalDate from, LocalDate to) {
-    Map<String, Object> search = new java.util.LinkedHashMap<>();
-    search.put("tmpV40", "1000000");
-    if (dataset == KofiaDataset.SECURITIES_LENDING_TREND) {
-      search.put("tmpV41", "1");
-      search.put("tmpV72", "");
-    }
-    search.put("tmpV1", "D");
-    search.put("tmpV45", from.format(DATE));
-    search.put("tmpV46", to.format(DATE));
-    search.put("OBJ_NM", dataset.objectName());
+    if (dataset.requiresSingleDateRequest() && !from.equals(to))
+      throw new IllegalArgumentException(dataset.name() + " Dataset은 일자별 요청이 필요합니다.");
+    Map<String, Object> search = dataset.requestParameters(from, to);
     Map<String, Object> request = Map.of("dmSearch", search);
     JsonNode response;
     response =
@@ -90,14 +83,41 @@ public class KofiaRestClient implements KofiaClient {
     if (response == null || !response.path("ds1").isArray())
       throw new IllegalStateException("KOFIA 응답에 ds1 배열이 없습니다.");
     List<KofiaRow> rows = new ArrayList<>();
+    int rowNumber = 0;
     for (JsonNode row : response.path("ds1")) {
+      rowNumber++;
       String date = row.path("TMPV1").asText();
-      if (!date.matches("\\d{8}")) {
-        if (date.equals("합계") || date.equals("평균")) continue;
-        throw new IllegalStateException("KOFIA 행의 기준일(TMPV1)이 올바르지 않습니다: " + date);
+      LocalDate baseDate = to;
+      if (dataset.collectionMode() == KofiaDataset.CollectionMode.DATE_RANGE
+          || dataset.collectionMode() == KofiaDataset.CollectionMode.MONTH_RANGE) {
+        if (!date.matches("\\d{8}")) {
+          if (isSummary(row)) continue;
+          throw new IllegalStateException("KOFIA 행의 기준일(TMPV1)이 올바르지 않습니다: " + date);
+        }
+        baseDate = LocalDate.parse(date, DATE);
       }
-      rows.add(new KofiaRow(LocalDate.parse(date, DATE), row));
+      rows.add(
+          new KofiaRow(
+              baseDate,
+              dataset.rowKey(row, rowNumber),
+              rowType(row),
+              dataset.entityCode(row),
+              dataset.entityName(row),
+              row));
     }
-    return new KofiaResponse(response, List.copyOf(rows));
+    return new KofiaResponse(response, Map.copyOf(search), List.copyOf(rows));
+  }
+
+  private boolean isSummary(JsonNode row) {
+    return List.of("합계", "평균", "소계").stream()
+        .anyMatch(value -> value.equals(row.path("TMPV1").asText()) || value.equals(row.path("TMPV2").asText()));
+  }
+
+  private String rowType(JsonNode row) {
+    String values = row.path("TMPV1").asText() + "|" + row.path("TMPV2").asText();
+    if (values.contains("합계")) return "TOTAL";
+    if (values.contains("평균")) return "AVERAGE";
+    if (values.contains("소계")) return "SUBTOTAL";
+    return "DATA";
   }
 }

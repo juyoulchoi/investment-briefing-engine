@@ -16,9 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 public class KofiaRepository {
   private final JdbcClient jdbc;
+  private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
-  public KofiaRepository(JdbcClient jdbc) {
+  public KofiaRepository(
+      JdbcClient jdbc, com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
     this.jdbc = jdbc;
+    this.objectMapper = objectMapper;
   }
 
   @Transactional
@@ -28,6 +31,7 @@ public class KofiaRepository {
       LocalDate from,
       LocalDate to,
       JsonNode raw,
+      Map<String, Object> requestParameters,
       List<KofiaClient.KofiaRow> rows,
       String responseHash) {
     jdbc.sql(
@@ -49,16 +53,25 @@ public class KofiaRepository {
       String rowHash = KofiaSupport.sha256(row.payload().toString());
       jdbc.sql(
               """
-          INSERT INTO "TB_KOFIA_DATA_ROW"("DATASET_CD","BASE_DT","ROW_KEY","PAYLOAD","RAW_HASH")
-          VALUES(:dataset,:day,:key,CAST(:payload AS jsonb),:hash)
+          INSERT INTO "TB_KOFIA_DATA_ROW"("DATASET_CD","BASE_DT","ROW_KEY","PAYLOAD","RAW_HASH",
+            "ROW_TYPE","ENTITY_CD","ENTITY_NM","REQ_PARAMS")
+          VALUES(:dataset,:day,:key,CAST(:payload AS jsonb),:hash,:rowType,:entityCode,:entityName,
+            CAST(:requestParams AS jsonb))
           ON CONFLICT("DATASET_CD","BASE_DT","ROW_KEY") DO UPDATE SET
-            "PAYLOAD"=EXCLUDED."PAYLOAD","RAW_HASH"=EXCLUDED."RAW_HASH","LAST_COLLECT_DTTM"=CURRENT_TIMESTAMP
+            "PAYLOAD"=EXCLUDED."PAYLOAD","RAW_HASH"=EXCLUDED."RAW_HASH",
+            "ROW_TYPE"=EXCLUDED."ROW_TYPE","ENTITY_CD"=EXCLUDED."ENTITY_CD",
+            "ENTITY_NM"=EXCLUDED."ENTITY_NM","REQ_PARAMS"=EXCLUDED."REQ_PARAMS",
+            "LAST_COLLECT_DTTM"=CURRENT_TIMESTAMP
           """)
           .param("dataset", dataset.name())
           .param("day", row.baseDate())
-          .param("key", row.baseDate().toString())
+          .param("key", row.rowKey())
           .param("payload", row.payload().toString())
           .param("hash", rowHash)
+          .param("rowType", row.rowType())
+          .param("entityCode", row.entityCode())
+          .param("entityName", row.entityName())
+          .param("requestParams", json(requestParameters))
           .update();
       if (dataset == KofiaDataset.CREDIT_BALANCE_TREND) saveCreditBalance(row, rowHash);
       if (dataset == KofiaDataset.SECURITIES_LENDING_TREND) saveSecuritiesLending(row, rowHash);
@@ -162,6 +175,34 @@ public class KofiaRepository {
     return new BigDecimal(value.asText().replace(",", ""));
   }
 
+  private String json(Object value) {
+    try {
+      return objectMapper.writeValueAsString(value);
+    } catch (Exception error) {
+      throw new IllegalStateException("KOFIA 요청조건 JSON 변환에 실패했습니다.", error);
+    }
+  }
+
+  public List<Map<String, Object>> dataRows(
+      KofiaDataset dataset, LocalDate from, LocalDate to, int limit) {
+    return jdbc.sql(
+            """
+        SELECT "DATASET_CD" dataset_code,"BASE_DT" base_date,"ROW_KEY" row_key,
+          "ROW_TYPE" row_type,"ENTITY_CD" entity_code,"ENTITY_NM" entity_name,
+          "REQ_PARAMS" request_parameters,"PAYLOAD" payload,"RAW_HASH" raw_hash,
+          "FIRST_COLLECT_DTTM" first_collected_at,"LAST_COLLECT_DTTM" last_collected_at
+        FROM "TB_KOFIA_DATA_ROW"
+        WHERE "DATASET_CD"=:dataset AND "BASE_DT" BETWEEN :from AND :to
+        ORDER BY "BASE_DT" DESC,"ROW_KEY" LIMIT :limit
+        """)
+        .param("dataset", dataset.name())
+        .param("from", from)
+        .param("to", to)
+        .param("limit", Math.min(Math.max(limit, 1), 10000))
+        .query()
+        .listOfRows();
+  }
+
   public List<Map<String, Object>> creditBalances(LocalDate from, LocalDate to, int limit) {
     return jdbc.sql(
             """
@@ -198,8 +239,8 @@ public class KofiaRepository {
             .single();
     if (overlap) throw new IllegalStateException("동일 Dataset의 기간이 겹치는 활성 KOFIA 수집 Job이 있습니다.");
     int itemCount = 0;
-    for (KofiaDataset ignored : datasets)
-      for (LocalDate cursor = from; !cursor.isAfter(to); cursor = cursor.plusDays(90)) itemCount++;
+    for (KofiaDataset dataset : datasets)
+      itemCount += jobRanges(dataset, from, to).size();
     jdbc.sql(
             """
         INSERT INTO "TB_KOFIA_CLCT_JOB"("JOB_ID","FROM_DT","TO_DT","DATASET_CDS","STS","TOTAL_ITEM_CNT")
@@ -212,8 +253,7 @@ public class KofiaRepository {
         .param("count", itemCount)
         .update();
     for (KofiaDataset dataset : datasets) {
-      for (LocalDate cursor = from; !cursor.isAfter(to); cursor = cursor.plusDays(90)) {
-        LocalDate chunkTo = cursor.plusDays(89).isAfter(to) ? to : cursor.plusDays(89);
+      for (DateRange range : jobRanges(dataset, from, to)) {
         jdbc.sql(
                 """
             INSERT INTO "TB_KOFIA_CLCT_JOB_ITEM"("JOB_ID","DATASET_CD","FROM_DT","TO_DT")
@@ -221,11 +261,41 @@ public class KofiaRepository {
             """)
             .param("job", id)
             .param("dataset", dataset.name())
-            .param("from", cursor)
-            .param("to", chunkTo)
+            .param("from", range.from())
+            .param("to", range.to())
             .update();
       }
     }
+  }
+
+  private List<DateRange> jobRanges(KofiaDataset dataset, LocalDate from, LocalDate to) {
+    List<DateRange> ranges = new java.util.ArrayList<>();
+    if (dataset.requiresSingleDateRequest()) {
+      List<LocalDate> tradingDates =
+          jdbc.sql(
+                  """
+              SELECT DISTINCT "BASE_DT" FROM "TB_KOFIA_DATA_ROW"
+              WHERE "DATASET_CD"='KOSPI_MARKET' AND "BASE_DT" BETWEEN :from AND :to
+              ORDER BY "BASE_DT"
+              """)
+              .param("from", from)
+              .param("to", to)
+              .query(LocalDate.class)
+              .list();
+      if (!tradingDates.isEmpty()) {
+        tradingDates.forEach(day -> ranges.add(new DateRange(day, day)));
+        return ranges;
+      }
+    }
+    int days = dataset.requiresSingleDateRequest() ? 1 : 90;
+    for (LocalDate cursor = from; !cursor.isAfter(to); cursor = cursor.plusDays(days)) {
+      if (dataset.requiresSingleDateRequest()
+          && (cursor.getDayOfWeek() == java.time.DayOfWeek.SATURDAY
+              || cursor.getDayOfWeek() == java.time.DayOfWeek.SUNDAY)) continue;
+      LocalDate chunkTo = cursor.plusDays(days - 1L).isAfter(to) ? to : cursor.plusDays(days - 1L);
+      ranges.add(new DateRange(cursor, chunkTo));
+    }
+    return ranges;
   }
 
   public boolean markRunning(UUID id) {
@@ -384,6 +454,7 @@ public class KofiaRepository {
   }
 
   public record PendingItem(long itemId, KofiaDataset dataset, LocalDate from, LocalDate to) {}
+  private record DateRange(LocalDate from, LocalDate to) {}
 
   public record ItemView(
       long itemId,

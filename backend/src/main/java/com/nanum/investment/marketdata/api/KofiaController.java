@@ -66,6 +66,16 @@ public class KofiaController {
     return service.creditBalances(from, to, limit);
   }
 
+  @GetMapping("/{datasetCode}/rows")
+  @io.swagger.v3.oas.annotations.Operation(summary = "KOFIA Dataset 공통 원천행 기간 조회")
+  public List<Map<String, Object>> dataRows(
+      @PathVariable String datasetCode,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+      @RequestParam(defaultValue = "1000") int limit) {
+    return service.dataRows(KofiaDataset.fromCode(datasetCode), from, to, limit);
+  }
+
   @PostMapping("/collection-jobs")
   @io.swagger.v3.oas.annotations.Operation(summary = "KOFIA 기간 수집 비동기 Job 생성")
   public ResponseEntity<JobView> start(@Valid @RequestBody StartJobRequest request) {

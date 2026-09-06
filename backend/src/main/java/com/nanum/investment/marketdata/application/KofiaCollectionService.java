@@ -37,7 +37,8 @@ public class KofiaCollectionService {
         .map(
             d ->
                 new DatasetView(
-                    d.name(), d.serviceId(), d.objectName(), d.description(), d.path(), false))
+                    d.name(), d.serviceId(), d.objectName(), d.description(), d.path(),
+                    d.collectionMode().name(), d.normalized(), false))
         .toList();
   }
 
@@ -46,13 +47,27 @@ public class KofiaCollectionService {
     KofiaClient.KofiaResponse response = client.collect(dataset, from, to);
     String hash = sha256(response.rawResponse().toString());
     int stored =
-        repository.save(jobId, dataset, from, to, response.rawResponse(), response.rows(), hash);
+        repository.save(
+            jobId,
+            dataset,
+            from,
+            to,
+            response.rawResponse(),
+            response.requestParameters(),
+            response.rows(),
+            hash);
     return new CollectionView(dataset.name(), from, to, response.rows().size(), stored, hash);
   }
 
   public List<Map<String, Object>> creditBalances(LocalDate from, LocalDate to, int limit) {
     validatePeriod(from, to);
     return repository.creditBalances(from, to, limit);
+  }
+
+  public List<Map<String, Object>> dataRows(
+      KofiaDataset dataset, LocalDate from, LocalDate to, int limit) {
+    validatePeriod(from, to);
+    return repository.dataRows(dataset, from, to, limit);
   }
 
   public JobView startJob(LocalDate from, LocalDate to, List<String> requestedDatasets) {
@@ -126,6 +141,8 @@ public class KofiaCollectionService {
       String objectName,
       String description,
       String path,
+      String collectionMode,
+      boolean normalized,
       boolean authenticationRequired) {}
 
   public record CollectionView(
