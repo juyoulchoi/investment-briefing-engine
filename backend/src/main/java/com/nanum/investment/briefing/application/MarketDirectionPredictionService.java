@@ -14,10 +14,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class MarketDirectionPredictionService {
   private final JdbcClient jdbc;
   private final ObjectMapper json;
+  private final MarketDirectionV2FallbackService v2Fallback;
 
-  public MarketDirectionPredictionService(JdbcClient jdbc, ObjectMapper json) {
+  public MarketDirectionPredictionService(
+      JdbcClient jdbc, ObjectMapper json, MarketDirectionV2FallbackService v2Fallback) {
     this.jdbc = jdbc;
     this.json = json;
+    this.v2Fallback = v2Fallback;
   }
 
   @Transactional
@@ -55,7 +58,8 @@ public class MarketDirectionPredictionService {
         jdbc.sql(
                 """
         SELECT "UPTREND_RESUME_PROB","BOX_RANGE_PROB","RE_CORRECTION_PROB","RETEST_LOW_PROB"
-        FROM "TB_MKT_DIR_PRED" WHERE "BASE_DT"<:day AND "LATEST_YN"='Y' ORDER BY "BASE_DT" DESC LIMIT 1
+        FROM "TB_MKT_DIR_PRED" WHERE "BASE_DT"<:day AND "MODEL_VER_CD"='V1'
+          AND "PRED_PERIOD_TP"='DAILY' AND "LATEST_YN"='Y' ORDER BY "BASE_DT" DESC LIMIT 1
         """)
             .param("day", date)
             .query((rs, n) -> new Previous(rs.getInt(1), rs.getInt(2), rs.getInt(3), rs.getInt(4)))
@@ -70,7 +74,11 @@ public class MarketDirectionPredictionService {
             .query(Integer.class)
             .single();
     jdbc.sql(
-            "UPDATE \"TB_MKT_DIR_PRED\" SET \"LATEST_YN\"='N' WHERE \"BASE_DT\"=:day AND \"LATEST_YN\"='Y'")
+            "UPDATE \"TB_MKT_DIR_PRED\" SET \"LATEST_YN\"='N' WHERE \"BASE_DT\"=:day AND \"MODEL_VER_CD\"='V1' AND \"PRED_PERIOD_TP\"='DAILY' AND \"LATEST_YN\"='Y'")
+        .param("day", date)
+        .update();
+    jdbc.sql(
+            "UPDATE \"TB_MKT_DIR_PRED\" SET \"SELECTED_YN\"='N' WHERE \"BASE_DT\"=:day AND \"PRED_PERIOD_TP\"='DAILY' AND \"SELECTED_YN\"='Y'")
         .param("day", date)
         .update();
     Map<String, Object> dates = new LinkedHashMap<>();
@@ -90,9 +98,11 @@ public class MarketDirectionPredictionService {
             """
         INSERT INTO "TB_MKT_DIR_PRED"("BASE_DT","CALC_SEQ","DIR_SCR","UPTREND_RESUME_PROB","BOX_RANGE_PROB",
           "RE_CORRECTION_PROB","RETEST_LOW_PROB","UPTREND_RESUME_CHG","BOX_RANGE_CHG","RE_CORRECTION_CHG",
-          "RETEST_LOW_CHG","INPUT_BASE_DT_JSON","CALC_BASIS_JSON","LATEST_YN")
+          "RETEST_LOW_CHG","INPUT_BASE_DT_JSON","CALC_BASIS_JSON","LATEST_YN",
+          "MODEL_VER_CD","PRED_PERIOD_TP","BASE_DIR_SCR","RAW_INTERACTION_ADJ_SCR",
+          "INTERACTION_ADJ_SCR","CONF_SCR","CONF_GRADE","MODEL_STATUS","SELECTED_YN")
         VALUES(:day,:seq,:score,:up,:box,:correction,:low,:upChange,:boxChange,:correctionChange,:lowChange,
-          CAST(:dates AS jsonb),CAST(:basis AS jsonb),'Y')
+          CAST(:dates AS jsonb),CAST(:basis AS jsonb),'Y','V1','DAILY',:score,0,0,100,'HIGH','NORMAL','Y')
         """)
         .param("day", date)
         .param("seq", sequence)
@@ -108,17 +118,20 @@ public class MarketDirectionPredictionService {
         .param("dates", toJson(dates))
         .param("basis", toJson(basis))
         .update();
-    return new MarketDirectionDto(
-        score,
-        new MarketScenarioProbabilityDto(
-            probabilities[0],
-            probabilities[1],
-            probabilities[2],
-            probabilities[3],
-            probabilities[0] - previous.up(),
-            probabilities[1] - previous.box(),
-            probabilities[2] - previous.correction(),
-            probabilities[3] - previous.low()));
+    MarketDirectionDto result =
+        new MarketDirectionDto(
+            score,
+            new MarketScenarioProbabilityDto(
+                probabilities[0],
+                probabilities[1],
+                probabilities[2],
+                probabilities[3],
+                probabilities[0] - previous.up(),
+                probabilities[1] - previous.box(),
+                probabilities[2] - previous.correction(),
+                probabilities[3] - previous.low()));
+    v2Fallback.saveFallback(date, result);
+    return result;
   }
 
   static int[] normalize(int... weights) {
