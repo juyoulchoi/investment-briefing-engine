@@ -1,5 +1,6 @@
 package com.nanum.investment.briefing.api;
 
+import com.nanum.investment.briefing.application.BriefingDisplayTextService;
 import com.nanum.investment.briefing.application.BriefingItemCatalog;
 import com.nanum.investment.common.application.CommonCodeLookupService;
 import com.nanum.investment.common.response.ApiResponse;
@@ -24,10 +25,15 @@ import org.springframework.web.server.ResponseStatusException;
 public class BriefingHistoryController {
   private final JdbcClient jdbc;
   private final CommonCodeLookupService commonCodes;
+  private final BriefingDisplayTextService displayText;
 
-  public BriefingHistoryController(JdbcClient jdbc, CommonCodeLookupService commonCodes) {
+  public BriefingHistoryController(
+      JdbcClient jdbc,
+      CommonCodeLookupService commonCodes,
+      BriefingDisplayTextService displayText) {
     this.jdbc = jdbc;
     this.commonCodes = commonCodes;
+    this.displayText = displayText;
   }
 
   public record HistoryRow(
@@ -107,7 +113,7 @@ public class BriefingHistoryController {
                         rs.getString("BRF_TP"),
                         label(labels, rs.getString("BRF_TP")),
                         rs.getString("TITLE"),
-                        rs.getString("SUMMARY_TXT"),
+                        displayText.localize(rs.getString("SUMMARY_TXT"), labels),
                         rs.getString("BRF_STS"),
                         label(labels, rs.getString("BRF_STS")),
                         rs.getString("PUBL_YN"),
@@ -158,8 +164,8 @@ public class BriefingHistoryController {
                     new DetailItem(
                         rs.getString("ITEM_CD"),
                         BriefingItemCatalog.titleOf(rs.getString("ITEM_CD")),
-                        rs.getString("ITEM_SUM"),
-                        rs.getString("ITEM_CONT"),
+                        displayText.localize(rs.getString("ITEM_SUM"), labels),
+                        displayText.localize(rs.getString("ITEM_CONT"), labels),
                         rs.getString("SIG_CD"),
                         label(labels, rs.getString("SIG_CD"))))
             .list();
@@ -170,8 +176,8 @@ public class BriefingHistoryController {
             header.briefingType(),
             label(labels, header.briefingType()),
             header.title(),
-            header.summary(),
-            header.body(),
+            displayText.localize(header.summary(), labels),
+            displayText.localize(header.body(), labels),
             header.status(),
             label(labels, header.status()),
             header.publishedYn(),

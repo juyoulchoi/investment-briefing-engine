@@ -1,8 +1,6 @@
 package com.nanum.investment.common.api;
 
 import com.nanum.investment.briefing.application.scheduler.SchedulerRecoveryService;
-import com.nanum.investment.briefing.domain.TbSchLog;
-import com.nanum.investment.briefing.infrastructure.repository.TbSchLogRepository;
 import com.nanum.investment.common.domain.TbApiLog;
 import com.nanum.investment.common.domain.TbErrLog;
 import com.nanum.investment.common.exception.BusinessException;
@@ -23,34 +21,19 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/admin")
-@Tag(name = "로그 관리", description = "스케줄·외부 API·오류 로그 API")
+@Tag(name = "로그 관리", description = "외부 API·오류 로그 API")
 public class AdminLogController {
-  private final TbSchLogRepository schedulerLogs;
   private final TbApiLogRepository apiLogs;
   private final TbErrLogRepository errorLogs;
   private final SchedulerRecoveryService recovery;
 
   public AdminLogController(
-      TbSchLogRepository s,
       TbApiLogRepository a,
       TbErrLogRepository e,
       SchedulerRecoveryService r) {
-    schedulerLogs = s;
     apiLogs = a;
     errorLogs = e;
     recovery = r;
-  }
-
-  @GetMapping("/scheduler-logs")
-  @Operation(summary = "스케줄러 로그 목록")
-  public ApiResponse<PageResponse<TbSchLog>> scheduler(Pageable p, HttpServletRequest r) {
-    return ok(PageResponse.from(schedulerLogs.findAll(p)), r);
-  }
-
-  @GetMapping("/scheduler-logs/{id}")
-  @Operation(summary = "스케줄러 로그 상세 조회")
-  public ApiResponse<TbSchLog> scheduler(@PathVariable Long id, HttpServletRequest r) {
-    return ok(schedulerLogs.findById(id).orElseThrow(this::notFound), r);
   }
 
   @GetMapping("/api-logs")
