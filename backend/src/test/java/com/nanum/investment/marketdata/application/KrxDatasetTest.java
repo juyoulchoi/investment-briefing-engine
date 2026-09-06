@@ -19,8 +19,10 @@ class KrxDatasetTest {
     assertEquals(KrxDataset.SUBSCRIPTION_RIGHT_DAILY, KrxDataset.fromApiMethod("sr_bydd_trd"));
     assertEquals(KrxDataset.ALL_STOCK_MASTER, KrxDataset.fromApiMethod("isu_base_info"));
     assertEquals(KrxDataset.KONEX_STOCK_MASTER, KrxDataset.fromApiMethod("knx_isu_base_info"));
-    assertEquals(KrxDataset.KOSPI_STOCK_FUTURES_DAILY, KrxDataset.fromApiMethod("eqsfu_stk_bydd_trd"));
-    assertEquals(KrxDataset.KOSDAQ_STOCK_FUTURES_DAILY, KrxDataset.fromApiMethod("eqkfu_ksq_bydd_trd"));
+    assertEquals(
+        KrxDataset.KOSPI_STOCK_FUTURES_DAILY, KrxDataset.fromApiMethod("eqsfu_stk_bydd_trd"));
+    assertEquals(
+        KrxDataset.KOSDAQ_STOCK_FUTURES_DAILY, KrxDataset.fromApiMethod("eqkfu_ksq_bydd_trd"));
     assertEquals(KrxDataset.OPTIONS_DAILY, KrxDataset.fromApiMethod("opt_bydd_trd"));
     assertEquals(KrxDataset.KOSPI_STOCK_OPTIONS_DAILY, KrxDataset.fromApiMethod("eqsop_bydd_trd"));
     assertEquals(KrxDataset.KOSDAQ_STOCK_OPTIONS_DAILY, KrxDataset.fromApiMethod("eqkop_bydd_trd"));

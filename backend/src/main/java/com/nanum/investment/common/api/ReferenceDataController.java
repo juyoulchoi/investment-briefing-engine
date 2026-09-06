@@ -106,14 +106,11 @@ public class ReferenceDataController {
   public ApiResponse<PageResponse<HoldingApiResponse>> holdings(
       @RequestParam Long accountId, Pageable pageable, HttpServletRequest req) {
     Map<String, String> weightStatusNames = commonCodes.activeNames("WGT_STS");
-    List<TbHold> rows =
-        holdings.findAllByAccount_AccountIdAndUseYnAndDeleteYn(accountId, "Y", "N");
+    List<TbHold> rows = holdings.findAllByAccount_AccountIdAndUseYnAndDeleteYn(accountId, "Y", "N");
     java.math.BigDecimal totalEvaluation = totalEvaluation(rows);
     return ok(
         page(
-            rows.stream()
-                .map(h -> holding(h, weightStatusNames, totalEvaluation))
-                .toList(),
+            rows.stream().map(h -> holding(h, weightStatusNames, totalEvaluation)).toList(),
             pageable),
         req);
   }
@@ -218,8 +215,7 @@ public class ReferenceDataController {
         .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
   }
 
-  private java.math.BigDecimal percentage(
-      java.math.BigDecimal amount, java.math.BigDecimal total) {
+  private java.math.BigDecimal percentage(java.math.BigDecimal amount, java.math.BigDecimal total) {
     if (amount == null || total == null || total.signum() <= 0) return null;
     return amount
         .multiply(new java.math.BigDecimal("100"))

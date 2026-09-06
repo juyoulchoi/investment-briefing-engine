@@ -226,5 +226,4 @@ public class OpenAiBriefingAiClient implements BriefingAiClient {
       return "응답을 해석할 수 없음";
     }
   }
-
 }

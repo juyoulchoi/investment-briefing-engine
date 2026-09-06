@@ -8,12 +8,18 @@ import org.springframework.stereotype.Component;
 @Component
 public class KrxBondTradingDailyCollector {
   private final JdbcClient jdbc;
-  public KrxBondTradingDailyCollector(JdbcClient jdbc) { this.jdbc = jdbc; }
+
+  public KrxBondTradingDailyCollector(JdbcClient jdbc) {
+    this.jdbc = jdbc;
+  }
 
   public int normalize(KrxDataset dataset, LocalDate date) {
-    String market = dataset == KrxDataset.GOVERNMENT_BOND_DAILY ? "KTS" :
-        dataset == KrxDataset.SMALL_BOND_DAILY ? "SMALL" : "GENERAL";
-    jdbc.sql("""
+    String market =
+        dataset == KrxDataset.GOVERNMENT_BOND_DAILY
+            ? "KTS"
+            : dataset == KrxDataset.SMALL_BOND_DAILY ? "SMALL" : "GENERAL";
+    jdbc.sql(
+            """
         INSERT INTO "TB_BOND" ("ISU_CD","ISU_NM","BOND_TP","MKT_CD","ISSUER_NM","ISSUE_DT",
           "MATURITY_DT","COUPON_RT","PAR_VAL","DATA_SRC_CD","USE_YN","DEL_YN")
         SELECT DISTINCT COALESCE(NULLIF("PAYLOAD"->>'ISU_CD',''),"PAYLOAD"->>'ISU_SRT_CD'),
@@ -30,8 +36,13 @@ public class KrxBondTradingDailyCollector {
         ON CONFLICT ("ISU_CD") DO UPDATE SET "ISU_NM"=EXCLUDED."ISU_NM", "BOND_TP"=EXCLUDED."BOND_TP",
           "MKT_CD"=EXCLUDED."MKT_CD","ISSUER_NM"=EXCLUDED."ISSUER_NM","MATURITY_DT"=EXCLUDED."MATURITY_DT",
           "USE_YN"='Y',"DEL_YN"='N',"UPD_DTTM"=CURRENT_TIMESTAMP
-        """).param("market",market).param("dataset",dataset.name()).param("date",date).update();
-    return jdbc.sql("""
+        """)
+        .param("market", market)
+        .param("dataset", dataset.name())
+        .param("date", date)
+        .update();
+    return jdbc.sql(
+            """
         INSERT INTO "TB_BOND_TRD_DAY" ("ISU_CD","TRADE_DT","OPEN_PRC","HIGH_PRC","LOW_PRC","CLS_PRC",
           "CLS_YLD_RT","CHG_AMT","CHG_RT","TRD_VOL","TURNOVER_AMT","DATA_SRC_CD","DATA_STS")
         SELECT b."ISU_CD",r."BASE_DT",NULLIF(replace(r."PAYLOAD"->>'TDD_OPNPRC',',',''),'')::numeric,
@@ -51,6 +62,9 @@ public class KrxBondTradingDailyCollector {
           "CLS_YLD_RT"=EXCLUDED."CLS_YLD_RT","CHG_AMT"=EXCLUDED."CHG_AMT","CHG_RT"=EXCLUDED."CHG_RT",
           "TRD_VOL"=EXCLUDED."TRD_VOL","TURNOVER_AMT"=EXCLUDED."TURNOVER_AMT",
           "DATA_STS"='FRESH',"COLLECT_DTTM"=CURRENT_TIMESTAMP
-        """).param("dataset",dataset.name()).param("date",date).update();
+        """)
+        .param("dataset", dataset.name())
+        .param("date", date)
+        .update();
   }
 }

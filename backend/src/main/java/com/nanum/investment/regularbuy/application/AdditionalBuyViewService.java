@@ -35,9 +35,7 @@ public class AdditionalBuyViewService {
     List<AccountCash> accountCash =
         jdbc.sql(
                 "SELECT a.\"ACCT_ID\",a.\"ACCT_TP\",COALESCE(r.\"RSV_AMT\",0) FROM \"TB_ACCT\" a LEFT JOIN \"TB_CASH_RSV\" r ON r.\"ACCT_ID\"=a.\"ACCT_ID\" WHERE a.\"DEL_YN\"='N' ORDER BY a.\"DISP_SEQ\"")
-            .query(
-                (rs, n) ->
-                    new AccountCash(rs.getLong(1), rs.getString(2), rs.getBigDecimal(3)))
+            .query((rs, n) -> new AccountCash(rs.getLong(1), rs.getString(2), rs.getBigDecimal(3)))
             .list();
     if (date == null)
       return new AdditionalBuyViewResult(

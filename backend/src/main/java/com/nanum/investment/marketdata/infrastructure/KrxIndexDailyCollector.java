@@ -14,7 +14,8 @@ public class KrxIndexDailyCollector {
   }
 
   public int normalize(KrxDataset dataset, LocalDate date) {
-    jdbc.sql("""
+    jdbc.sql(
+            """
         INSERT INTO "TB_IDX" ("IDX_CD","IDX_NM","IDX_TP","MKT_CD","CNTRY_CD","CURR_CD",
           "DATA_SRC_CD","SRC_SYMBOL","DFLT_YN","USE_YN","DEL_YN","CRT_USR_ID","UPD_USR_ID")
         SELECT DISTINCT CASE
@@ -32,8 +33,12 @@ public class KrxIndexDailyCollector {
           AND NULLIF(coalesce("PAYLOAD"->>'IDX_NM',"PAYLOAD"->>'BND_IDX_GRP_NM'),'') IS NOT NULL
         ON CONFLICT ("IDX_CD") DO UPDATE SET "IDX_NM"=EXCLUDED."IDX_NM", "DATA_SRC_CD"='KRX',
           "USE_YN"='Y', "DEL_YN"='N', "UPD_DTTM"=CURRENT_TIMESTAMP, "UPD_USR_ID"='SYSTEM'
-        """).param("dataset", dataset.name()).param("date", date).update();
-    return jdbc.sql("""
+        """)
+        .param("dataset", dataset.name())
+        .param("date", date)
+        .update();
+    return jdbc.sql(
+            """
         INSERT INTO "TB_IDX_DAY" ("IDX_CD","TRADE_DT","IND_CD","IND_NM","CLS_VAL","CHG_VAL","CHG_RT",
           "SRC_NM","OPEN_VAL","HIGH_VAL","LOW_VAL","TRD_VOL","TRD_VAL","DATA_SRC_CD","DATA_STS")
         SELECT i."IDX_CD", r."BASE_DT", i."IDX_CD", coalesce(r."PAYLOAD"->>'IDX_NM',r."PAYLOAD"->>'BND_IDX_GRP_NM'),
@@ -60,6 +65,9 @@ public class KrxIndexDailyCollector {
           "HIGH_VAL"=EXCLUDED."HIGH_VAL", "LOW_VAL"=EXCLUDED."LOW_VAL", "TRD_VOL"=EXCLUDED."TRD_VOL",
           "TRD_VAL"=EXCLUDED."TRD_VAL", "DATA_SRC_CD"='KRX', "DATA_STS"='FRESH',
           "COLLECT_DTTM"=CURRENT_TIMESTAMP
-        """).param("dataset", dataset.name()).param("date", date).update();
+        """)
+        .param("dataset", dataset.name())
+        .param("date", date)
+        .update();
   }
 }

@@ -164,18 +164,21 @@ public class DashboardController {
         .query(
             (rs, rowNum) ->
                 new AccountSummary(
-                    rs.getString("ACCT_TP"), rs.getBigDecimal("total_asset"),
+                    rs.getString("ACCT_TP"),
+                    rs.getBigDecimal("total_asset"),
                     rs.getBigDecimal("evaluation_amount"),
                     rs.getBigDecimal("etf_evaluation_amount"),
                     rs.getBigDecimal("etf_asset_amount"),
                     rs.getBigDecimal("etf_evaluation_ratio"),
                     rs.getBigDecimal("cost_amount"),
-                    rs.getBigDecimal("cash_amount"), rs.getLong("holding_count"),
-                    rs.getObject("price_base_date", LocalDate.class), rs.getString("currency_code"),
+                    rs.getBigDecimal("cash_amount"),
+                    rs.getLong("holding_count"),
+                    rs.getObject("price_base_date", LocalDate.class),
+                    rs.getString("currency_code"),
                     rs.getBigDecimal("display_total_asset"),
-                        rs.getBigDecimal("display_evaluation_amount"),
+                    rs.getBigDecimal("display_evaluation_amount"),
                     rs.getBigDecimal("display_cost_amount"),
-                        rs.getBigDecimal("display_cash_amount")))
+                    rs.getBigDecimal("display_cash_amount")))
         .list();
   }
 

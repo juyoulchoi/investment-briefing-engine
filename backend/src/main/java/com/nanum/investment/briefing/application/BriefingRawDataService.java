@@ -225,15 +225,20 @@ public class BriefingRawDataService {
   }
 
   private Map<String, Object> confirmedValues(LocalDate date, Long decisionId) {
-    Map<String, Object> value = jdbc.sql("""
+    Map<String, Object> value =
+        jdbc.sql(
+                """
         SELECT round(i."RISK_SCR")::int risk_score,i."RISK_GRADE",i."MKT_REGIME",p."MKT_DIR_PRED_ID",
           p."DIR_SCR",p."UPTREND_RESUME_PROB",p."BOX_RANGE_PROB",p."RE_CORRECTION_PROB",p."RETEST_LOW_PROB",
           p."UPTREND_RESUME_CHG",p."BOX_RANGE_CHG",p."RE_CORRECTION_CHG",p."RETEST_LOW_CHG",
           i."OVR_DEC_SIG",round(COALESCE(i."TGT_CASH_RT",i."CASH_RT",0))::int cash_ratio
         FROM "TB_INV_DEC" i JOIN "TB_MKT_DIR_PRED" p ON p."BASE_DT"=i."BASE_DT" AND p."LATEST_YN"='Y'
         WHERE i."INV_DEC_ID"=:id
-        """).param("id", decisionId).query().singleRow();
-    LinkedHashMap<String,Object> result = new LinkedHashMap<>();
+        """)
+            .param("id", decisionId)
+            .query()
+            .singleRow();
+    LinkedHashMap<String, Object> result = new LinkedHashMap<>();
     result.put("briefingDate", date);
     result.put("briefingType", "DAILY");
     result.put("marketRiskScore", value.get("risk_score"));

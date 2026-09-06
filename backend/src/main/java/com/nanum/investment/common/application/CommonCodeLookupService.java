@@ -19,10 +19,8 @@ public class CommonCodeLookupService {
   }
 
   public List<CommonCode> activeCodes(String group) {
-    if (group == null || group.isBlank())
-      throw new IllegalArgumentException("공통코드 그룹이 필요합니다.");
-    return jdbc
-        .sql(
+    if (group == null || group.isBlank()) throw new IllegalArgumentException("공통코드 그룹이 필요합니다.");
+    return jdbc.sql(
             """
             SELECT "CD_KEY", "CD_NM", "DESC", "DSP_ORD"
               FROM "TB_CD_DTL"

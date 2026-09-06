@@ -73,7 +73,8 @@ public class PortfolioWeightRefreshService {
   }
 
   private static BigDecimal normalizedEvaluation(TbHold holding, BigDecimal exchangeRate) {
-    if (exchangeRate.compareTo(BigDecimal.ONE) != 0 && holding.getOriginalEvaluationAmount() != null)
+    if (exchangeRate.compareTo(BigDecimal.ONE) != 0
+        && holding.getOriginalEvaluationAmount() != null)
       return holding.getOriginalEvaluationAmount().multiply(exchangeRate);
     return nvl(holding.getEvaluationAmount());
   }

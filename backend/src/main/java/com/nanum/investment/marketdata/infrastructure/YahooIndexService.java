@@ -97,9 +97,7 @@ public class YahooIndexService {
     AND "IDX_CD" IN ('SP500','NASDAQ_COMPOSITE','DOW_JONES','PHLX_SEMICONDUCTOR','VIX','NIKKEI225')
   ORDER BY "IDX_CD"
   """)
-        .query(
-            (rs, n) ->
-                new IndexInfo(rs.getString(1), rs.getString(2), rs.getString(3)))
+        .query((rs, n) -> new IndexInfo(rs.getString(1), rs.getString(2), rs.getString(3)))
         .list();
   }
 
@@ -111,9 +109,7 @@ public class YahooIndexService {
    WHERE "IDX_CD"=:code AND "DATA_SRC_CD"='YAHOO' AND "USE_YN"='Y' AND "DEL_YN"='N'
    """)
         .param("code", code)
-        .query(
-            (rs, n) ->
-                new IndexInfo(rs.getString(1), rs.getString(2), rs.getString(3)))
+        .query((rs, n) -> new IndexInfo(rs.getString(1), rs.getString(2), rs.getString(3)))
         .optional()
         .orElseThrow(() -> new IllegalArgumentException("등록된 Yahoo 지수가 아닙니다: " + code));
   }
