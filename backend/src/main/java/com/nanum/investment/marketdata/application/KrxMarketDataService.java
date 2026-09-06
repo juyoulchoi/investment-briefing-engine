@@ -2,19 +2,19 @@ package com.nanum.investment.marketdata.application;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nanum.investment.common.infrastructure.external.CollectionResult;
 import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
+import com.nanum.investment.common.infrastructure.external.CollectionResult;
 import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor;
 import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor.Call;
 import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;
 import com.nanum.investment.holding.application.HoldingPriceSyncService;
 import com.nanum.investment.marketdata.domain.KrxDataset;
-import com.nanum.investment.marketdata.infrastructure.KrxIndexDailyCollector;
-import com.nanum.investment.marketdata.infrastructure.KrxRequestRateLimiter;
 import com.nanum.investment.marketdata.infrastructure.KrxBondTradingDailyCollector;
 import com.nanum.investment.marketdata.infrastructure.KrxDerivativeDailyCollector;
-import java.time.LocalDate;
+import com.nanum.investment.marketdata.infrastructure.KrxIndexDailyCollector;
+import com.nanum.investment.marketdata.infrastructure.KrxRequestRateLimiter;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
@@ -30,23 +30,40 @@ import org.springframework.web.client.RestClient;
 @Service
 public class KrxMarketDataService {
   private static final Set<KrxDataset> STOCK_DAILY_DATASETS =
-      Set.of(KrxDataset.KOSPI_STOCK_DAILY, KrxDataset.KOSDAQ_STOCK_DAILY,
-          KrxDataset.KONEX_STOCK_DAILY, KrxDataset.SUBSCRIPTION_WARRANT_DAILY,
-          KrxDataset.SUBSCRIPTION_RIGHT_DAILY, KrxDataset.ETF_DAILY,
-          KrxDataset.ETN_DAILY, KrxDataset.ELW_DAILY);
+      Set.of(
+          KrxDataset.KOSPI_STOCK_DAILY,
+          KrxDataset.KOSDAQ_STOCK_DAILY,
+          KrxDataset.KONEX_STOCK_DAILY,
+          KrxDataset.SUBSCRIPTION_WARRANT_DAILY,
+          KrxDataset.SUBSCRIPTION_RIGHT_DAILY,
+          KrxDataset.ETF_DAILY,
+          KrxDataset.ETN_DAILY,
+          KrxDataset.ELW_DAILY);
   private static final Set<KrxDataset> STOCK_MASTER_DATASETS =
-      Set.of(KrxDataset.KOSPI_STOCK_MASTER, KrxDataset.KOSDAQ_STOCK_MASTER,
-          KrxDataset.ALL_STOCK_MASTER, KrxDataset.KONEX_STOCK_MASTER);
+      Set.of(
+          KrxDataset.KOSPI_STOCK_MASTER,
+          KrxDataset.KOSDAQ_STOCK_MASTER,
+          KrxDataset.ALL_STOCK_MASTER,
+          KrxDataset.KONEX_STOCK_MASTER);
   private static final Set<KrxDataset> INDEX_DAILY_DATASETS =
-      Set.of(KrxDataset.KRX_INDEX_DAILY, KrxDataset.KOSPI_INDEX_DAILY,
-          KrxDataset.KOSDAQ_INDEX_DAILY, KrxDataset.BOND_INDEX_DAILY,
+      Set.of(
+          KrxDataset.KRX_INDEX_DAILY,
+          KrxDataset.KOSPI_INDEX_DAILY,
+          KrxDataset.KOSDAQ_INDEX_DAILY,
+          KrxDataset.BOND_INDEX_DAILY,
           KrxDataset.DERIVATIVE_INDEX_DAILY);
   private static final Set<KrxDataset> DERIVATIVE_DAILY_DATASETS =
-      Set.of(KrxDataset.FUTURES_DAILY, KrxDataset.KOSPI_STOCK_FUTURES_DAILY,
-          KrxDataset.KOSDAQ_STOCK_FUTURES_DAILY, KrxDataset.OPTIONS_DAILY,
-          KrxDataset.KOSPI_STOCK_OPTIONS_DAILY, KrxDataset.KOSDAQ_STOCK_OPTIONS_DAILY);
+      Set.of(
+          KrxDataset.FUTURES_DAILY,
+          KrxDataset.KOSPI_STOCK_FUTURES_DAILY,
+          KrxDataset.KOSDAQ_STOCK_FUTURES_DAILY,
+          KrxDataset.OPTIONS_DAILY,
+          KrxDataset.KOSPI_STOCK_OPTIONS_DAILY,
+          KrxDataset.KOSDAQ_STOCK_OPTIONS_DAILY);
   private static final Set<KrxDataset> BOND_TRADING_DAILY_DATASETS =
-      Set.of(KrxDataset.GOVERNMENT_BOND_DAILY, KrxDataset.GENERAL_BOND_DAILY,
+      Set.of(
+          KrxDataset.GOVERNMENT_BOND_DAILY,
+          KrxDataset.GENERAL_BOND_DAILY,
           KrxDataset.SMALL_BOND_DAILY);
 
   private final JdbcClient jdbc;
@@ -101,21 +118,35 @@ public class KrxMarketDataService {
   public CollectionResult collect(KrxDataset dataset, LocalDate date) {
     if (!StringUtils.hasText(authKey)) throw new IllegalStateException("KRX_AUTH_KEY가 필요합니다.");
     rateLimiter.acquire();
-    JsonNode response = circuitBreaker.execute(
-        "KRX:" + dataset.name(), circuitFailureThreshold, circuitOpenDuration,
-        () -> externalCalls.execute(
-            new Call("krx." + dataset.name(), "KRX", dataset.name(), "GET",
-                baseUrl + dataset.path() + "?basDd=" + date.format(DateTimeFormatter.BASIC_ISO_DATE), null),
-            () -> client
-                    .get()
-                    .uri(
-                        uri ->
-                            uri.path(dataset.path())
-                                .queryParam("basDd", date.format(DateTimeFormatter.BASIC_ISO_DATE))
-                                .build())
-                    .header("AUTH_KEY", authKey)
-                    .retrieve()
-                    .body(JsonNode.class)));
+    JsonNode response =
+        circuitBreaker.execute(
+            "KRX:" + dataset.name(),
+            circuitFailureThreshold,
+            circuitOpenDuration,
+            () ->
+                externalCalls.execute(
+                    new Call(
+                        "krx." + dataset.name(),
+                        "KRX",
+                        dataset.name(),
+                        "GET",
+                        baseUrl
+                            + dataset.path()
+                            + "?basDd="
+                            + date.format(DateTimeFormatter.BASIC_ISO_DATE),
+                        null),
+                    () ->
+                        client
+                            .get()
+                            .uri(
+                                uri ->
+                                    uri.path(dataset.path())
+                                        .queryParam(
+                                            "basDd", date.format(DateTimeFormatter.BASIC_ISO_DATE))
+                                        .build())
+                            .header("AUTH_KEY", authKey)
+                            .retrieve()
+                            .body(JsonNode.class)));
     JsonNode rows = response == null ? null : response.path("OutBlock_1");
     if (rows == null || !rows.isArray())
       throw new IllegalStateException("KRX 응답에 OutBlock_1 배열이 없습니다.");
@@ -144,8 +175,10 @@ public class KrxMarketDataService {
     }
     if (STOCK_MASTER_DATASETS.contains(dataset)) syncStockMaster(dataset, date);
     if (INDEX_DAILY_DATASETS.contains(dataset)) indexDailyCollector.normalize(dataset, date);
-    if (DERIVATIVE_DAILY_DATASETS.contains(dataset)) derivativeDailyCollector.normalize(dataset, date);
-    if (BOND_TRADING_DAILY_DATASETS.contains(dataset)) bondTradingDailyCollector.normalize(dataset, date);
+    if (DERIVATIVE_DAILY_DATASETS.contains(dataset))
+      derivativeDailyCollector.normalize(dataset, date);
+    if (BOND_TRADING_DAILY_DATASETS.contains(dataset))
+      bondTradingDailyCollector.normalize(dataset, date);
     return new CollectionResult(dataset.name(), date, received, count(dataset, date));
   }
 
@@ -252,7 +285,8 @@ public class KrxMarketDataService {
   }
 
   private int syncStockMaster(KrxDataset dataset, LocalDate date) {
-    return jdbc.sql("""
+    return jdbc.sql(
+            """
         INSERT INTO "TB_STK" ("MKT_CD","STK_CD","STK_NM","LIST_SCOPE","ASSET_TP","EXCH_NM",
           "CURR","PRVDR","ACTV_YN","TICKER","CNTRY_CD","CURR_CD","AST_TP","STK_GRADE",
           "REG_BUY_YN","ADD_BUY_YN","REBUY_YN","USE_YN","DEL_YN","CRT_USR_ID","UPD_USR_ID")
@@ -268,7 +302,10 @@ public class KrxMarketDataService {
         ON CONFLICT ("STK_CD") DO UPDATE SET "STK_NM"=EXCLUDED."STK_NM",
           "EXCH_NM"=EXCLUDED."EXCH_NM", "PRVDR"='KRX', "ACTV_YN"='Y', "USE_YN"='Y',
           "DEL_YN"='N', "MOD_DT"=CURRENT_TIMESTAMP, "UPD_DTTM"=CURRENT_TIMESTAMP
-        """).param("dataset", dataset.name()).param("date", date).update();
+        """)
+        .param("dataset", dataset.name())
+        .param("date", date)
+        .update();
   }
 
   private LocalDate parseDate(String value, LocalDate fallback) {

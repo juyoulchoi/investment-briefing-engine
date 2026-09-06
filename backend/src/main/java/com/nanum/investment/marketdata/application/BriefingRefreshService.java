@@ -98,9 +98,16 @@ public class BriefingRefreshService {
             && attempt(
                 "9 추가매수·재매수 계산", completed, failures, results, () -> plans.calculateAndSave(day));
     boolean direction =
-        plan && attempt("9-1 시장방향 예측 계산", completed, failures, results, () -> directionPredictions.calculateAndSave(day));
+        plan
+            && attempt(
+                "9-1 시장방향 예측 계산",
+                completed,
+                failures,
+                results,
+                () -> directionPredictions.calculateAndSave(day));
     boolean rebalance =
-        direction && attempt("10 리밸런싱 계산", completed, failures, results, () -> rebalancing.generate(day));
+        direction
+            && attempt("10 리밸런싱 계산", completed, failures, results, () -> rebalancing.generate(day));
     boolean raw =
         rebalance
             && attempt(

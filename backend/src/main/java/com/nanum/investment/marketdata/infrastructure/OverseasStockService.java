@@ -1,14 +1,14 @@
 package com.nanum.investment.marketdata.infrastructure;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
 import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor;
 import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor.Call;
-import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
 import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;
 import com.nanum.investment.holding.application.HoldingPriceSyncService;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -178,11 +178,21 @@ public class OverseasStockService {
       String symbol,
       java.util.function.Function<org.springframework.web.util.UriBuilder, java.net.URI> uri) {
     limiter.acquire();
-    JsonNode response = circuitBreaker.execute(
-        "YAHOO:STOCK", failureThreshold, openDuration,
-        () -> externalCalls.execute(
-            new Call("yahoo.stock", "YAHOO", "STOCK:" + symbol, "GET", baseUrl + "/" + symbol, null),
-            () -> client.get().uri(uri).retrieve().body(JsonNode.class)));
+    JsonNode response =
+        circuitBreaker.execute(
+            "YAHOO:STOCK",
+            failureThreshold,
+            openDuration,
+            () ->
+                externalCalls.execute(
+                    new Call(
+                        "yahoo.stock",
+                        "YAHOO",
+                        "STOCK:" + symbol,
+                        "GET",
+                        baseUrl + "/" + symbol,
+                        null),
+                    () -> client.get().uri(uri).retrieve().body(JsonNode.class)));
     JsonNode chart = response == null ? null : response.path("chart");
     if (chart == null || !chart.path("error").isNull() || chart.path("result").isEmpty())
       throw new IllegalStateException(

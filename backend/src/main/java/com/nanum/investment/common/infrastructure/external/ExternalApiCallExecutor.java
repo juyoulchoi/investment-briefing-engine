@@ -21,22 +21,49 @@ public class ExternalApiCallExecutor {
     OffsetDateTime requestedAt = OffsetDateTime.now();
     AtomicInteger attempts = new AtomicInteger();
     try {
-      T response = retry.execute(call.policyKey(), () -> {
-        attempts.incrementAndGet();
-        return request.call();
-      });
-      logs.save(UUID.randomUUID().toString(), call.group(), call.name(), call.method(), call.url(),
-          call.requestBody(), 200, response == null ? null : response.toString(), true,
-          Math.max(0, attempts.get() - 1), requestedAt, null);
+      T response =
+          retry.execute(
+              call.policyKey(),
+              () -> {
+                attempts.incrementAndGet();
+                return request.call();
+              });
+      logs.save(
+          UUID.randomUUID().toString(),
+          call.group(),
+          call.name(),
+          call.method(),
+          call.url(),
+          call.requestBody(),
+          200,
+          response == null ? null : response.toString(),
+          true,
+          Math.max(0, attempts.get() - 1),
+          requestedAt,
+          null);
       return response;
     } catch (RuntimeException error) {
-      Integer status = error instanceof RestClientResponseException response
-          ? response.getStatusCode().value() : null;
-      String responseBody = error instanceof RestClientResponseException response
-          ? response.getResponseBodyAsString() : null;
-      logs.save(UUID.randomUUID().toString(), call.group(), call.name(), call.method(), call.url(),
-          call.requestBody(), status, responseBody, false, Math.max(0, attempts.get() - 1),
-          requestedAt, error.getMessage());
+      Integer status =
+          error instanceof RestClientResponseException response
+              ? response.getStatusCode().value()
+              : null;
+      String responseBody =
+          error instanceof RestClientResponseException response
+              ? response.getResponseBodyAsString()
+              : null;
+      logs.save(
+          UUID.randomUUID().toString(),
+          call.group(),
+          call.name(),
+          call.method(),
+          call.url(),
+          call.requestBody(),
+          status,
+          responseBody,
+          false,
+          Math.max(0, attempts.get() - 1),
+          requestedAt,
+          error.getMessage());
       throw error;
     }
   }

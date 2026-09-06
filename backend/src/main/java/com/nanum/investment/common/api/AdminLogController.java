@@ -28,9 +28,7 @@ public class AdminLogController {
   private final SchedulerRecoveryService recovery;
 
   public AdminLogController(
-      TbApiLogRepository a,
-      TbErrLogRepository e,
-      SchedulerRecoveryService r) {
+      TbApiLogRepository a, TbErrLogRepository e, SchedulerRecoveryService r) {
     apiLogs = a;
     errorLogs = e;
     recovery = r;

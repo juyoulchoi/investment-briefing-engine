@@ -29,7 +29,8 @@ public class AlgorithmPerformanceService {
     if (!List.of(1, 5, 10, 20, 60).contains(horizon))
       throw new IllegalArgumentException("horizon은 1, 5, 10, 20, 60 중 하나여야 합니다.");
     List<Observation> observations = observations(from, to, target, horizon);
-    Metrics legacy = metrics("LEGACY_CHATGPT", observations, warningThreshold, drawdownThreshold, true);
+    Metrics legacy =
+        metrics("LEGACY_CHATGPT", observations, warningThreshold, drawdownThreshold, true);
     Metrics recalculated =
         metrics("MARKET_ALGORITHM_V2", observations, warningThreshold, drawdownThreshold, false);
     String assessment = assessment(legacy, recalculated);

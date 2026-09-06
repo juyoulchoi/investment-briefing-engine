@@ -1,9 +1,9 @@
 package com.nanum.investment.marketdata.infrastructure;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
 import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor;
 import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor.Call;
-import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
 import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;
 import java.time.*;
 import java.util.*;
@@ -66,22 +66,33 @@ public class YahooExchangeRateCollector implements ExchangeRateCollector {
     long period1 = from.atStartOfDay(ZoneOffset.UTC).toEpochSecond(),
         period2 = to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
     limiter.acquire();
-    JsonNode response = circuitBreaker.execute(
-        "YAHOO:EXCHANGE", failureThreshold, openDuration,
-        () -> externalCalls.execute(
-            new Call("yahoo.exchange", "YAHOO", "EXCHANGE:" + symbol, "GET", baseUrl + "/" + symbol, null),
-            () -> client
-                    .get()
-                    .uri(
-                        u ->
-                            u.pathSegment(symbol)
-                                .queryParam("period1", period1)
-                                .queryParam("period2", period2)
-                                .queryParam("interval", "1d")
-                                .queryParam("events", "div,splits")
-                                .build())
-                    .retrieve()
-                    .body(JsonNode.class)));
+    JsonNode response =
+        circuitBreaker.execute(
+            "YAHOO:EXCHANGE",
+            failureThreshold,
+            openDuration,
+            () ->
+                externalCalls.execute(
+                    new Call(
+                        "yahoo.exchange",
+                        "YAHOO",
+                        "EXCHANGE:" + symbol,
+                        "GET",
+                        baseUrl + "/" + symbol,
+                        null),
+                    () ->
+                        client
+                            .get()
+                            .uri(
+                                u ->
+                                    u.pathSegment(symbol)
+                                        .queryParam("period1", period1)
+                                        .queryParam("period2", period2)
+                                        .queryParam("interval", "1d")
+                                        .queryParam("events", "div,splits")
+                                        .build())
+                            .retrieve()
+                            .body(JsonNode.class)));
     JsonNode chart = response == null ? null : response.path("chart");
     if (chart == null || !chart.path("error").isNull() || chart.path("result").isEmpty())
       throw new IllegalStateException(

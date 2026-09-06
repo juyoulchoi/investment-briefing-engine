@@ -44,8 +44,15 @@ public class KofiaCatalogClient {
     Map<String, Object> data = new LinkedHashMap<>();
     for (String key :
         new String[] {
-          "userId", "serviceId", "tmpV1", "tmpV45", "tmpV46", "tmpV108", "sqlKey",
-          "searchLog", "ipAddress"
+          "userId",
+          "serviceId",
+          "tmpV1",
+          "tmpV45",
+          "tmpV46",
+          "tmpV108",
+          "sqlKey",
+          "searchLog",
+          "ipAddress"
         }) data.put(key, "");
     JsonNode response = post("/app/favorites/STATCOMFAVORITESTATBO.do", Map.of("data", data));
     if (!response.path("success").asBoolean() || !response.path("dsResultList").isArray())

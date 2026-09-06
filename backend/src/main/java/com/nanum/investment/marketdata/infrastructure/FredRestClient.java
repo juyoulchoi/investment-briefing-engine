@@ -113,39 +113,39 @@ public class FredRestClient implements FredClient {
     limiter.acquire(0);
     String url = baseUrl + path + "?series_id=" + code + "&api_key=" + apiKey;
     JsonNode body =
-          circuitBreaker.execute(
-              "FRED",
-              failureThreshold,
-              openDuration,
-              () ->
-                  externalCalls.execute(
-                      new ExternalApiCallExecutor.Call(
-                          "fred." + code, "FRED", code, "GET", url, null),
-                      () ->
-                          client
-                              .get()
-                              .uri(
-                                  builder -> {
+        circuitBreaker.execute(
+            "FRED",
+            failureThreshold,
+            openDuration,
+            () ->
+                externalCalls.execute(
+                    new ExternalApiCallExecutor.Call(
+                        "fred." + code, "FRED", code, "GET", url, null),
+                    () ->
+                        client
+                            .get()
+                            .uri(
+                                builder -> {
+                                  builder
+                                      .path(path)
+                                      .queryParam("series_id", code)
+                                      .queryParam("api_key", apiKey)
+                                      .queryParam("file_type", "json");
+                                  if (from != null) {
                                     builder
-                                        .path(path)
-                                        .queryParam("series_id", code)
-                                        .queryParam("api_key", apiKey)
-                                        .queryParam("file_type", "json");
-                                    if (from != null) {
-                                      builder
-                                          .queryParam("observation_start", from)
-                                          .queryParam("observation_end", to)
-                                          .queryParam("sort_order", "asc")
-                                          .queryParam("units", validUnits(units))
-                                          .queryParam(
-                                              "aggregation_method", validAggregation(aggregation))
-                                          .queryParam("limit", PAGE_SIZE)
-                                          .queryParam("offset", offset);
-                                    }
-                                    return builder.build();
-                                  })
-                              .retrieve()
-                              .body(JsonNode.class)));
+                                        .queryParam("observation_start", from)
+                                        .queryParam("observation_end", to)
+                                        .queryParam("sort_order", "asc")
+                                        .queryParam("units", validUnits(units))
+                                        .queryParam(
+                                            "aggregation_method", validAggregation(aggregation))
+                                        .queryParam("limit", PAGE_SIZE)
+                                        .queryParam("offset", offset);
+                                  }
+                                  return builder.build();
+                                })
+                            .retrieve()
+                            .body(JsonNode.class)));
     if (body == null || body.has("error_code"))
       throw new IllegalStateException("FRED 응답을 처리하지 못했습니다: " + code);
     return body;

@@ -1,8 +1,8 @@
 package com.nanum.investment.marketdata.infrastructure;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.nanum.investment.common.infrastructure.external.CollectionResult;
 import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
+import com.nanum.investment.common.infrastructure.external.CollectionResult;
 import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor;
 import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor.Call;
 import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;
@@ -117,9 +117,7 @@ public class YahooIndexService {
     AND "IDX_CD" IN ('SP500','NASDAQ_COMPOSITE','DOW_JONES','PHLX_SEMICONDUCTOR','VIX','NIKKEI225')
   ORDER BY "IDX_CD"
   """)
-        .query(
-            (rs, n) ->
-                new IndexInfo(rs.getString(1), rs.getString(2), rs.getString(3)))
+        .query((rs, n) -> new IndexInfo(rs.getString(1), rs.getString(2), rs.getString(3)))
         .list();
   }
 
@@ -131,31 +129,40 @@ public class YahooIndexService {
    WHERE "IDX_CD"=:code AND "DATA_SRC_CD"='YAHOO' AND "USE_YN"='Y' AND "DEL_YN"='N'
    """)
         .param("code", code)
-        .query(
-            (rs, n) ->
-                new IndexInfo(rs.getString(1), rs.getString(2), rs.getString(3)))
+        .query((rs, n) -> new IndexInfo(rs.getString(1), rs.getString(2), rs.getString(3)))
         .optional()
         .orElseThrow(() -> new IllegalArgumentException("등록된 Yahoo 지수가 아닙니다: " + code));
   }
 
   private JsonNode fetch(String symbol, long period1, long period2) {
     limiter.acquire();
-    JsonNode response = circuitBreaker.execute(
-        "YAHOO:INDEX", failureThreshold, openDuration,
-        () -> externalCalls.execute(
-            new Call("yahoo.index", "YAHOO", "INDEX:" + symbol, "GET", baseUrl + "/" + symbol, null),
-            () -> client
-                    .get()
-                    .uri(
-                        uri ->
-                            uri.pathSegment(symbol)
-                                .queryParam("period1", period1)
-                                .queryParam("period2", period2)
-                                .queryParam("interval", "1d")
-                                .queryParam("events", "div,splits")
-                                .build())
-                    .retrieve()
-                    .body(JsonNode.class)));
+    JsonNode response =
+        circuitBreaker.execute(
+            "YAHOO:INDEX",
+            failureThreshold,
+            openDuration,
+            () ->
+                externalCalls.execute(
+                    new Call(
+                        "yahoo.index",
+                        "YAHOO",
+                        "INDEX:" + symbol,
+                        "GET",
+                        baseUrl + "/" + symbol,
+                        null),
+                    () ->
+                        client
+                            .get()
+                            .uri(
+                                uri ->
+                                    uri.pathSegment(symbol)
+                                        .queryParam("period1", period1)
+                                        .queryParam("period2", period2)
+                                        .queryParam("interval", "1d")
+                                        .queryParam("events", "div,splits")
+                                        .build())
+                            .retrieve()
+                            .body(JsonNode.class)));
     JsonNode chart = response == null ? null : response.path("chart");
     if (chart == null || !chart.path("error").isNull() || chart.path("result").isEmpty())
       throw new IllegalStateException(

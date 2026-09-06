@@ -5,7 +5,10 @@ import java.util.List;
 import java.util.Set;
 
 public record ExternalRetryPolicy(
-    int maximumAttempts, List<Duration> delays, double jitterMinimum, double jitterMaximum,
+    int maximumAttempts,
+    List<Duration> delays,
+    double jitterMinimum,
+    double jitterMaximum,
     Set<Integer> retryableStatuses) {
   public ExternalRetryPolicy {
     if (maximumAttempts < 1) throw new IllegalArgumentException("maximumAttempts must be positive");

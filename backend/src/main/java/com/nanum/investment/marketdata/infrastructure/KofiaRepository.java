@@ -239,8 +239,7 @@ public class KofiaRepository {
             .single();
     if (overlap) throw new IllegalStateException("동일 Dataset의 기간이 겹치는 활성 KOFIA 수집 Job이 있습니다.");
     int itemCount = 0;
-    for (KofiaDataset dataset : datasets)
-      itemCount += jobRanges(dataset, from, to).size();
+    for (KofiaDataset dataset : datasets) itemCount += jobRanges(dataset, from, to).size();
     jdbc.sql(
             """
         INSERT INTO "TB_KOFIA_CLCT_JOB"("JOB_ID","FROM_DT","TO_DT","DATASET_CDS","STS","TOTAL_ITEM_CNT")
@@ -454,6 +453,7 @@ public class KofiaRepository {
   }
 
   public record PendingItem(long itemId, KofiaDataset dataset, LocalDate from, LocalDate to) {}
+
   private record DateRange(LocalDate from, LocalDate to) {}
 
   public record ItemView(

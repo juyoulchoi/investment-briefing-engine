@@ -17,8 +17,7 @@ class BriefingDisplayTextServiceTest {
             "KEEP_MINIMUM", "최소 정기매수 유지");
 
     String result =
-        service.localize(
-            "위험등급 MEDIUM, KEEP_REGULAR_BUY와 KEEP\\_MINIMUM을 구분한다.", labels);
+        service.localize("위험등급 MEDIUM, KEEP_REGULAR_BUY와 KEEP\\_MINIMUM을 구분한다.", labels);
 
     assertThat(result).isEqualTo("위험등급 보통, 정기매수 유지와 최소 정기매수 유지를 구분한다.");
   }

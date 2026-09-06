@@ -63,23 +63,27 @@ public class KofiaRestClient implements KofiaClient {
     Map<String, Object> request = Map.of("dmSearch", search);
     JsonNode response;
     response =
-          circuitBreaker.execute(
-              "KOFIA",
-              failureThreshold,
-              openDuration,
-              () ->
-                  externalCalls.execute(
-                      new ExternalApiCallExecutor.Call(
-                          "kofia." + dataset.name(), "KOFIA", dataset.name(), "POST",
-                          baseUrl + dataset.path(), request.toString()),
-                      () ->
-                          client
-                              .post()
-                              .uri(dataset.path())
-                              .contentType(MediaType.APPLICATION_JSON)
-                              .body(request)
-                              .retrieve()
-                              .body(JsonNode.class)));
+        circuitBreaker.execute(
+            "KOFIA",
+            failureThreshold,
+            openDuration,
+            () ->
+                externalCalls.execute(
+                    new ExternalApiCallExecutor.Call(
+                        "kofia." + dataset.name(),
+                        "KOFIA",
+                        dataset.name(),
+                        "POST",
+                        baseUrl + dataset.path(),
+                        request.toString()),
+                    () ->
+                        client
+                            .post()
+                            .uri(dataset.path())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(request)
+                            .retrieve()
+                            .body(JsonNode.class)));
     if (response == null || !response.path("ds1").isArray())
       throw new IllegalStateException("KOFIA 응답에 ds1 배열이 없습니다.");
     List<KofiaRow> rows = new ArrayList<>();
@@ -110,7 +114,10 @@ public class KofiaRestClient implements KofiaClient {
 
   private boolean isSummary(JsonNode row) {
     return List.of("합계", "평균", "소계").stream()
-        .anyMatch(value -> value.equals(row.path("TMPV1").asText()) || value.equals(row.path("TMPV2").asText()));
+        .anyMatch(
+            value ->
+                value.equals(row.path("TMPV1").asText())
+                    || value.equals(row.path("TMPV2").asText()));
   }
 
   private String rowType(JsonNode row) {

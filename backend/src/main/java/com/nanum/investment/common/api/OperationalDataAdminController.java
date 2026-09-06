@@ -577,9 +577,7 @@ public class OperationalDataAdminController {
 
   private BigDecimal percentage(BigDecimal amount, BigDecimal total) {
     if (amount == null || total == null || total.signum() <= 0) return null;
-    return amount
-        .multiply(new BigDecimal("100"))
-        .divide(total, 4, RoundingMode.HALF_UP);
+    return amount.multiply(new BigDecimal("100")).divide(total, 4, RoundingMode.HALF_UP);
   }
 
   private RegularBuyRow row(TbRegBuy x) {

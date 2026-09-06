@@ -23,8 +23,7 @@ public class ExternalRestClientFactory {
     return builder(baseUrl, defaultConnectTimeout, defaultReadTimeout);
   }
 
-  public RestClient.Builder builder(
-      String baseUrl, Duration connectTimeout, Duration readTimeout) {
+  public RestClient.Builder builder(String baseUrl, Duration connectTimeout, Duration readTimeout) {
     HttpClient client = HttpClient.newBuilder().connectTimeout(connectTimeout).build();
     JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(client);
     requestFactory.setReadTimeout(readTimeout);

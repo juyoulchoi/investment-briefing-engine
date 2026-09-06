@@ -11,7 +11,8 @@ public class KrxCollectionOutcomeClassifier {
   private final ZoneId zone;
   private final LocalTime publicationTime;
 
-  public KrxCollectionOutcomeClassifier(MarketCalendarService calendar,
+  public KrxCollectionOutcomeClassifier(
+      MarketCalendarService calendar,
       @Value("${krx.eod-publication-zone:Asia/Seoul}") String zone,
       @Value("${krx.eod-publication-time:18:00}") LocalTime publicationTime) {
     this.calendar = calendar;

@@ -14,7 +14,9 @@ public class CircuitBreakerSupport {
   private final JdbcClient jdbc;
   private final Map<String, MemoryState> memory = new ConcurrentHashMap<>();
 
-  CircuitBreakerSupport() { this.jdbc = null; }
+  CircuitBreakerSupport() {
+    this.jdbc = null;
+  }
 
   @Autowired
   public CircuitBreakerSupport(JdbcClient jdbc) {
@@ -46,18 +48,27 @@ public class CircuitBreakerSupport {
       }
       return;
     }
-    jdbc.sql("INSERT INTO \"TB_EXT_CIRCUIT\"(\"CIRCUIT_KEY\") VALUES(:key) ON CONFLICT(\"CIRCUIT_KEY\") DO NOTHING")
-        .param("key", key).update();
-    Map<String, Object> row = jdbc.sql("SELECT \"STATE\",\"OPENED_AT\" FROM \"TB_EXT_CIRCUIT\" WHERE \"CIRCUIT_KEY\"=:key")
-        .param("key", key).query().singleRow();
+    jdbc.sql(
+            "INSERT INTO \"TB_EXT_CIRCUIT\"(\"CIRCUIT_KEY\") VALUES(:key) ON CONFLICT(\"CIRCUIT_KEY\") DO NOTHING")
+        .param("key", key)
+        .update();
+    Map<String, Object> row =
+        jdbc.sql(
+                "SELECT \"STATE\",\"OPENED_AT\" FROM \"TB_EXT_CIRCUIT\" WHERE \"CIRCUIT_KEY\"=:key")
+            .param("key", key)
+            .query()
+            .singleRow();
     String state = row.get("STATE").toString();
     if ("CLOSED".equals(state)) return;
     if ("HALF_OPEN".equals(state)) throw new CircuitOpenException(key);
     OffsetDateTime openedAt = (OffsetDateTime) row.get("OPENED_AT");
     if (openedAt != null && OffsetDateTime.now().isBefore(openedAt.plus(openDuration)))
       throw new CircuitOpenException(key);
-    int acquired = jdbc.sql("UPDATE \"TB_EXT_CIRCUIT\" SET \"STATE\"='HALF_OPEN',\"HALF_OPEN_IN_FLIGHT\"=TRUE,\"UPD_DTTM\"=CURRENT_TIMESTAMP WHERE \"CIRCUIT_KEY\"=:key AND \"STATE\"='OPEN' AND \"HALF_OPEN_IN_FLIGHT\"=FALSE")
-        .param("key", key).update();
+    int acquired =
+        jdbc.sql(
+                "UPDATE \"TB_EXT_CIRCUIT\" SET \"STATE\"='HALF_OPEN',\"HALF_OPEN_IN_FLIGHT\"=TRUE,\"UPD_DTTM\"=CURRENT_TIMESTAMP WHERE \"CIRCUIT_KEY\"=:key AND \"STATE\"='OPEN' AND \"HALF_OPEN_IN_FLIGHT\"=FALSE")
+            .param("key", key)
+            .update();
     if (acquired == 0) throw new CircuitOpenException(key);
   }
 
@@ -73,13 +84,17 @@ public class CircuitBreakerSupport {
       }
       return;
     }
-    jdbc.sql("""
+    jdbc.sql(
+            """
         UPDATE "TB_EXT_CIRCUIT" SET
           "FAILURE_CNT"=CASE WHEN "STATE"='HALF_OPEN' THEN :threshold ELSE "FAILURE_CNT"+1 END,
           "STATE"=CASE WHEN "STATE"='HALF_OPEN' OR "FAILURE_CNT"+1>=:threshold THEN 'OPEN' ELSE 'CLOSED' END,
           "OPENED_AT"=CASE WHEN "STATE"='HALF_OPEN' OR "FAILURE_CNT"+1>=:threshold THEN CURRENT_TIMESTAMP ELSE "OPENED_AT" END,
           "HALF_OPEN_IN_FLIGHT"=FALSE,"UPD_DTTM"=CURRENT_TIMESTAMP WHERE "CIRCUIT_KEY"=:key
-        """).param("key", key).param("threshold", threshold).update();
+        """)
+        .param("key", key)
+        .param("threshold", threshold)
+        .update();
   }
 
   public void reset(String key) {
@@ -87,14 +102,18 @@ public class CircuitBreakerSupport {
       memory.remove(key);
       return;
     }
-    jdbc.sql("UPDATE \"TB_EXT_CIRCUIT\" SET \"STATE\"='CLOSED',\"FAILURE_CNT\"=0,\"OPENED_AT\"=NULL,\"HALF_OPEN_IN_FLIGHT\"=FALSE,\"UPD_DTTM\"=CURRENT_TIMESTAMP WHERE \"CIRCUIT_KEY\"=:key")
-        .param("key", key).update();
+    jdbc.sql(
+            "UPDATE \"TB_EXT_CIRCUIT\" SET \"STATE\"='CLOSED',\"FAILURE_CNT\"=0,\"OPENED_AT\"=NULL,\"HALF_OPEN_IN_FLIGHT\"=FALSE,\"UPD_DTTM\"=CURRENT_TIMESTAMP WHERE \"CIRCUIT_KEY\"=:key")
+        .param("key", key)
+        .update();
   }
 
   public List<Map<String, Object>> states() {
     if (jdbc == null) return List.of();
-    return jdbc.sql("SELECT \"CIRCUIT_KEY\" circuit_key,\"STATE\" state,\"FAILURE_CNT\" failure_count,\"OPENED_AT\" opened_at,\"HALF_OPEN_IN_FLIGHT\" half_open_in_flight,\"UPD_DTTM\" updated_at FROM \"TB_EXT_CIRCUIT\" ORDER BY \"CIRCUIT_KEY\"")
-        .query().listOfRows();
+    return jdbc.sql(
+            "SELECT \"CIRCUIT_KEY\" circuit_key,\"STATE\" state,\"FAILURE_CNT\" failure_count,\"OPENED_AT\" opened_at,\"HALF_OPEN_IN_FLIGHT\" half_open_in_flight,\"UPD_DTTM\" updated_at FROM \"TB_EXT_CIRCUIT\" ORDER BY \"CIRCUIT_KEY\"")
+        .query()
+        .listOfRows();
   }
 
   public boolean isOpen(String key, Duration ignored) {
@@ -102,8 +121,11 @@ public class CircuitBreakerSupport {
       MemoryState value = memory.get(key);
       return value != null && "OPEN".equals(value.state);
     }
-    return jdbc.sql("SELECT EXISTS(SELECT 1 FROM \"TB_EXT_CIRCUIT\" WHERE \"CIRCUIT_KEY\"=:key AND \"STATE\"='OPEN')")
-        .param("key", key).query(Boolean.class).single();
+    return jdbc.sql(
+            "SELECT EXISTS(SELECT 1 FROM \"TB_EXT_CIRCUIT\" WHERE \"CIRCUIT_KEY\"=:key AND \"STATE\"='OPEN')")
+        .param("key", key)
+        .query(Boolean.class)
+        .single();
   }
 
   private static final class MemoryState {

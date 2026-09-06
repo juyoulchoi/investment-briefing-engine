@@ -19,13 +19,13 @@ class LegacyBriefingImportServiceTest {
 
   @Test
   void keepsMultipleDistinctRiskScoresForReview() throws Exception {
-    assertThat(riskCandidates("어제 위험지수 42점, 오늘 시장 위험지수는 47점입니다."))
-        .containsExactly(42, 47);
+    assertThat(riskCandidates("어제 위험지수 42점, 오늘 시장 위험지수는 47점입니다.")).containsExactly(42, 47);
   }
 
   @SuppressWarnings("unchecked")
   private List<Integer> riskCandidates(String text) throws Exception {
-    Method method = LegacyBriefingImportService.class.getDeclaredMethod("riskCandidates", String.class);
+    Method method =
+        LegacyBriefingImportService.class.getDeclaredMethod("riskCandidates", String.class);
     method.setAccessible(true);
     return (List<Integer>) method.invoke(service, text);
   }

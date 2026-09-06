@@ -24,7 +24,8 @@ public class ExternalApiRetryExecutor {
   }
 
   public <T> T execute(String policyKey, Callable<T> action) {
-    ExternalRetryPolicy policy = policies == null ? ExternalRetryPolicy.defaults() : policies.resolve(policyKey);
+    ExternalRetryPolicy policy =
+        policies == null ? ExternalRetryPolicy.defaults() : policies.resolve(policyKey);
     Throwable last = null;
     for (int attempt = 1; attempt <= policy.maximumAttempts(); attempt++)
       try {

@@ -1,7 +1,7 @@
 package com.nanum.investment.marketdata.application;
 
-import com.nanum.investment.common.infrastructure.external.CollectionResult;
 import com.nanum.investment.common.application.CommonCodeLookupService;
+import com.nanum.investment.common.infrastructure.external.CollectionResult;
 import com.nanum.investment.marketdata.infrastructure.BondYieldCollector;
 import com.nanum.investment.marketdata.infrastructure.FredBondYieldCollector;
 import java.math.*;
@@ -57,8 +57,7 @@ public class FredBondYieldService {
             .map(CommonCodeLookupService.CommonCode::code)
             .filter(code -> !"ALL".equals(code))
             .toList();
-    if (seriesCodes.isEmpty())
-      throw new IllegalStateException("수집할 활성 채권금리 공통코드가 없습니다.");
+    if (seriesCodes.isEmpty()) throw new IllegalStateException("수집할 활성 채권금리 공통코드가 없습니다.");
     for (String code : seriesCodes) {
       int count = 0;
       for (BondYieldCollector.Yield value : collector.collectRange(code, from, to)) {

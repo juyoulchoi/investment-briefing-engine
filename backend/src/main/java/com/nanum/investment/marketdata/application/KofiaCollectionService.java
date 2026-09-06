@@ -37,8 +37,14 @@ public class KofiaCollectionService {
         .map(
             d ->
                 new DatasetView(
-                    d.name(), d.serviceId(), d.objectName(), d.description(), d.path(),
-                    d.collectionMode().name(), d.normalized(), false))
+                    d.name(),
+                    d.serviceId(),
+                    d.objectName(),
+                    d.description(),
+                    d.path(),
+                    d.collectionMode().name(),
+                    d.normalized(),
+                    false))
         .toList();
   }
 

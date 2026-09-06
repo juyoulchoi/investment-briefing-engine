@@ -17,7 +17,9 @@ public class ExternalCircuitAdminController {
 
   @GetMapping
   @Operation(summary = "외부 공급자 Circuit Breaker 상태 조회")
-  public List<Map<String, Object>> states() { return circuits.states(); }
+  public List<Map<String, Object>> states() {
+    return circuits.states();
+  }
 
   @PostMapping("/{key}/reset")
   @Operation(summary = "외부 공급자 Circuit Breaker 강제 해제")

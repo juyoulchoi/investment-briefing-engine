@@ -60,14 +60,21 @@ public class KrxCollectionJobRunner {
               jobId,
               dataset.name(),
               exception.getStatusCode().value() == 401 || exception.getStatusCode().value() == 403
-                  ? "NOT_AUTHORIZED" : "COLLECTION_FAILED",
+                  ? "NOT_AUTHORIZED"
+                  : "COLLECTION_FAILED",
               0,
               0,
               trim(exception.getResponseBodyAsString()),
               startedAt);
         } catch (RuntimeException exception) {
           jobs.saveItem(
-              jobId, dataset.name(), "COLLECTION_FAILED", 0, 0, trim(exception.getMessage()), startedAt);
+              jobId,
+              dataset.name(),
+              "COLLECTION_FAILED",
+              0,
+              0,
+              trim(exception.getMessage()),
+              startedAt);
         }
       }
     } finally {

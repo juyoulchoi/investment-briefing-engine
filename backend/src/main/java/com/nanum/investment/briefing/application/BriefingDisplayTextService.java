@@ -20,13 +20,12 @@ public class BriefingDisplayTextService {
       String codePattern = escapedMarkdownCodePattern(entry.getKey());
       Pattern pattern =
           Pattern.compile(
-              "(?<![A-Z0-9_])"
-                  + codePattern
-                  + "(?![A-Z0-9_])(?:(은|는|이|가|을|를|과|와|으로|로)(?![가-힣]))?");
+              "(?<![A-Z0-9_])" + codePattern + "(?![A-Z0-9_])(?:(은|는|이|가|을|를|과|와|으로|로)(?![가-힣]))?");
       Matcher matcher = pattern.matcher(localized);
       StringBuffer result = new StringBuffer();
       while (matcher.find()) {
-        String replacement = entry.getValue() + adjustedParticle(entry.getValue(), matcher.group(1));
+        String replacement =
+            entry.getValue() + adjustedParticle(entry.getValue(), matcher.group(1));
         matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
       }
       matcher.appendTail(result);

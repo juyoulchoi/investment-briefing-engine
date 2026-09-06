@@ -55,13 +55,18 @@ public class KofiaCatalogRepository {
         .param("object", objectName)
         .param("form", sql.path("OUTPUT_FORMNO").asText(info.path("OUTPUT_FORMNO").asText(null)))
         .param("sqlKey", sql.path("OUTPUT_SQLKEY").asText(null))
-        .param("popularity", favorite.path("TMPV7").isNumber() ? favorite.path("TMPV7").longValue() : null)
+        .param(
+            "popularity",
+            favorite.path("TMPV7").isNumber() ? favorite.path("TMPV7").longValue() : null)
         .param("seq", favorite.path("ROWSEQ").asInt())
         .param("headers", metadata.path("dsGrid").toString())
         .param("search", metadata.path("dsSearch").toString())
-        .param("unit", json(Map.of(
-            "basicUnit", info.path("BASIC_UNIT").asText(""),
-            "display", info.path("BASIC_UNITDSP").asText(""))))
+        .param(
+            "unit",
+            json(
+                Map.of(
+                    "basicUnit", info.path("BASIC_UNIT").asText(""),
+                    "display", info.path("BASIC_UNITDSP").asText(""))))
         .param("latest", metadata.path("dsLatestDate").toString())
         .param("hash", metaHash)
         .param("normalize", normalize ? "Y" : "N")
@@ -77,7 +82,9 @@ public class KofiaCatalogRepository {
         .param("day", LocalDate.now(java.time.ZoneId.of("Asia/Seoul")))
         .param("id", serviceId)
         .param("seq", favorite.path("ROWSEQ").asInt())
-        .param("popularity", favorite.path("TMPV7").isNumber() ? favorite.path("TMPV7").longValue() : null)
+        .param(
+            "popularity",
+            favorite.path("TMPV7").isNumber() ? favorite.path("TMPV7").longValue() : null)
         .update();
   }
 

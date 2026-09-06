@@ -11,7 +11,9 @@ import lombok.*;
 @Table(
     name = "\"TB_PRC_DAY\"",
     uniqueConstraints =
-        @UniqueConstraint(name = "UK_TB_PRC_DAY_01", columnNames = {"STK_ID", "TRADE_DT"}))
+        @UniqueConstraint(
+            name = "UK_TB_PRC_DAY_01",
+            columnNames = {"STK_ID", "TRADE_DT"}))
 @Getter
 @Setter
 @NoArgsConstructor

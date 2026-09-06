@@ -9,7 +9,10 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/collection-reprocessing")
 public class CollectionJobReprocessingController {
   private final CollectionJobReprocessingService service;
-  public CollectionJobReprocessingController(CollectionJobReprocessingService service) { this.service = service; }
+
+  public CollectionJobReprocessingController(CollectionJobReprocessingService service) {
+    this.service = service;
+  }
 
   @PostMapping("/{provider}/{jobId}")
   public ResponseEntity<CollectionJobReprocessingService.ReprocessingView> retry(
@@ -18,8 +21,10 @@ public class CollectionJobReprocessingController {
   }
 
   @PostMapping("/{provider}/{jobId}/permanent-failure")
-  public ResponseEntity<Void> permanentFailure(@PathVariable String provider,
-      @PathVariable UUID jobId, @RequestParam(required = false) String reason) {
+  public ResponseEntity<Void> permanentFailure(
+      @PathVariable String provider,
+      @PathVariable UUID jobId,
+      @RequestParam(required = false) String reason) {
     service.markPermanentFailure(provider, jobId, reason);
     return ResponseEntity.noContent().build();
   }
