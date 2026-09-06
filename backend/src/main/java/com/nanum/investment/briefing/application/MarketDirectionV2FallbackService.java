@@ -3,12 +3,14 @@ package com.nanum.investment.briefing.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nanum.investment.briefing.dto.request.MarketDirectionDto;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class MarketDirectionV2FallbackService {
@@ -24,15 +26,20 @@ public class MarketDirectionV2FallbackService {
 
   private final JdbcClient jdbc;
   private final ObjectMapper json;
+  private final FxDollarFactorCalculator fxDollarFactorCalculator;
 
-  public MarketDirectionV2FallbackService(JdbcClient jdbc, ObjectMapper json) {
+  public MarketDirectionV2FallbackService(
+      JdbcClient jdbc, ObjectMapper json, FxDollarFactorCalculator fxDollarFactorCalculator) {
     this.jdbc = jdbc;
     this.json = json;
+    this.fxDollarFactorCalculator = fxDollarFactorCalculator;
   }
 
+  @Transactional
   public void saveFallback(LocalDate date, MarketDirectionDto v1) {
     int exchangeSamples = sampleCount("TB_EXCH_DAY", "BASE_DT", date);
     int snapshotSamples = sampleCount("TB_MKT_SNAP", "BASE_DT", date);
+    FxDollarFactorCalculator.Result fxDollar = fxDollarFactorCalculator.calculate(date);
     String reason =
         "V2 핵심 Factor 계산 이력 부족: 환율 "
             + exchangeSamples
@@ -97,26 +104,45 @@ public class MarketDirectionV2FallbackService {
             case "PRICE_TREND", "MARKET_INTERNAL" -> snapshotSamples;
             default -> 0;
           };
-      String status = samples >= REQUIRED_SAMPLE_COUNT ? "MISSING" : "INSUFFICIENT_HISTORY";
+      boolean fxFactor = FxDollarFactorCalculator.FACTOR_CODE.equals(factor.code());
+      String status = fxFactor ? fxDollar.status() : "INSUFFICIENT_HISTORY";
+      BigDecimalValue factorValue =
+          fxFactor && fxDollar.available()
+              ? new BigDecimalValue(
+                  fxDollar.score(),
+                  fxDollar
+                      .score()
+                      .multiply(BigDecimal.valueOf(factor.weight()))
+                      .divide(BigDecimal.valueOf(100)))
+              : BigDecimalValue.unavailable();
       jdbc.sql(
               """
           INSERT INTO "TB_MKT_DIR_PRED_FCTR"(
-            "MKT_DIR_PRED_ID","FACTOR_CD","FACTOR_WEIGHT","FACTOR_CONFIDENCE",
-            "AVAILABLE_WEIGHT","FACTOR_STATUS","STATUS_RSN")
-          VALUES(:id,:code,:weight,0,0,:status,:reason)
+            "MKT_DIR_PRED_ID","FACTOR_CD","FACTOR_WEIGHT","FACTOR_SCORE","FACTOR_CONFIDENCE",
+            "FACTOR_CONTRIBUTION","AVAILABLE_WEIGHT","FACTOR_STATUS","STATUS_RSN")
+          VALUES(:id,:code,:weight,:score,:confidence,:contribution,:availableWeight,:status,:reason)
           """)
           .param("id", predictionId)
           .param("code", factor.code())
           .param("weight", factor.weight())
+          .param("score", factorValue.score())
+          .param("confidence", fxFactor && fxDollar.available() ? 100 : 0)
+          .param("contribution", factorValue.contribution())
+          .param("availableWeight", fxFactor && fxDollar.available() ? factor.weight() : 0)
           .param("status", status)
           .param(
               "reason",
-              samples == 0
+              fxFactor
+                  ? fxDollar.reason()
+                  : samples == 0
                   ? "검증된 원천 데이터 매핑이 아직 없습니다."
                   : samples < REQUIRED_SAMPLE_COUNT
                       ? "표본 " + samples + "건으로 최소 " + REQUIRED_SAMPLE_COUNT + "건 미만입니다."
                       : "V2 Metric 계산기가 아직 구현되지 않았습니다.")
           .update();
+      if (fxFactor && fxDollar.available()) {
+        fxDollarFactorCalculator.saveMetric(predictionId, fxDollar);
+      }
     }
   }
 
@@ -145,4 +171,10 @@ public class MarketDirectionV2FallbackService {
   }
 
   private record FactorDefinition(String code, int weight) {}
+
+  private record BigDecimalValue(BigDecimal score, BigDecimal contribution) {
+    private static BigDecimalValue unavailable() {
+      return new BigDecimalValue(null, null);
+    }
+  }
 }
