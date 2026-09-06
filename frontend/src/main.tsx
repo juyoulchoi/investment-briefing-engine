@@ -11,6 +11,7 @@ import ReferenceAdmin from "./ReferenceAdmin";
 import OperationsAdmin from "./OperationsAdmin";
 import MarketAnalysisAdmin from "./MarketAnalysisAdmin";
 import BondYieldPage from "./BondYieldPage";
+import ExchangeRateChartPage from "./ExchangeRateChartPage";
 type Page =
   | "dashboard"
   | "briefing"
@@ -20,7 +21,8 @@ type Page =
   | "reference"
   | "operations"
   | "marketadmin"
-  | "bondyields";
+  | "bondyields"
+  | "exchangerates";
 const nav: [Page, string, string][] = [
   ["dashboard", "대시보드", "⌂"],
   ["briefing", "투자 브리핑", "▤"],
@@ -31,6 +33,7 @@ const nav: [Page, string, string][] = [
   ["operations", "투자 설정 관리", "⌘"],
   ["marketadmin", "시장 분석 관리", "◉"],
   ["bondyields", "FRED 채권금리", "％"],
+  ["exchangerates", "환율 차트", "↗"],
 ];
 const pageStorageKey = "investment-briefing-page";
 const savedPage = () => {
@@ -309,6 +312,7 @@ function App() {
         {page === "operations" && <OperationsAdmin notify={notify} />}{" "}
         {page === "marketadmin" && <MarketAnalysisAdmin notify={notify} />}{" "}
         {page === "bondyields" && <BondYieldPage notify={notify} />}
+        {page === "exchangerates" && <ExchangeRateChartPage />}
       </main>
       <nav className="mobile" aria-label="모바일 전체 메뉴">
         {nav.map((x) => (
@@ -1769,29 +1773,36 @@ function History({
     briefingId: number;
     baseDate: string;
     briefingType: string;
+    briefingTypeLabel: string;
     title: string;
     summary: string | null;
     status: string;
+    statusLabel: string;
     publishedYn: string;
     confidenceRate: number;
     marketScore: number | null;
     marketRegime: string | null;
+    marketRegimeLabel: string | null;
   };
   type Detail = {
     briefingId: number;
     baseDate: string;
     briefingType: string;
+    briefingTypeLabel: string;
     title: string;
     summary: string | null;
     body: string | null;
     status: string;
+    statusLabel: string;
     publishedYn: string;
     confidenceRate: number;
     items: {
       itemCode: string;
+      itemTitle: string;
       summary: string;
       content: string;
       signalCode: string | null;
+      signalLabel: string | null;
     }[];
   };
   const [rows, setRows] = useState<Row[]>([]),
@@ -1864,7 +1875,8 @@ function History({
               <article key={item.itemCode}>
                 <b>{String(i + 1).padStart(2, "0")}</b>
                 <div>
-                  <h3>{item.summary}</h3>
+                  <h3>{item.itemTitle}</h3>
+                  <p>{item.summary}</p>
                   <p>{item.content}</p>
                 </div>
               </article>
@@ -1907,7 +1919,7 @@ function History({
                 )}
               </em>
               <Badge buy={r.publishedYn === "Y"}>
-                {statusLabel[r.status] || r.status}
+                {r.statusLabel || statusLabel[r.status] || r.status}
               </Badge>
               <button
                 className="history-arrow"

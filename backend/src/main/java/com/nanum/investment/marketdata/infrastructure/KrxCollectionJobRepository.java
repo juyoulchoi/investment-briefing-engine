@@ -33,7 +33,7 @@ public class KrxCollectionJobRepository {
 
   public List<String> failedDatasets(UUID id) {
     return jdbc.query(
-        "SELECT dataset_code FROM tb_krx_clct_job_item WHERE job_id=:id AND status<>'SUCCESS' ORDER BY dataset_code",
+        "SELECT dataset_code FROM tb_krx_clct_job_item WHERE job_id=:id AND status IN ('COLLECTION_FAILED','NO_DATA_UNEXPECTED','NOT_AUTHORIZED','FAILED') ORDER BY dataset_code",
         Map.of("id", id),
         (rs, row) -> rs.getString(1));
   }
@@ -75,9 +75,9 @@ public class KrxCollectionJobRepository {
     jdbc.update(
         """
                         UPDATE tb_krx_clct_job job SET
-                          success_count=(SELECT count(*) FROM tb_krx_clct_job_item WHERE job_id=job.id AND status='SUCCESS'),
-                          failed_count=(SELECT count(*) FROM tb_krx_clct_job_item WHERE job_id=job.id AND status<>'SUCCESS'),
-                          status=CASE WHEN EXISTS (SELECT 1 FROM tb_krx_clct_job_item WHERE job_id=job.id AND status<>'SUCCESS')
+                          success_count=(SELECT count(*) FROM tb_krx_clct_job_item WHERE job_id=job.id AND status IN ('DATA_RECEIVED','MARKET_HOLIDAY','NOT_PUBLISHED_YET')),
+                          failed_count=(SELECT count(*) FROM tb_krx_clct_job_item WHERE job_id=job.id AND status IN ('COLLECTION_FAILED','NO_DATA_UNEXPECTED','NOT_AUTHORIZED','FAILED')),
+                          status=CASE WHEN EXISTS (SELECT 1 FROM tb_krx_clct_job_item WHERE job_id=job.id AND status IN ('COLLECTION_FAILED','NO_DATA_UNEXPECTED','NOT_AUTHORIZED','FAILED'))
                             THEN 'COMPLETED_WITH_ERRORS' ELSE 'COMPLETED' END,
                           completed_at=CURRENT_TIMESTAMP WHERE id=:id
                         """,

@@ -18,11 +18,35 @@ server:
 krx:
   base-url: ${KRX_BASE_URL:https://data-dbg.krx.co.kr}
   auth-key: ${KRX_AUTH_KEY:}
+  connect-timeout: ${KRX_CONNECT_TIMEOUT:5s}
+  read-timeout: ${KRX_READ_TIMEOUT:30s}
   collection:
     min-request-interval: ${KRX_MIN_REQUEST_INTERVAL:250ms}
+  circuit-breaker:
+    failure-threshold: ${KRX_CIRCUIT_FAILURE_THRESHOLD:5}
+    open-duration: ${KRX_CIRCUIT_OPEN_DURATION:60s}
+  eod-publication-zone: ${KRX_EOD_PUBLICATION_ZONE:Asia/Seoul}
+  eod-publication-time: ${KRX_EOD_PUBLICATION_TIME:18:00}
 overseas:
   yahoo:
     base-url: ${YAHOO_FINANCE_BASE_URL:https://query2.finance.yahoo.com/v8/finance/chart}
+    connect-timeout: ${YAHOO_CONNECT_TIMEOUT:5s}
+    read-timeout: ${YAHOO_READ_TIMEOUT:30s}
+    index:
+      connect-timeout: ${YAHOO_INDEX_CONNECT_TIMEOUT:${YAHOO_CONNECT_TIMEOUT:5s}}
+      read-timeout: ${YAHOO_INDEX_READ_TIMEOUT:${YAHOO_READ_TIMEOUT:30s}}
+    stock:
+      connect-timeout: ${YAHOO_STOCK_CONNECT_TIMEOUT:${YAHOO_CONNECT_TIMEOUT:5s}}
+      read-timeout: ${YAHOO_STOCK_READ_TIMEOUT:${YAHOO_READ_TIMEOUT:30s}}
+    collection:
+      min-request-interval: ${YAHOO_MIN_REQUEST_INTERVAL:250ms}
+    circuit-breaker:
+      failure-threshold: ${YAHOO_CIRCUIT_FAILURE_THRESHOLD:5}
+      open-duration: ${YAHOO_CIRCUIT_OPEN_DURATION:60s}
+exchange-rate:
+  yahoo:
+    connect-timeout: ${YAHOO_EXCHANGE_CONNECT_TIMEOUT:${YAHOO_CONNECT_TIMEOUT:5s}}
+    read-timeout: ${YAHOO_EXCHANGE_READ_TIMEOUT:${YAHOO_READ_TIMEOUT:30s}}
 investment:
   rules:
     max-regular-buy-multiplier: 3.0
@@ -31,6 +55,27 @@ investment:
 external-api:
   connect-timeout: ${EXTERNAL_API_CONNECT_TIMEOUT:3s}
   read-timeout: ${EXTERNAL_API_READ_TIMEOUT:10s}
+  providers:
+    krx:
+      retry:
+        maximum-attempts: ${KRX_RETRY_MAX_ATTEMPTS:4}
+        backoff: ${KRX_RETRY_BACKOFF:1s,3s,10s}
+        retryable-statuses: ${KRX_RETRY_HTTP_STATUSES:408,429,500,502,503,504}
+    yahoo:
+      retry:
+        maximum-attempts: ${YAHOO_RETRY_MAX_ATTEMPTS:4}
+        backoff: ${YAHOO_RETRY_BACKOFF:1s,3s,10s}
+        retryable-statuses: ${YAHOO_RETRY_HTTP_STATUSES:408,429,500,502,503,504}
+    fred:
+      retry:
+        maximum-attempts: ${FRED_RETRY_MAX_ATTEMPTS:4}
+        backoff: ${FRED_RETRY_BACKOFF:1s,3s,10s}
+        retryable-statuses: ${FRED_RETRY_HTTP_STATUSES:408,429,500,502,503,504}
+    kofia:
+      retry:
+        maximum-attempts: ${KOFIA_RETRY_MAX_ATTEMPTS:4}
+        backoff: ${KOFIA_RETRY_BACKOFF:1s,3s,10s}
+        retryable-statuses: ${KOFIA_RETRY_HTTP_STATUSES:408,429,500,502,503,504}
 fred:
   base-url: ${FRED_BASE_URL:https://api.stlouisfed.org/fred}
   api-key: ${FRED_API_KEY:}

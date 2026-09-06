@@ -1,12 +1,15 @@
 package com.nanum.investment.briefing.api;
 
+import com.nanum.investment.briefing.application.BriefingDisplayTextService;
 import com.nanum.investment.briefing.domain.ActionSignal;
+import com.nanum.investment.common.application.CommonCodeLookupService;
 import com.nanum.investment.common.response.ApiResponse;
 import com.nanum.investment.common.web.TraceIdUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,9 +20,16 @@ import org.springframework.web.bind.annotation.RestController;
 @io.swagger.v3.oas.annotations.tags.Tag(name = "대시보드", description = "투자 대시보드 API")
 public class DashboardController {
   private final JdbcClient jdbc;
+  private final CommonCodeLookupService commonCodes;
+  private final BriefingDisplayTextService displayText;
 
-  public DashboardController(JdbcClient jdbc) {
+  public DashboardController(
+      JdbcClient jdbc,
+      CommonCodeLookupService commonCodes,
+      BriefingDisplayTextService displayText) {
     this.jdbc = jdbc;
+    this.commonCodes = commonCodes;
+    this.displayText = displayText;
   }
 
   public record DashboardResponse(
@@ -71,6 +81,7 @@ public class DashboardController {
   @GetMapping
   @io.swagger.v3.oas.annotations.Operation(summary = "최신 대시보드 조회")
   public ApiResponse<DashboardResponse> latest(HttpServletRequest request) {
+    Map<String, String> labels = commonCodes.activeNames("DASHBOARD_LABEL");
     DashboardResponse response =
         jdbc.sql(
                 """
@@ -109,11 +120,11 @@ public class DashboardController {
                       rs.getBigDecimal("REG_BUY_TOT_AMT"),
                       rs.getBigDecimal("ADD_BUY_TOT_AMT"),
                       rs.getString("TITLE"),
-                      rs.getString("SUMMARY_TXT"),
-                      rs.getString("BODY_TXT"),
+                      displayText.localize(rs.getString("SUMMARY_TXT"), labels),
+                      displayText.localize(rs.getString("BODY_TXT"), labels),
                       accounts(),
                       actions(baseDate),
-                      articles(briefingId));
+                      articles(briefingId, labels));
                 })
             .optional()
             .orElse(null);
@@ -207,7 +218,7 @@ public class DashboardController {
         .list();
   }
 
-  private List<BriefingArticle> articles(Long briefingId) {
+  private List<BriefingArticle> articles(Long briefingId, Map<String, String> labels) {
     if (briefingId == null) return List.of();
     return jdbc.sql(
             """
@@ -220,8 +231,10 @@ public class DashboardController {
         .query(
             (rs, rowNum) ->
                 new BriefingArticle(
-                    rs.getString("ITEM_CD"), rs.getString("ITEM_SUM"),
-                    rs.getString("ITEM_CONT"), rs.getString("SIG_CD")))
+                    rs.getString("ITEM_CD"),
+                    displayText.localize(rs.getString("ITEM_SUM"), labels),
+                    displayText.localize(rs.getString("ITEM_CONT"), labels),
+                    rs.getString("SIG_CD")))
         .list();
   }
 }

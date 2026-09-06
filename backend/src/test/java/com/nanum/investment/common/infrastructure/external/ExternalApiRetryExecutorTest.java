@@ -8,6 +8,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.*;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.web.client.*;
 
 class ExternalApiRetryExecutorTest {
@@ -62,6 +63,28 @@ class ExternalApiRetryExecutorTest {
                 }));
     assertThat(executor.delays)
         .containsExactly(Duration.ofSeconds(7), Duration.ofSeconds(7), Duration.ofSeconds(7));
+  }
+
+  @Test
+  void appliesProviderAndDatasetOverridesIndependently() {
+    MockEnvironment environment =
+        new MockEnvironment()
+            .withProperty("external-api.providers.krx.retry.maximum-attempts", "3")
+            .withProperty("external-api.providers.krx.retry.backoff", "2s,5s")
+            .withProperty("external-api.providers.krx.retry.retryable-statuses", "429,503")
+            .withProperty(
+                "external-api.providers.krx.datasets.kospi_stock_daily.retry.maximum-attempts",
+                "2");
+    ExternalRetryPolicyResolver resolver = new ExternalRetryPolicyResolver(environment);
+
+    ExternalRetryPolicy provider = resolver.resolve("krx.other");
+    ExternalRetryPolicy dataset = resolver.resolve("krx.KOSPI_STOCK_DAILY");
+
+    assertThat(provider.maximumAttempts()).isEqualTo(3);
+    assertThat(provider.delays()).containsExactly(Duration.ofSeconds(2), Duration.ofSeconds(5));
+    assertThat(provider.retryableStatuses()).containsExactlyInAnyOrder(429, 503);
+    assertThat(dataset.maximumAttempts()).isEqualTo(2);
+    assertThat(dataset.delays()).isEqualTo(provider.delays());
   }
 
   private static RestClientResponseException response(int status, String retryAfter) {

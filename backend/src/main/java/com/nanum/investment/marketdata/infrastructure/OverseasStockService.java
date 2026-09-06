@@ -1,10 +1,13 @@
 package com.nanum.investment.marketdata.infrastructure;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.nanum.investment.common.infrastructure.external.ExternalApiRetryExecutor;
+import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
+import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor;
+import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor.Call;
 import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;
 import com.nanum.investment.holding.application.HoldingPriceSyncService;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -23,23 +26,41 @@ public class OverseasStockService {
   private final JdbcClient jdbc;
   private final RestClient client;
   private final HoldingPriceSyncService holdingPriceSync;
-  private final ExternalApiRetryExecutor retry;
+  private final ExternalApiCallExecutor externalCalls;
+  private final String baseUrl;
+  private final YahooRequestRateLimiter limiter;
+  private final CircuitBreakerSupport circuitBreaker;
+  private final int failureThreshold;
+  private final Duration openDuration;
 
   public OverseasStockService(
       JdbcClient jdbc,
       @Value("${overseas.yahoo.base-url}") String baseUrl,
+      @Value("${overseas.yahoo.stock.connect-timeout:${overseas.yahoo.connect-timeout:5s}}")
+          Duration connectTimeout,
+      @Value("${overseas.yahoo.stock.read-timeout:${overseas.yahoo.read-timeout:30s}}")
+          Duration readTimeout,
+      @Value("${overseas.yahoo.circuit-breaker.failure-threshold:5}") int failureThreshold,
+      @Value("${overseas.yahoo.circuit-breaker.open-duration:60s}") Duration openDuration,
       HoldingPriceSyncService holdingPriceSync,
       ExternalRestClientFactory clients,
-      ExternalApiRetryExecutor retry) {
+      ExternalApiCallExecutor externalCalls,
+      CircuitBreakerSupport circuitBreaker,
+      YahooRequestRateLimiter limiter) {
     this.jdbc = jdbc;
     this.client =
         clients
-            .builder(baseUrl)
+            .builder(baseUrl, connectTimeout, readTimeout)
             .defaultHeader("User-Agent", "Mozilla/5.0 investment-briefing-engine/1.0")
             .defaultHeader("Accept", "application/json")
             .build();
     this.holdingPriceSync = holdingPriceSync;
-    this.retry = retry;
+    this.externalCalls = externalCalls;
+    this.baseUrl = baseUrl;
+    this.limiter = limiter;
+    this.circuitBreaker = circuitBreaker;
+    this.failureThreshold = failureThreshold;
+    this.openDuration = openDuration;
   }
 
   @Transactional
@@ -156,7 +177,22 @@ public class OverseasStockService {
   private JsonNode fetch(
       String symbol,
       java.util.function.Function<org.springframework.web.util.UriBuilder, java.net.URI> uri) {
-    JsonNode response = retry.execute(() -> client.get().uri(uri).retrieve().body(JsonNode.class));
+    limiter.acquire();
+    JsonNode response =
+        circuitBreaker.execute(
+            "YAHOO:STOCK",
+            failureThreshold,
+            openDuration,
+            () ->
+                externalCalls.execute(
+                    new Call(
+                        "yahoo.stock",
+                        "YAHOO",
+                        "STOCK:" + symbol,
+                        "GET",
+                        baseUrl + "/" + symbol,
+                        null),
+                    () -> client.get().uri(uri).retrieve().body(JsonNode.class)));
     JsonNode chart = response == null ? null : response.path("chart");
     if (chart == null || !chart.path("error").isNull() || chart.path("result").isEmpty())
       throw new IllegalStateException(

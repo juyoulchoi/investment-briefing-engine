@@ -1,5 +1,6 @@
 package com.nanum.investment.marketdata.api;
 
+import com.nanum.investment.marketdata.application.KofiaCatalogService;
 import com.nanum.investment.marketdata.application.KofiaCollectionService;
 import com.nanum.investment.marketdata.application.KofiaCollectionService.CollectionView;
 import com.nanum.investment.marketdata.application.KofiaCollectionService.DatasetView;
@@ -22,9 +23,23 @@ import org.springframework.web.bind.annotation.*;
     description = "KOFIA FreeSIS Dataset, 신용공여 잔고 및 기간 수집 Job API")
 public class KofiaController {
   private final KofiaCollectionService service;
+  private final KofiaCatalogService catalogService;
 
-  public KofiaController(KofiaCollectionService service) {
+  public KofiaController(KofiaCollectionService service, KofiaCatalogService catalogService) {
     this.service = service;
+    this.catalogService = catalogService;
+  }
+
+  @PostMapping("/catalog/sync")
+  @io.swagger.v3.oas.annotations.Operation(summary = "FreeSIS 즐겨찾는 통계 및 메타데이터 동기화")
+  public KofiaCatalogService.SyncView syncCatalog() {
+    return catalogService.sync();
+  }
+
+  @GetMapping("/catalog/services")
+  @io.swagger.v3.oas.annotations.Operation(summary = "FreeSIS 서비스 카탈로그 조회")
+  public List<Map<String, Object>> catalogServices() {
+    return catalogService.services();
   }
 
   @GetMapping("/datasets")
@@ -49,6 +64,16 @@ public class KofiaController {
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
       @RequestParam(defaultValue = "1000") int limit) {
     return service.creditBalances(from, to, limit);
+  }
+
+  @GetMapping("/{datasetCode}/rows")
+  @io.swagger.v3.oas.annotations.Operation(summary = "KOFIA Dataset 공통 원천행 기간 조회")
+  public List<Map<String, Object>> dataRows(
+      @PathVariable String datasetCode,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+      @RequestParam(defaultValue = "1000") int limit) {
+    return service.dataRows(KofiaDataset.fromCode(datasetCode), from, to, limit);
   }
 
   @PostMapping("/collection-jobs")

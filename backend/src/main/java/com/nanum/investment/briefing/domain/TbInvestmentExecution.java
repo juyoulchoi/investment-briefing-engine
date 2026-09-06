@@ -9,7 +9,10 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "tb_inv_exec")
+@Table(
+    name = "tb_inv_exec",
+    uniqueConstraints =
+        @UniqueConstraint(name = "UK_TB_INV_EXEC_01", columnNames = "idempotency_key"))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -18,6 +21,9 @@ public class TbInvestmentExecution {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   @Column(name = "execution_id")
   private Long executionId;
+
+  @Column(name = "idempotency_key", nullable = false, length = 100)
+  private String idempotencyKey;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "briefing_id")

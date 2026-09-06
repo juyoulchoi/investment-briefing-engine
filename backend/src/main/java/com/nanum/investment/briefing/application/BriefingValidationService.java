@@ -13,6 +13,7 @@ import org.springframework.util.StringUtils;
 @Service
 public class BriefingValidationService {
   private static final Logger log = LoggerFactory.getLogger(BriefingValidationService.class);
+  private static final java.util.regex.Pattern KOREAN = java.util.regex.Pattern.compile("[가-힣]");
   private final JdbcClient jdbc;
   private final ObjectMapper json;
 
@@ -41,6 +42,7 @@ public class BriefingValidationService {
               && response.briefingDate() != null
               && StringUtils.hasText(response.title()),
           "브리핑 기준일과 제목이 필요합니다.");
+      require(isKoreanText(response.title()), "브리핑 제목은 한국어로 작성해야 합니다.");
       require(source.date().equals(response.briefingDate()), "DB 기준일과 OpenAI 결과 기준일이 다릅니다.");
       require(
           expectedType.name().equals(source.type())
@@ -64,6 +66,9 @@ public class BriefingValidationService {
                 && StringUtils.hasText(item.content())
                 && StringUtils.hasText(item.signalCode()),
             item.itemCode() + " 항목 설명이 없습니다.");
+        require(
+            isKoreanText(item.summary()) && isKoreanText(item.content()),
+            item.itemCode() + " 항목 요약과 내용은 한국어로 작성해야 합니다.");
         require(
             Set.of("NORMAL", "WATCH", "CAUTION", "RISK").contains(item.signalCode()),
             item.itemCode() + " 신호 코드가 잘못되었습니다.");
@@ -102,6 +107,10 @@ public class BriefingValidationService {
 
   private void require(boolean condition, String message) {
     if (!condition) throw new IllegalStateException(message);
+  }
+
+  private boolean isKoreanText(String value) {
+    return StringUtils.hasText(value) && KOREAN.matcher(value).find();
   }
 
   private JsonNode parse(String value) {
