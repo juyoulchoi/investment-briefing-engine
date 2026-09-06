@@ -36,6 +36,12 @@ const fiveYearRange = () => {
   return { from: iso(from), to: iso(to) };
 };
 
+const subtractYears = (dateValue: string, years: number) => {
+  const date = new Date(`${dateValue}T00:00:00`);
+  date.setFullYear(date.getFullYear() - years);
+  return iso(date);
+};
+
 const wonRate = (value: number, digits = 2) =>
   `${Number(value).toLocaleString("ko-KR", {
     minimumFractionDigits: digits,
@@ -123,6 +129,19 @@ export default function ExchangeRateChartPage() {
 
   const latest = rows.at(-1);
   const first = rows[0];
+  const periodAverages = useMemo(() => {
+    if (!rows.length) return [];
+    return [3, 4, 5].map((years) => {
+      const from = subtractYears(range.to, years);
+      const periodRows = rows.filter((row) => row.base_date >= from);
+      const average =
+        periodRows.reduce(
+          (sum, row) => sum + Number(row.exchange_rate),
+          0,
+        ) / periodRows.length;
+      return { years, from, average, count: periodRows.length };
+    });
+  }, [range.to, rows]);
   const periodChange =
     latest && first
       ? ((Number(latest.exchange_rate) - Number(first.exchange_rate)) /
@@ -154,10 +173,8 @@ export default function ExchangeRateChartPage() {
           </p>
         </div>
         <div className="exchange-period">
-          <small>조회 기간</small>
-          <strong>
-            {range.from} ~ {range.to}
-          </strong>
+          <small>조회일</small>
+          <strong>{range.to}</strong>
         </div>
       </section>
 
@@ -176,6 +193,13 @@ export default function ExchangeRateChartPage() {
               <strong>{wonRate(Number(latest.exchange_rate))}</strong>
               <span>{dateLabel(latest.base_date)}</span>
             </article>
+            {periodAverages.map((item) => (
+              <article className="card exchange-average-card" key={item.years}>
+                <small>최근 {item.years}년 평균</small>
+                <strong>{wonRate(item.average)}</strong>
+                <span>{item.count.toLocaleString("ko-KR")}개 관측치</span>
+              </article>
+            ))}
             <article className="card">
               <small>5년 최고</small>
               <strong>{wonRate(chart.rawMax)}</strong>

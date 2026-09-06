@@ -59,20 +59,35 @@
 
 .exchange-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.exchange-average-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.exchange-average-card::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #238765, #72b89d);
+  content: "";
 }
 
 .exchange-stats article {
   min-width: 0;
-  padding: 20px;
+  padding: 14px 12px;
 }
 
 .exchange-stats strong {
   display: block;
   margin: 4px 0 8px;
   color: #24353e;
-  font-size: clamp(20px, 2.3vw, 28px);
+  font-size: clamp(16px, 1.45vw, 21px);
   white-space: nowrap;
 }
 
@@ -235,7 +250,16 @@
 
 @media (max-width: 900px) {
   .exchange-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-columns: minmax(145px, 1fr);
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    padding-bottom: 6px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+  }
+
+  .exchange-stats article {
+    scroll-snap-align: start;
   }
 }
 
@@ -250,7 +274,6 @@
   }
 
   .exchange-stats {
-    grid-template-columns: 1fr 1fr;
     gap: 9px;
   }
 
