@@ -11,6 +11,7 @@ import ReferenceAdmin from "./ReferenceAdmin";
 import OperationsAdmin from "./OperationsAdmin";
 import MarketAnalysisAdmin from "./MarketAnalysisAdmin";
 import BondYieldPage from "./BondYieldPage";
+import ExchangeRateChartPage from "./ExchangeRateChartPage";
 type Page =
   | "dashboard"
   | "briefing"
@@ -20,7 +21,8 @@ type Page =
   | "reference"
   | "operations"
   | "marketadmin"
-  | "bondyields";
+  | "bondyields"
+  | "exchangerates";
 const nav: [Page, string, string][] = [
   ["dashboard", "대시보드", "⌂"],
   ["briefing", "투자 브리핑", "▤"],
@@ -31,6 +33,7 @@ const nav: [Page, string, string][] = [
   ["operations", "투자 설정 관리", "⌘"],
   ["marketadmin", "시장 분석 관리", "◉"],
   ["bondyields", "FRED 채권금리", "％"],
+  ["exchangerates", "환율 차트", "↗"],
 ];
 const pageStorageKey = "investment-briefing-page";
 const savedPage = () => {
@@ -309,6 +312,7 @@ function App() {
         {page === "operations" && <OperationsAdmin notify={notify} />}{" "}
         {page === "marketadmin" && <MarketAnalysisAdmin notify={notify} />}{" "}
         {page === "bondyields" && <BondYieldPage notify={notify} />}
+        {page === "exchangerates" && <ExchangeRateChartPage />}
       </main>
       <nav className="mobile" aria-label="모바일 전체 메뉴">
         {nav.map((x) => (

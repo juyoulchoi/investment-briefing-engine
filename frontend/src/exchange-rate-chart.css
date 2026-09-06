@@ -1,0 +1,282 @@
+.exchange-page {
+  display: grid;
+  gap: 22px;
+}
+
+.exchange-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 8px 2px 2px;
+}
+
+.exchange-heading h2 {
+  margin: 6px 0 8px;
+  color: #1f3039;
+  font-size: clamp(24px, 3vw, 34px);
+}
+
+.exchange-heading p,
+.chart-title-row p {
+  margin: 0;
+  color: #73818a;
+  line-height: 1.65;
+}
+
+.exchange-eyebrow {
+  color: #238765;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.exchange-period {
+  min-width: 250px;
+  padding: 14px 17px;
+  background: #edf7f2;
+  border: 1px solid #d7ebe2;
+  border-radius: 12px;
+}
+
+.exchange-period small,
+.exchange-period strong {
+  display: block;
+}
+
+.exchange-period small,
+.exchange-stats small {
+  margin-bottom: 5px;
+  color: #718078;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.exchange-period strong {
+  color: #245b47;
+  font-size: 14px;
+}
+
+.exchange-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.exchange-stats article {
+  min-width: 0;
+  padding: 20px;
+}
+
+.exchange-stats strong {
+  display: block;
+  margin: 4px 0 8px;
+  color: #24353e;
+  font-size: clamp(20px, 2.3vw, 28px);
+  white-space: nowrap;
+}
+
+.exchange-stats span {
+  color: #849097;
+  font-size: 12px;
+}
+
+.exchange-stats .primary-stat {
+  color: white;
+  background: linear-gradient(135deg, #1e7558, #2b9a73);
+  border-color: transparent;
+}
+
+.exchange-stats .primary-stat small,
+.exchange-stats .primary-stat strong,
+.exchange-stats .primary-stat span {
+  color: white;
+}
+
+.exchange-stats strong.up,
+.exchange-tooltip .up {
+  color: #c43d3d;
+}
+
+.exchange-stats strong.down,
+.exchange-tooltip .down {
+  color: #326fc4;
+}
+
+.exchange-chart-card {
+  padding: 24px 26px 18px;
+  overflow: visible;
+}
+
+.chart-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 12px;
+}
+
+.chart-title-row h3 {
+  margin: 0 0 5px;
+  color: #293b44;
+  font-size: 18px;
+}
+
+.chart-title-row p {
+  font-size: 12px;
+}
+
+.chart-source {
+  padding: 6px 10px;
+  color: #52666f;
+  background: #f1f4f5;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.exchange-chart-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.exchange-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 300px;
+  touch-action: pan-y;
+}
+
+.chart-grid {
+  stroke: #e4e9eb;
+  stroke-width: 1;
+}
+
+.chart-axis-label {
+  fill: #7b898f;
+  font-size: 12px;
+}
+
+.exchange-area {
+  fill: url(#exchangeArea);
+}
+
+.exchange-line {
+  fill: none;
+  stroke: #238765;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart-focus line {
+  stroke: #52666f;
+  stroke-dasharray: 5 5;
+  stroke-width: 1;
+}
+
+.chart-focus circle {
+  fill: white;
+  stroke: #238765;
+  stroke-width: 3;
+}
+
+.exchange-tooltip {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  gap: 3px;
+  min-width: 170px;
+  padding: 11px 13px;
+  color: #263740;
+  background: rgb(255 255 255 / 96%);
+  border: 1px solid #d8e0e3;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgb(35 52 61 / 16%);
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 12px));
+}
+
+.exchange-tooltip small,
+.exchange-tooltip span {
+  color: #77858c;
+  font-size: 11px;
+}
+
+.exchange-tooltip strong {
+  font-size: 16px;
+}
+
+.exchange-chart-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 11px;
+  color: #75838a;
+  border-top: 1px solid #edf0f1;
+  font-size: 11px;
+}
+
+.exchange-state,
+.exchange-error {
+  padding: 40px;
+  color: #718088;
+  text-align: center;
+}
+
+.exchange-error {
+  color: #a83434;
+  background: #fff3f3;
+  border-color: #f1d0d0;
+}
+
+@media (max-width: 900px) {
+  .exchange-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .exchange-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .exchange-period {
+    min-width: 0;
+  }
+
+  .exchange-stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+  }
+
+  .exchange-stats article {
+    padding: 15px;
+  }
+
+  .exchange-chart-card {
+    padding: 18px 10px 14px;
+  }
+
+  .chart-title-row,
+  .exchange-chart-footer {
+    padding-inline: 8px;
+  }
+
+  .chart-title-row {
+    flex-direction: column;
+  }
+
+  .exchange-chart {
+    min-height: 260px;
+  }
+
+  .exchange-tooltip {
+    min-width: 145px;
+    padding: 9px 10px;
+  }
+}
