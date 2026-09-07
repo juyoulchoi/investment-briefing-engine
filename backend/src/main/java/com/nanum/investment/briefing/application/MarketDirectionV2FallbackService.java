@@ -27,29 +27,38 @@ public class MarketDirectionV2FallbackService {
   private final JdbcClient jdbc;
   private final ObjectMapper json;
   private final FxDollarFactorCalculator fxDollarFactorCalculator;
+  private final UsRateFactorCalculator usRateFactorCalculator;
   private final SectorPriceTrendFactorCalculator sectorPriceTrendFactorCalculator;
 
   public MarketDirectionV2FallbackService(
       JdbcClient jdbc,
       ObjectMapper json,
       FxDollarFactorCalculator fxDollarFactorCalculator,
+      UsRateFactorCalculator usRateFactorCalculator,
       SectorPriceTrendFactorCalculator sectorPriceTrendFactorCalculator) {
     this.jdbc = jdbc;
     this.json = json;
     this.fxDollarFactorCalculator = fxDollarFactorCalculator;
+    this.usRateFactorCalculator = usRateFactorCalculator;
     this.sectorPriceTrendFactorCalculator = sectorPriceTrendFactorCalculator;
   }
 
   @Transactional
   public void saveFallback(LocalDate date, MarketDirectionDto v1) {
     int exchangeSamples = sampleCount("TB_EXCH_DAY", "BASE_DT", date);
+    int usRateSamples = sampleCount("TB_FRED_BOND_DAY", "BASE_DT", date);
     int snapshotSamples = sampleCount("TB_MKT_SNAP", "BASE_DT", date);
     FxDollarFactorCalculator.Result fxDollar = fxDollarFactorCalculator.calculate(date);
+    UsRateFactorCalculator.Result usRate = usRateFactorCalculator.calculate(date);
     SectorPriceTrendFactorCalculator.Result priceTrend =
         sectorPriceTrendFactorCalculator.calculate(date);
     String reason =
         "V2 핵심 Factor 계산 이력 부족: 환율 "
             + exchangeSamples
+            + "/"
+            + REQUIRED_SAMPLE_COUNT
+            + ", 미국 금리 "
+            + usRateSamples
             + "/"
             + REQUIRED_SAMPLE_COUNT
             + ", 시장 Snapshot "
@@ -72,6 +81,7 @@ public class MarketDirectionV2FallbackService {
     basis.put("status", "INSUFFICIENT");
     basis.put("requiredSamples", REQUIRED_SAMPLE_COUNT);
     basis.put("exchangeSamples", exchangeSamples);
+    basis.put("usRateSamples", usRateSamples);
     basis.put("marketSnapshotSamples", snapshotSamples);
     basis.put("selectedModel", "V1");
     basis.put("reason", reason);
@@ -108,16 +118,20 @@ public class MarketDirectionV2FallbackService {
       int samples =
           switch (factor.code()) {
             case "FX_DOLLAR" -> exchangeSamples;
+            case "US_RATE" -> usRateSamples;
             case "PRICE_TREND", "MARKET_INTERNAL" -> snapshotSamples;
             default -> 0;
           };
       boolean fxFactor = FxDollarFactorCalculator.FACTOR_CODE.equals(factor.code());
+      boolean usRateFactor = UsRateFactorCalculator.FACTOR_CODE.equals(factor.code());
       boolean priceTrendFactor =
           SectorPriceTrendFactorCalculator.FACTOR_CODE.equals(factor.code());
       String status =
           fxFactor
               ? fxDollar.status()
-              : priceTrendFactor ? priceTrend.status() : "INSUFFICIENT_HISTORY";
+              : usRateFactor
+                  ? usRate.status()
+                  : priceTrendFactor ? priceTrend.status() : "INSUFFICIENT_HISTORY";
       BigDecimalValue factorValue =
           fxFactor && fxDollar.available()
               ? new BigDecimalValue(
@@ -133,11 +147,20 @@ public class MarketDirectionV2FallbackService {
                           .score()
                           .multiply(BigDecimal.valueOf(factor.weight()))
                           .divide(BigDecimal.valueOf(100)))
-                  : BigDecimalValue.unavailable();
+                  : usRateFactor && usRate.available()
+                      ? new BigDecimalValue(
+                          usRate.score(),
+                          usRate
+                              .score()
+                              .multiply(BigDecimal.valueOf(factor.weight()))
+                              .divide(BigDecimal.valueOf(100)))
+                      : BigDecimalValue.unavailable();
       int confidence =
           fxFactor && fxDollar.available()
               ? 100
-              : priceTrendFactor && priceTrend.available() ? priceTrend.confidence() : 0;
+              : usRateFactor && usRate.available()
+                  ? 100
+                  : priceTrendFactor && priceTrend.available() ? priceTrend.confidence() : 0;
       jdbc.sql(
               """
           INSERT INTO "TB_MKT_DIR_PRED_FCTR"(
@@ -153,7 +176,9 @@ public class MarketDirectionV2FallbackService {
           .param("contribution", factorValue.contribution())
           .param(
               "availableWeight",
-              (fxFactor && fxDollar.available()) || (priceTrendFactor && priceTrend.available())
+              (fxFactor && fxDollar.available())
+                      || (usRateFactor && usRate.available())
+                      || (priceTrendFactor && priceTrend.available())
                   ? factor.weight()
                   : 0)
           .param("status", status)
@@ -161,6 +186,8 @@ public class MarketDirectionV2FallbackService {
               "reason",
               fxFactor
                   ? fxDollar.reason()
+                  : usRateFactor
+                      ? usRate.reason()
                   : priceTrendFactor
                       ? priceTrend.reason()
                   : samples == 0
@@ -171,6 +198,9 @@ public class MarketDirectionV2FallbackService {
           .update();
       if (fxFactor && fxDollar.available()) {
         fxDollarFactorCalculator.saveMetric(predictionId, fxDollar);
+      }
+      if (usRateFactor && usRate.available()) {
+        usRateFactorCalculator.saveMetric(predictionId, usRate);
       }
       if (priceTrendFactor && priceTrend.available()) {
         sectorPriceTrendFactorCalculator.saveMetrics(predictionId, priceTrend);

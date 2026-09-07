@@ -74,6 +74,8 @@ $sourceCountsSql = @"
 SELECT 'TB_IDX|' || count(*) FROM "TB_IDX";
 SELECT 'TB_IDX_DAY|' || count(*) FROM "TB_IDX_DAY" WHERE "TRADE_DT" BETWEEN '$from' AND '$to';
 SELECT 'TB_EXCH_DAY|' || count(*) FROM "TB_EXCH_DAY" WHERE "BASE_DT" BETWEEN '$from' AND '$to';
+SELECT 'TB_FRED_BOND_DAY|' || count(*) FROM "TB_FRED_BOND_DAY"
+WHERE "BOND_CD" IN ('DGS2','DGS10','DGS30','DFII10') AND "BASE_DT" BETWEEN '$from' AND '$to';
 "@
 
 Write-Host "V1 -> V2 market-data synchronization ($from through $to)"
@@ -140,6 +142,21 @@ AS s(
 )
 ON CONFLICT ("BASE_DT", "BASE_CURR_CD", "QUOTE_CURR_CD") DO NOTHING;
 
+INSERT INTO "TB_FRED_BOND_DAY" (
+    "BASE_DT", "BOND_CD", "BOND_NM", "CNTRY_CD", "MATURITY_MON", "YLD_RT", "PREV_YLD_RT",
+    "CHG_BP", "RATE_PRESS_SCR", "DATA_SRC_CD", "DATA_STS", "COLLECT_DTTM"
+)
+SELECT *
+FROM dblink('$sourceConnection',
+    'SELECT "BASE_DT", "BOND_CD", "BOND_NM", "CNTRY_CD", "MATURITY_MON", "YLD_RT", "PREV_YLD_RT", "CHG_BP", "RATE_PRESS_SCR", "DATA_SRC_CD", "DATA_STS", "COLLECT_DTTM" FROM "TB_FRED_BOND_DAY" WHERE "BOND_CD" IN (''DGS2'',''DGS10'',''DGS30'',''DFII10'') AND "BASE_DT" BETWEEN ''$from'' AND ''$to''')
+AS s(
+    "BASE_DT" date, "BOND_CD" varchar(30), "BOND_NM" varchar(100), "CNTRY_CD" varchar(10),
+    "MATURITY_MON" integer, "YLD_RT" numeric(10,6), "PREV_YLD_RT" numeric(10,6),
+    "CHG_BP" numeric(10,4), "RATE_PRESS_SCR" numeric(10,4), "DATA_SRC_CD" varchar(30),
+    "DATA_STS" varchar(20), "COLLECT_DTTM" timestamptz
+)
+ON CONFLICT ("BOND_CD", "BASE_DT") DO NOTHING;
+
 COMMIT;
 "@
 
@@ -150,6 +167,9 @@ SELECT 'TB_IDX_DAY|' || count(*) || '|' || min("TRADE_DT") || '|' || max("TRADE_
 FROM "TB_IDX_DAY" WHERE "TRADE_DT" BETWEEN '$from' AND '$to';
 SELECT 'TB_EXCH_DAY|' || count(*) || '|' || min("BASE_DT") || '|' || max("BASE_DT")
 FROM "TB_EXCH_DAY" WHERE "BASE_DT" BETWEEN '$from' AND '$to';
+SELECT 'TB_FRED_BOND_DAY|' || count(*) || '|' || min("BASE_DT") || '|' || max("BASE_DT")
+FROM "TB_FRED_BOND_DAY"
+WHERE "BOND_CD" IN ('DGS2','DGS10','DGS30','DFII10') AND "BASE_DT" BETWEEN '$from' AND '$to';
 "@
 
 Write-Host 'V2 rows after synchronization:'
