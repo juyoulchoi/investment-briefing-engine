@@ -42,9 +42,21 @@ public class KrxBackfillController {
   }
 
   @GetMapping("/{jobId}")
-  @io.swagger.v3.oas.annotations.Operation(summary = "KRX 기간 백필 Job 및 날짜별 진행상태 조회")
-  public KrxBackfillRepository.BackfillJobView find(@PathVariable UUID jobId) {
-    return backfills.find(jobId);
+  @io.swagger.v3.oas.annotations.Operation(summary = "KRX 기간 백필 Job 요약 조회")
+  public KrxBackfillRepository.BackfillJobView find(
+      @PathVariable UUID jobId,
+      @RequestParam(defaultValue = "false") boolean includeDays) {
+    return backfills.find(jobId, includeDays);
+  }
+
+  @GetMapping("/{jobId}/days")
+  @io.swagger.v3.oas.annotations.Operation(summary = "KRX 기간 백필 날짜별 진행상태 페이지 조회")
+  public KrxBackfillRepository.BackfillDayPage findDays(
+      @PathVariable UUID jobId,
+      @RequestParam(defaultValue = "0") @Min(0) int page,
+      @RequestParam(defaultValue = "50") @Min(1) @Max(200) int size,
+      @RequestParam(required = false) String status) {
+    return backfills.findDays(jobId, page, size, status);
   }
 
   @PostMapping("/{jobId}/pause")
@@ -65,6 +77,15 @@ public class KrxBackfillController {
       @PathVariable UUID jobId,
       @RequestParam(defaultValue = "DATASET") KrxBackfillService.RetryScope scope) {
     return ResponseEntity.accepted().body(backfills.retryFailures(jobId, scope));
+  }
+
+  @PostMapping("/{jobId}/days/{baseDate}/datasets/{dataset}/retry")
+  @io.swagger.v3.oas.annotations.Operation(summary = "실패한 날짜의 Dataset 단건 복구")
+  public ResponseEntity<KrxBackfillRepository.BackfillJobView> retryFailure(
+      @PathVariable UUID jobId,
+      @PathVariable LocalDate baseDate,
+      @PathVariable String dataset) {
+    return ResponseEntity.accepted().body(backfills.retryFailure(jobId, baseDate, dataset));
   }
 
   @PostMapping("/{jobId}/cancel")

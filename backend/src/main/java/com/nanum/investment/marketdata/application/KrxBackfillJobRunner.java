@@ -55,12 +55,25 @@ public class KrxBackfillJobRunner {
         try {
           var result =
               dailyRunner.runNow(dailyJobId, day.baseDate(), datasets, job.requestIntervalMillis());
+          boolean allUnexpectedNoData =
+              datasets.size() == job.datasets().size()
+                  && !result.items().isEmpty()
+                  && result.items().stream()
+                      .allMatch(item -> "NO_DATA_UNEXPECTED".equals(item.status()));
+          if (allUnexpectedNoData) {
+            backfills.finishDaySkipped(
+                day.dayId(), "전체 요청 Dataset 빈 응답 - 휴장 후보(시장 달력 미확정)");
+            backfills.updateProgress(backfillJobId, day.baseDate());
+            continue;
+          }
           boolean success = result.failedCount() == 0;
           String error =
               success
                   ? null
                   : result.items().stream()
-                      .filter(item -> !"SUCCESS".equals(item.status()))
+                      .filter(item ->
+                          !List.of("DATA_RECEIVED", "MARKET_HOLIDAY", "NOT_PUBLISHED_YET")
+                              .contains(item.status()))
                       .map(item -> item.dataset() + ": " + item.error())
                       .reduce((left, right) -> left + " | " + right)
                       .orElse("KRX 날짜별 수집 실패");

@@ -61,11 +61,21 @@ public class KrxBackfillService {
   }
 
   public KrxBackfillRepository.BackfillJobView find(UUID id) {
+    return find(id, false);
+  }
+
+  public KrxBackfillRepository.BackfillJobView find(UUID id, boolean includeDays) {
     try {
-      return backfills.find(id);
+      return backfills.find(id, includeDays);
     } catch (NoSuchElementException exception) {
       throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, exception.getMessage());
     }
+  }
+
+  public KrxBackfillRepository.BackfillDayPage findDays(
+      UUID id, int page, int size, String status) {
+    find(id);
+    return backfills.findDays(id, page, size, status);
   }
 
   public List<KrxBackfillRepository.BackfillJobView> findAll(int limit) {
@@ -97,6 +107,23 @@ public class KrxBackfillService {
       throw invalid("COMPLETED_WITH_ERRORS 또는 FAILED 상태에서만 실패 항목을 재처리할 수 있습니다.");
     int count = backfills.resetFailures(id, scope == RetryScope.DATASET, dailyJobs);
     if (count == 0) throw invalid("재처리할 실패 날짜가 없습니다.");
+    runner.run(id);
+    return find(id);
+  }
+
+  public KrxBackfillRepository.BackfillJobView retryFailure(
+      UUID id, LocalDate baseDate, String dataset) {
+    var job = find(id);
+    if (!List.of("COMPLETED_WITH_ERRORS", "FAILED").contains(job.status()))
+      throw invalid("COMPLETED_WITH_ERRORS 또는 FAILED 상태에서만 단건 복구할 수 있습니다.");
+    String datasetCode;
+    try {
+      datasetCode = KrxDataset.valueOf(dataset.trim().toUpperCase(Locale.ROOT)).name();
+    } catch (RuntimeException exception) {
+      throw invalid("지원하지 않는 KRX Dataset입니다.");
+    }
+    if (backfills.resetFailure(id, baseDate, datasetCode, dailyJobs) == 0)
+      throw invalid("해당 날짜와 Dataset에 복구할 실패 이력이 없습니다.");
     runner.run(id);
     return find(id);
   }
