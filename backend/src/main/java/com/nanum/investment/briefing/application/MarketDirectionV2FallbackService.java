@@ -27,12 +27,17 @@ public class MarketDirectionV2FallbackService {
   private final JdbcClient jdbc;
   private final ObjectMapper json;
   private final FxDollarFactorCalculator fxDollarFactorCalculator;
+  private final SectorPriceTrendFactorCalculator sectorPriceTrendFactorCalculator;
 
   public MarketDirectionV2FallbackService(
-      JdbcClient jdbc, ObjectMapper json, FxDollarFactorCalculator fxDollarFactorCalculator) {
+      JdbcClient jdbc,
+      ObjectMapper json,
+      FxDollarFactorCalculator fxDollarFactorCalculator,
+      SectorPriceTrendFactorCalculator sectorPriceTrendFactorCalculator) {
     this.jdbc = jdbc;
     this.json = json;
     this.fxDollarFactorCalculator = fxDollarFactorCalculator;
+    this.sectorPriceTrendFactorCalculator = sectorPriceTrendFactorCalculator;
   }
 
   @Transactional
@@ -40,6 +45,8 @@ public class MarketDirectionV2FallbackService {
     int exchangeSamples = sampleCount("TB_EXCH_DAY", "BASE_DT", date);
     int snapshotSamples = sampleCount("TB_MKT_SNAP", "BASE_DT", date);
     FxDollarFactorCalculator.Result fxDollar = fxDollarFactorCalculator.calculate(date);
+    SectorPriceTrendFactorCalculator.Result priceTrend =
+        sectorPriceTrendFactorCalculator.calculate(date);
     String reason =
         "V2 핵심 Factor 계산 이력 부족: 환율 "
             + exchangeSamples
@@ -105,7 +112,12 @@ public class MarketDirectionV2FallbackService {
             default -> 0;
           };
       boolean fxFactor = FxDollarFactorCalculator.FACTOR_CODE.equals(factor.code());
-      String status = fxFactor ? fxDollar.status() : "INSUFFICIENT_HISTORY";
+      boolean priceTrendFactor =
+          SectorPriceTrendFactorCalculator.FACTOR_CODE.equals(factor.code());
+      String status =
+          fxFactor
+              ? fxDollar.status()
+              : priceTrendFactor ? priceTrend.status() : "INSUFFICIENT_HISTORY";
       BigDecimalValue factorValue =
           fxFactor && fxDollar.available()
               ? new BigDecimalValue(
@@ -114,7 +126,18 @@ public class MarketDirectionV2FallbackService {
                       .score()
                       .multiply(BigDecimal.valueOf(factor.weight()))
                       .divide(BigDecimal.valueOf(100)))
-              : BigDecimalValue.unavailable();
+              : priceTrendFactor && priceTrend.available()
+                  ? new BigDecimalValue(
+                      priceTrend.score(),
+                      priceTrend
+                          .score()
+                          .multiply(BigDecimal.valueOf(factor.weight()))
+                          .divide(BigDecimal.valueOf(100)))
+                  : BigDecimalValue.unavailable();
+      int confidence =
+          fxFactor && fxDollar.available()
+              ? 100
+              : priceTrendFactor && priceTrend.available() ? priceTrend.confidence() : 0;
       jdbc.sql(
               """
           INSERT INTO "TB_MKT_DIR_PRED_FCTR"(
@@ -126,14 +149,20 @@ public class MarketDirectionV2FallbackService {
           .param("code", factor.code())
           .param("weight", factor.weight())
           .param("score", factorValue.score())
-          .param("confidence", fxFactor && fxDollar.available() ? 100 : 0)
+          .param("confidence", confidence)
           .param("contribution", factorValue.contribution())
-          .param("availableWeight", fxFactor && fxDollar.available() ? factor.weight() : 0)
+          .param(
+              "availableWeight",
+              (fxFactor && fxDollar.available()) || (priceTrendFactor && priceTrend.available())
+                  ? factor.weight()
+                  : 0)
           .param("status", status)
           .param(
               "reason",
               fxFactor
                   ? fxDollar.reason()
+                  : priceTrendFactor
+                      ? priceTrend.reason()
                   : samples == 0
                   ? "검증된 원천 데이터 매핑이 아직 없습니다."
                   : samples < REQUIRED_SAMPLE_COUNT
@@ -142,6 +171,9 @@ public class MarketDirectionV2FallbackService {
           .update();
       if (fxFactor && fxDollar.available()) {
         fxDollarFactorCalculator.saveMetric(predictionId, fxDollar);
+      }
+      if (priceTrendFactor && priceTrend.available()) {
+        sectorPriceTrendFactorCalculator.saveMetrics(predictionId, priceTrend);
       }
     }
   }
