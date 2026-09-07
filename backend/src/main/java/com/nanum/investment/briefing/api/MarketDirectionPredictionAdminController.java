@@ -1,6 +1,7 @@
 package com.nanum.investment.briefing.api;
 
 import com.nanum.investment.briefing.application.MarketDirectionPredictionService;
+import com.nanum.investment.briefing.application.MarketInternalHistoryService;
 import com.nanum.investment.briefing.dto.request.MarketDirectionDto;
 import java.time.LocalDate;
 import java.util.List;
@@ -17,17 +18,28 @@ import org.springframework.web.bind.annotation.RestController;
 public class MarketDirectionPredictionAdminController {
   private final JdbcClient jdbc;
   private final MarketDirectionPredictionService predictions;
+  private final MarketInternalHistoryService marketInternalHistory;
 
   public MarketDirectionPredictionAdminController(
-      JdbcClient jdbc, MarketDirectionPredictionService predictions) {
+      JdbcClient jdbc,
+      MarketDirectionPredictionService predictions,
+      MarketInternalHistoryService marketInternalHistory) {
     this.jdbc = jdbc;
     this.predictions = predictions;
+    this.marketInternalHistory = marketInternalHistory;
   }
 
   @org.springframework.web.bind.annotation.PostMapping("/predictions/calculate")
   public MarketDirectionDto calculate(
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate baseDate) {
     return predictions.calculateAndSave(baseDate);
+  }
+
+  @org.springframework.web.bind.annotation.PostMapping("/market-internal/rebuild")
+  public MarketInternalHistoryService.RebuildResult rebuildMarketInternal(
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
+    return marketInternalHistory.rebuild(fromDate, toDate);
   }
 
   @GetMapping("/predictions")

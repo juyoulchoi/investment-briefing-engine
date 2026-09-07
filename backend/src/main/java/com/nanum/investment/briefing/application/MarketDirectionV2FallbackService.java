@@ -29,6 +29,7 @@ public class MarketDirectionV2FallbackService {
   private final FxDollarFactorCalculator fxDollarFactorCalculator;
   private final UsRateFactorCalculator usRateFactorCalculator;
   private final SemiconductorFactorCalculator semiconductorFactorCalculator;
+  private final MarketInternalFactorCalculator marketInternalFactorCalculator;
   private final SectorPriceTrendFactorCalculator sectorPriceTrendFactorCalculator;
 
   public MarketDirectionV2FallbackService(
@@ -37,12 +38,14 @@ public class MarketDirectionV2FallbackService {
       FxDollarFactorCalculator fxDollarFactorCalculator,
       UsRateFactorCalculator usRateFactorCalculator,
       SemiconductorFactorCalculator semiconductorFactorCalculator,
+      MarketInternalFactorCalculator marketInternalFactorCalculator,
       SectorPriceTrendFactorCalculator sectorPriceTrendFactorCalculator) {
     this.jdbc = jdbc;
     this.json = json;
     this.fxDollarFactorCalculator = fxDollarFactorCalculator;
     this.usRateFactorCalculator = usRateFactorCalculator;
     this.semiconductorFactorCalculator = semiconductorFactorCalculator;
+    this.marketInternalFactorCalculator = marketInternalFactorCalculator;
     this.sectorPriceTrendFactorCalculator = sectorPriceTrendFactorCalculator;
   }
 
@@ -50,11 +53,13 @@ public class MarketDirectionV2FallbackService {
   public void saveFallback(LocalDate date, MarketDirectionDto v1) {
     int exchangeSamples = sampleCount("TB_EXCH_DAY", "BASE_DT", date);
     int usRateSamples = sampleCount("TB_FRED_BOND_DAY", "BASE_DT", date);
-    int snapshotSamples = sampleCount("TB_MKT_SNAP", "BASE_DT", date);
+    int marketInternalSamples = sampleCount("TB_MKT_INT_DAY", "BASE_DT", date);
     FxDollarFactorCalculator.Result fxDollar = fxDollarFactorCalculator.calculate(date);
     UsRateFactorCalculator.Result usRate = usRateFactorCalculator.calculate(date);
     SemiconductorFactorCalculator.Result semiconductor =
         semiconductorFactorCalculator.calculate(date);
+    MarketInternalFactorCalculator.Result marketInternal =
+        marketInternalFactorCalculator.calculate(date);
     SectorPriceTrendFactorCalculator.Result priceTrend =
         sectorPriceTrendFactorCalculator.calculate(date);
     String reason =
@@ -66,8 +71,8 @@ public class MarketDirectionV2FallbackService {
             + usRateSamples
             + "/"
             + REQUIRED_SAMPLE_COUNT
-            + ", 시장 Snapshot "
-            + snapshotSamples
+            + ", 시장 내부강도 "
+            + marketInternalSamples
             + "/"
             + REQUIRED_SAMPLE_COUNT
             + ", 외국인 수급 원천 미확정";
@@ -87,7 +92,7 @@ public class MarketDirectionV2FallbackService {
     basis.put("requiredSamples", REQUIRED_SAMPLE_COUNT);
     basis.put("exchangeSamples", exchangeSamples);
     basis.put("usRateSamples", usRateSamples);
-    basis.put("marketSnapshotSamples", snapshotSamples);
+    basis.put("marketInternalSamples", marketInternalSamples);
     basis.put("selectedModel", "V1");
     basis.put("reason", reason);
 
@@ -124,13 +129,16 @@ public class MarketDirectionV2FallbackService {
           switch (factor.code()) {
             case "FX_DOLLAR" -> exchangeSamples;
             case "US_RATE" -> usRateSamples;
-            case "PRICE_TREND", "MARKET_INTERNAL" -> snapshotSamples;
+            case "MARKET_INTERNAL" -> marketInternalSamples;
+            case "PRICE_TREND" -> sampleCount("TB_MKT_SNAP", "BASE_DT", date);
             default -> 0;
           };
       boolean fxFactor = FxDollarFactorCalculator.FACTOR_CODE.equals(factor.code());
       boolean usRateFactor = UsRateFactorCalculator.FACTOR_CODE.equals(factor.code());
       boolean semiconductorFactor =
           SemiconductorFactorCalculator.FACTOR_CODE.equals(factor.code());
+      boolean marketInternalFactor =
+          MarketInternalFactorCalculator.FACTOR_CODE.equals(factor.code());
       boolean priceTrendFactor =
           SectorPriceTrendFactorCalculator.FACTOR_CODE.equals(factor.code());
       String status =
@@ -140,7 +148,9 @@ public class MarketDirectionV2FallbackService {
                   ? usRate.status()
                   : semiconductorFactor
                       ? semiconductor.status()
-                      : priceTrendFactor ? priceTrend.status() : "INSUFFICIENT_HISTORY";
+                      : marketInternalFactor
+                          ? marketInternal.status()
+                          : priceTrendFactor ? priceTrend.status() : "INSUFFICIENT_HISTORY";
       BigDecimalValue factorValue =
           fxFactor && fxDollar.available()
               ? new BigDecimalValue(
@@ -170,6 +180,13 @@ public class MarketDirectionV2FallbackService {
                                   .score()
                                   .multiply(BigDecimal.valueOf(factor.weight()))
                                   .divide(BigDecimal.valueOf(100)))
+                          : marketInternalFactor && marketInternal.available()
+                              ? new BigDecimalValue(
+                                  marketInternal.score(),
+                                  marketInternal
+                                      .score()
+                                      .multiply(BigDecimal.valueOf(factor.weight()))
+                                      .divide(BigDecimal.valueOf(100)))
                       : BigDecimalValue.unavailable();
       int confidence =
           fxFactor && fxDollar.available()
@@ -178,6 +195,8 @@ public class MarketDirectionV2FallbackService {
                   ? 100
                   : semiconductorFactor && semiconductor.available()
                       ? semiconductor.confidence()
+                      : marketInternalFactor && marketInternal.available()
+                          ? marketInternal.confidence()
                       : priceTrendFactor && priceTrend.available() ? priceTrend.confidence() : 0;
       jdbc.sql(
               """
@@ -197,6 +216,7 @@ public class MarketDirectionV2FallbackService {
               (fxFactor && fxDollar.available())
                       || (usRateFactor && usRate.available())
                       || (semiconductorFactor && semiconductor.available())
+                      || (marketInternalFactor && marketInternal.available())
                       || (priceTrendFactor && priceTrend.available())
                   ? factor.weight()
                   : 0)
@@ -209,6 +229,8 @@ public class MarketDirectionV2FallbackService {
                       ? usRate.reason()
                   : semiconductorFactor
                       ? semiconductor.reason()
+                  : marketInternalFactor
+                      ? marketInternal.reason()
                   : priceTrendFactor
                       ? priceTrend.reason()
                   : samples == 0
@@ -225,6 +247,9 @@ public class MarketDirectionV2FallbackService {
       }
       if (semiconductorFactor && semiconductor.available()) {
         semiconductorFactorCalculator.saveMetrics(predictionId, semiconductor);
+      }
+      if (marketInternalFactor && marketInternal.available()) {
+        marketInternalFactorCalculator.saveMetrics(predictionId, marketInternal);
       }
       if (priceTrendFactor && priceTrend.available()) {
         sectorPriceTrendFactorCalculator.saveMetrics(predictionId, priceTrend);
