@@ -28,6 +28,7 @@ public class MarketDirectionV2FallbackService {
   private final ObjectMapper json;
   private final FxDollarFactorCalculator fxDollarFactorCalculator;
   private final UsRateFactorCalculator usRateFactorCalculator;
+  private final SemiconductorFactorCalculator semiconductorFactorCalculator;
   private final SectorPriceTrendFactorCalculator sectorPriceTrendFactorCalculator;
 
   public MarketDirectionV2FallbackService(
@@ -35,11 +36,13 @@ public class MarketDirectionV2FallbackService {
       ObjectMapper json,
       FxDollarFactorCalculator fxDollarFactorCalculator,
       UsRateFactorCalculator usRateFactorCalculator,
+      SemiconductorFactorCalculator semiconductorFactorCalculator,
       SectorPriceTrendFactorCalculator sectorPriceTrendFactorCalculator) {
     this.jdbc = jdbc;
     this.json = json;
     this.fxDollarFactorCalculator = fxDollarFactorCalculator;
     this.usRateFactorCalculator = usRateFactorCalculator;
+    this.semiconductorFactorCalculator = semiconductorFactorCalculator;
     this.sectorPriceTrendFactorCalculator = sectorPriceTrendFactorCalculator;
   }
 
@@ -50,6 +53,8 @@ public class MarketDirectionV2FallbackService {
     int snapshotSamples = sampleCount("TB_MKT_SNAP", "BASE_DT", date);
     FxDollarFactorCalculator.Result fxDollar = fxDollarFactorCalculator.calculate(date);
     UsRateFactorCalculator.Result usRate = usRateFactorCalculator.calculate(date);
+    SemiconductorFactorCalculator.Result semiconductor =
+        semiconductorFactorCalculator.calculate(date);
     SectorPriceTrendFactorCalculator.Result priceTrend =
         sectorPriceTrendFactorCalculator.calculate(date);
     String reason =
@@ -124,6 +129,8 @@ public class MarketDirectionV2FallbackService {
           };
       boolean fxFactor = FxDollarFactorCalculator.FACTOR_CODE.equals(factor.code());
       boolean usRateFactor = UsRateFactorCalculator.FACTOR_CODE.equals(factor.code());
+      boolean semiconductorFactor =
+          SemiconductorFactorCalculator.FACTOR_CODE.equals(factor.code());
       boolean priceTrendFactor =
           SectorPriceTrendFactorCalculator.FACTOR_CODE.equals(factor.code());
       String status =
@@ -131,7 +138,9 @@ public class MarketDirectionV2FallbackService {
               ? fxDollar.status()
               : usRateFactor
                   ? usRate.status()
-                  : priceTrendFactor ? priceTrend.status() : "INSUFFICIENT_HISTORY";
+                  : semiconductorFactor
+                      ? semiconductor.status()
+                      : priceTrendFactor ? priceTrend.status() : "INSUFFICIENT_HISTORY";
       BigDecimalValue factorValue =
           fxFactor && fxDollar.available()
               ? new BigDecimalValue(
@@ -154,13 +163,22 @@ public class MarketDirectionV2FallbackService {
                               .score()
                               .multiply(BigDecimal.valueOf(factor.weight()))
                               .divide(BigDecimal.valueOf(100)))
+                      : semiconductorFactor && semiconductor.available()
+                          ? new BigDecimalValue(
+                              semiconductor.score(),
+                              semiconductor
+                                  .score()
+                                  .multiply(BigDecimal.valueOf(factor.weight()))
+                                  .divide(BigDecimal.valueOf(100)))
                       : BigDecimalValue.unavailable();
       int confidence =
           fxFactor && fxDollar.available()
               ? 100
               : usRateFactor && usRate.available()
                   ? 100
-                  : priceTrendFactor && priceTrend.available() ? priceTrend.confidence() : 0;
+                  : semiconductorFactor && semiconductor.available()
+                      ? semiconductor.confidence()
+                      : priceTrendFactor && priceTrend.available() ? priceTrend.confidence() : 0;
       jdbc.sql(
               """
           INSERT INTO "TB_MKT_DIR_PRED_FCTR"(
@@ -178,6 +196,7 @@ public class MarketDirectionV2FallbackService {
               "availableWeight",
               (fxFactor && fxDollar.available())
                       || (usRateFactor && usRate.available())
+                      || (semiconductorFactor && semiconductor.available())
                       || (priceTrendFactor && priceTrend.available())
                   ? factor.weight()
                   : 0)
@@ -188,6 +207,8 @@ public class MarketDirectionV2FallbackService {
                   ? fxDollar.reason()
                   : usRateFactor
                       ? usRate.reason()
+                  : semiconductorFactor
+                      ? semiconductor.reason()
                   : priceTrendFactor
                       ? priceTrend.reason()
                   : samples == 0
@@ -201,6 +222,9 @@ public class MarketDirectionV2FallbackService {
       }
       if (usRateFactor && usRate.available()) {
         usRateFactorCalculator.saveMetric(predictionId, usRate);
+      }
+      if (semiconductorFactor && semiconductor.available()) {
+        semiconductorFactorCalculator.saveMetrics(predictionId, semiconductor);
       }
       if (priceTrendFactor && priceTrend.available()) {
         sectorPriceTrendFactorCalculator.saveMetrics(predictionId, priceTrend);
