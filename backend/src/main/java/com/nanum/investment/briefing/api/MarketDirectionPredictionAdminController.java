@@ -1,5 +1,6 @@
 package com.nanum.investment.briefing.api;
 
+import com.nanum.investment.briefing.application.InvestorFlowExcelImportService;
 import com.nanum.investment.briefing.application.MarketDirectionPredictionService;
 import com.nanum.investment.briefing.application.MarketInternalHistoryService;
 import com.nanum.investment.briefing.dto.request.MarketDirectionDto;
@@ -19,14 +20,17 @@ public class MarketDirectionPredictionAdminController {
   private final JdbcClient jdbc;
   private final MarketDirectionPredictionService predictions;
   private final MarketInternalHistoryService marketInternalHistory;
+  private final InvestorFlowExcelImportService investorFlowExcelImport;
 
   public MarketDirectionPredictionAdminController(
       JdbcClient jdbc,
       MarketDirectionPredictionService predictions,
-      MarketInternalHistoryService marketInternalHistory) {
+      MarketInternalHistoryService marketInternalHistory,
+      InvestorFlowExcelImportService investorFlowExcelImport) {
     this.jdbc = jdbc;
     this.predictions = predictions;
     this.marketInternalHistory = marketInternalHistory;
+    this.investorFlowExcelImport = investorFlowExcelImport;
   }
 
   @org.springframework.web.bind.annotation.PostMapping("/predictions/calculate")
@@ -40,6 +44,12 @@ public class MarketDirectionPredictionAdminController {
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
     return marketInternalHistory.rebuild(fromDate, toDate);
+  }
+
+  @org.springframework.web.bind.annotation.PostMapping("/investor-flow/import-excel")
+  public InvestorFlowExcelImportService.ImportResult importInvestorFlowExcel(
+      @RequestParam String filenameToken) {
+    return investorFlowExcelImport.importByFilenameToken(filenameToken);
   }
 
   @GetMapping("/predictions")

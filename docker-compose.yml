@@ -84,6 +84,9 @@ services:
       INVESTMENT_BRIEFING_WEEKLY_DECISION_SCHEDULER_CRON: ${V2_WEEKLY_DECISION_CRON:--}
       INVESTMENT_BRIEFING_WEEKLY_SCHEDULER_CRON: ${V2_WEEKLY_CRON:--}
       INVESTMENT_BRIEFING_SCHEDULER_ZONE: Asia/Seoul
+      INVESTOR_FLOW_IMPORT_DIR: /data/investor-flow
+    volumes:
+      - ../investment-briefing-engine/docs/krx/investor-flow:/data/investor-flow:ro
     ports:
       - "8082:8080"
     depends_on:
