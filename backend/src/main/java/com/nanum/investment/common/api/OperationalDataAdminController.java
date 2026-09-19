@@ -12,6 +12,7 @@ import com.nanum.investment.common.response.ApiResponse;
 import com.nanum.investment.common.web.TraceIdUtils;
 import com.nanum.investment.holding.application.HoldingValuationService;
 import com.nanum.investment.holding.application.PortfolioWeightRefreshService;
+import com.nanum.investment.holding.application.TargetWeightRefreshService;
 import com.nanum.investment.holding.domain.HoldingStatus;
 import com.nanum.investment.holding.domain.TbCashRsv;
 import com.nanum.investment.holding.domain.TbHold;
@@ -51,6 +52,7 @@ public class OperationalDataAdminController {
   private final CommonCodeLookupService commonCodes;
   private final HoldingValuationService holdingValuations;
   private final PortfolioWeightRefreshService portfolioWeights;
+  private final TargetWeightRefreshService targetWeights;
 
   public OperationalDataAdminController(
       TbHoldRepository holdings,
@@ -61,7 +63,8 @@ public class OperationalDataAdminController {
       JdbcClient jdbc,
       CommonCodeLookupService commonCodes,
       HoldingValuationService holdingValuations,
-      PortfolioWeightRefreshService portfolioWeights) {
+      PortfolioWeightRefreshService portfolioWeights,
+      TargetWeightRefreshService targetWeights) {
     this.holdings = holdings;
     this.regularBuys = regularBuys;
     this.cashReserves = cashReserves;
@@ -71,6 +74,7 @@ public class OperationalDataAdminController {
     this.commonCodes = commonCodes;
     this.holdingValuations = holdingValuations;
     this.portfolioWeights = portfolioWeights;
+    this.targetWeights = targetWeights;
   }
 
   public record HoldingRequest(
@@ -223,6 +227,9 @@ public class OperationalDataAdminController {
     apply(x, b);
     TbHold saved = holdings.save(x);
     createDefaultRegularBuy(saved);
+    holdings.flush();
+    regularBuys.flush();
+    targetWeights.refreshAccount(saved.getAccount());
     portfolioWeights.refreshAccount(saved.getAccount());
     return ok(row(saved), r);
   }
@@ -246,6 +253,8 @@ public class OperationalDataAdminController {
             });
     apply(x, b);
     TbHold saved = holdings.save(x);
+    holdings.flush();
+    targetWeights.refreshAccount(saved.getAccount());
     portfolioWeights.refreshAccount(saved.getAccount());
     return ok(row(saved), r);
   }
@@ -282,7 +291,10 @@ public class OperationalDataAdminController {
         .isPresent()) throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE);
     TbRegBuy x = new TbRegBuy();
     apply(x, b);
-    return ok(row(regularBuys.save(x)), r);
+    TbRegBuy saved = regularBuys.saveAndFlush(x);
+    targetWeights.refreshAccount(saved.getAccount());
+    portfolioWeights.refreshAccount(saved.getAccount());
+    return ok(row(saved), r);
   }
 
   @PutMapping("/regular-buys/{accountType}/{stockCode}")
@@ -304,7 +316,10 @@ public class OperationalDataAdminController {
         || !targetStock.getStockCode().equals(stockCode))
       throw new BusinessException(ErrorCode.INVALID_REQUEST);
     apply(x, b);
-    return ok(row(regularBuys.save(x)), r);
+    TbRegBuy saved = regularBuys.saveAndFlush(x);
+    targetWeights.refreshAccount(saved.getAccount());
+    portfolioWeights.refreshAccount(saved.getAccount());
+    return ok(row(saved), r);
   }
 
   @GetMapping("/cash-reserves")
