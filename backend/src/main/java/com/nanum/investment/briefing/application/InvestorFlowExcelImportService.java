@@ -359,16 +359,21 @@ public class InvestorFlowExcelImportService {
   private int normalize() {
     return jdbc.sql(
             """
-            WITH latest_files AS (
+            WITH file_dates AS (
+              SELECT DISTINCT f.*,r."BASE_DT"
+              FROM "TB_INV_FLOW_FILE" f
+              JOIN "TB_INV_FLOW_RAW_ROW" r ON r."INV_FLOW_FILE_ID"=f."INV_FLOW_FILE_ID"
+              WHERE f."IMPORT_STATUS"='COMPLETED'
+            ), latest_file_dates AS (
               SELECT f.*,
                      row_number() OVER (PARTITION BY f."SCOPE_TP",f."SCOPE_KEY",f."METRIC_TP",
-                       f."TRADE_TP" ORDER BY f."INV_FLOW_FILE_ID" DESC) AS rn
-              FROM "TB_INV_FLOW_FILE" f
-              WHERE f."IMPORT_STATUS"='COMPLETED'
+                       f."TRADE_TP",f."BASE_DT" ORDER BY f."INV_FLOW_FILE_ID" DESC) AS rn
+              FROM file_dates f
             ), source AS (
-              SELECT f.*,r."BASE_DT",r."INVESTOR_TP",r."RAW_VAL"*f."UNIT_MULT" AS value
-              FROM latest_files f
+              SELECT f.*,r."INVESTOR_TP",r."RAW_VAL"*f."UNIT_MULT" AS value
+              FROM latest_file_dates f
               JOIN "TB_INV_FLOW_RAW_ROW" r ON r."INV_FLOW_FILE_ID"=f."INV_FLOW_FILE_ID"
+                AND r."BASE_DT"=f."BASE_DT"
               WHERE f.rn=1
             ), pivoted AS (
               SELECT "SCOPE_TP","SCOPE_KEY",max("MKT_CD") AS market_code,max("STK_CD") AS stock_code,
