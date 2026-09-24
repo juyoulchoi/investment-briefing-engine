@@ -61,6 +61,10 @@ public class InvestorFlowExcelImportService {
           "FOREIGN",
           "OTHER_FOREIGN",
           "TOTAL");
+  private static final List<String> AGGREGATED_HEADERS =
+      List.of("일자", "기관 합계", "기타법인", "개인", "외국인 합계", "전체");
+  private static final List<String> AGGREGATED_INVESTOR_CODES =
+      List.of("INSTITUTION_TOTAL", "OTHER_CORPORATION", "INDIVIDUAL", "FOREIGN_TOTAL", "TOTAL");
   private static final DateTimeFormatter SOURCE_DATE_FORMAT =
       DateTimeFormatter.ofPattern("yyyy/MM/dd", Locale.ROOT);
 
@@ -166,7 +170,8 @@ public class InvestorFlowExcelImportService {
       throw new IllegalArgumentException("파일명에서 거래구분을 판별할 수 없습니다: " + filename);
     }
     boolean marketScope = normalizedFile.getParent().equals(normalizedRoot);
-    String stockName = marketScope ? null : normalizedFile.getParent().getFileName().toString();
+    String stockName =
+        marketScope ? null : normalizedRoot.relativize(normalizedFile).getName(0).toString();
     return new Metadata(
         marketScope ? ScopeType.MARKET : ScopeType.STOCK,
         marketScope ? "ALL" : stockName,
@@ -208,13 +213,14 @@ public class InvestorFlowExcelImportService {
         throw new IllegalArgumentException("Excel 데이터가 비어 있습니다.");
       }
       DataFormatter formatter = new DataFormatter(Locale.KOREA);
+      List<String> actualHeaders = new ArrayList<>();
       for (int column = 0; column < EXPECTED_HEADERS.size(); column++) {
-        String actual = formatter.formatCellValue(header.getCell(column)).trim();
-        if (!EXPECTED_HEADERS.get(column).equals(actual)) {
-          throw new IllegalArgumentException(
-              "Excel 헤더가 다릅니다: " + (column + 1) + "열 " + actual);
-        }
+        actualHeaders.add(formatter.formatCellValue(header.getCell(column)).trim());
       }
+      while (!actualHeaders.isEmpty() && actualHeaders.get(actualHeaders.size() - 1).isBlank()) {
+        actualHeaders.remove(actualHeaders.size() - 1);
+      }
+      List<String> investorCodes = investorCodes(actualHeaders);
 
       List<RawValue> values = new ArrayList<>();
       LocalDate minimumDate = null;
@@ -229,10 +235,10 @@ public class InvestorFlowExcelImportService {
         minimumDate = minimumDate == null || date.isBefore(minimumDate) ? date : minimumDate;
         maximumDate = maximumDate == null || date.isAfter(maximumDate) ? date : maximumDate;
         dataRows++;
-        for (int column = 1; column < EXPECTED_HEADERS.size(); column++) {
+        for (int column = 1; column <= investorCodes.size(); column++) {
           values.add(
               new RawValue(
-                  date, INVESTOR_CODES.get(column - 1), numeric(row.getCell(column), formatter)));
+                  date, investorCodes.get(column - 1), numeric(row.getCell(column), formatter)));
         }
       }
       if (dataRows == 0) {
@@ -242,6 +248,23 @@ public class InvestorFlowExcelImportService {
     } catch (IOException exception) {
       throw new IllegalStateException("Excel 파일을 읽을 수 없습니다.", exception);
     }
+  }
+
+  static List<String> investorCodes(List<String> headers) {
+    if (EXPECTED_HEADERS.equals(headers)) {
+      return INVESTOR_CODES;
+    }
+    if (AGGREGATED_HEADERS.equals(headers)) {
+      return AGGREGATED_INVESTOR_CODES;
+    }
+    int mismatch = 0;
+    while (mismatch < headers.size()
+        && mismatch < EXPECTED_HEADERS.size()
+        && EXPECTED_HEADERS.get(mismatch).equals(headers.get(mismatch))) {
+      mismatch++;
+    }
+    String actual = mismatch < headers.size() ? headers.get(mismatch) : "";
+    throw new IllegalArgumentException("Excel 헤더가 다릅니다: " + (mismatch + 1) + "열 " + actual);
   }
 
   private static BigDecimal numeric(Cell cell, DataFormatter formatter) {

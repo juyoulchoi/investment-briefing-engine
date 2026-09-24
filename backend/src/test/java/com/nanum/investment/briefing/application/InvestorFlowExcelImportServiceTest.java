@@ -3,6 +3,7 @@ package com.nanum.investment.briefing.application;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class InvestorFlowExcelImportServiceTest {
@@ -16,7 +17,9 @@ class InvestorFlowExcelImportServiceTest {
     InvestorFlowExcelImportService.Metadata stock =
         InvestorFlowExcelImportService.metadata(
             root,
-            root.resolve("삼성전자").resolve("삼성전자 투자자별 거래실적 거래량 매도_20240101.xlsx"));
+            root.resolve("삼성전자")
+                .resolve("거래량")
+                .resolve("삼성전자 투자자별 거래실적 거래량 매도_20240101.xlsx"));
 
     assertThat(market.scopeType()).isEqualTo(InvestorFlowExcelImportService.ScopeType.MARKET);
     assertThat(market.metricType()).isEqualTo(InvestorFlowExcelImportService.MetricType.AMOUNT);
@@ -25,5 +28,14 @@ class InvestorFlowExcelImportServiceTest {
     assertThat(stock.stockName()).isEqualTo("삼성전자");
     assertThat(stock.metricType()).isEqualTo(InvestorFlowExcelImportService.MetricType.VOLUME);
     assertThat(stock.tradeType()).isEqualTo(InvestorFlowExcelImportService.TradeType.SELL);
+  }
+
+  @Test
+  void mapsAggregatedInvestorHeadersWithoutTreatingThemAsDetailedInvestorTypes() {
+    assertThat(
+            InvestorFlowExcelImportService.investorCodes(
+                List.of("일자", "기관 합계", "기타법인", "개인", "외국인 합계", "전체")))
+        .containsExactly(
+            "INSTITUTION_TOTAL", "OTHER_CORPORATION", "INDIVIDUAL", "FOREIGN_TOTAL", "TOTAL");
   }
 }
