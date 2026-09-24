@@ -359,15 +359,18 @@ public class InvestorFlowExcelImportService {
   private int normalize() {
     return jdbc.sql(
             """
-            WITH ranked AS (
-              SELECT f.*,r."BASE_DT",r."INVESTOR_TP",r."RAW_VAL"*f."UNIT_MULT" AS value,
+            WITH latest_files AS (
+              SELECT f.*,
                      row_number() OVER (PARTITION BY f."SCOPE_TP",f."SCOPE_KEY",f."METRIC_TP",
-                       f."TRADE_TP",r."BASE_DT",r."INVESTOR_TP"
-                       ORDER BY f."INV_FLOW_FILE_ID" DESC) AS rn
+                       f."TRADE_TP" ORDER BY f."INV_FLOW_FILE_ID" DESC) AS rn
               FROM "TB_INV_FLOW_FILE" f
-              JOIN "TB_INV_FLOW_RAW_ROW" r ON r."INV_FLOW_FILE_ID"=f."INV_FLOW_FILE_ID"
               WHERE f."IMPORT_STATUS"='COMPLETED'
-            ), source AS (SELECT * FROM ranked WHERE rn=1), pivoted AS (
+            ), source AS (
+              SELECT f.*,r."BASE_DT",r."INVESTOR_TP",r."RAW_VAL"*f."UNIT_MULT" AS value
+              FROM latest_files f
+              JOIN "TB_INV_FLOW_RAW_ROW" r ON r."INV_FLOW_FILE_ID"=f."INV_FLOW_FILE_ID"
+              WHERE f.rn=1
+            ), pivoted AS (
               SELECT "SCOPE_TP","SCOPE_KEY",max("MKT_CD") AS market_code,max("STK_CD") AS stock_code,
                      max("STK_NM") AS stock_name,"BASE_DT","INVESTOR_TP",
                      max(value) FILTER (WHERE "METRIC_TP"='VOLUME' AND "TRADE_TP"='SELL') AS sell_qty,
@@ -379,6 +382,17 @@ public class InvestorFlowExcelImportService {
                      md5(string_agg(DISTINCT "FILE_HASH",',' ORDER BY "FILE_HASH")) AS source_hash
               FROM source
               GROUP BY "SCOPE_TP","SCOPE_KEY","BASE_DT","INVESTOR_TP"
+            ), deleted AS (
+              DELETE FROM "TB_INV_FLOW_DAY" d
+              WHERE EXISTS (
+                SELECT 1 FROM pivoted p
+                WHERE p."SCOPE_TP"=d."SCOPE_TP" AND p."SCOPE_KEY"=d."SCOPE_KEY"
+                  AND p."BASE_DT"=d."BASE_DT")
+                AND NOT EXISTS (
+                  SELECT 1 FROM pivoted p
+                  WHERE p."SCOPE_TP"=d."SCOPE_TP" AND p."SCOPE_KEY"=d."SCOPE_KEY"
+                    AND p."BASE_DT"=d."BASE_DT" AND p."INVESTOR_TP"=d."INVESTOR_TP")
+              RETURNING 1
             )
             INSERT INTO "TB_INV_FLOW_DAY"(
               "SCOPE_TP","SCOPE_KEY","MKT_CD","STK_CD","STK_NM","BASE_DT","INVESTOR_TP",
