@@ -34,22 +34,8 @@ public enum KofiaDataset {
       false,
       List.of(),
       Map.of(
-          "tmpV37",
-          "0",
-          "tmpV5",
-          "5",
-          "tmpV7",
-          "1",
-          "tmpV3",
-          "02",
-          "tmpV11",
-          "",
-          "tmpV19",
-          "Y",
-          "tmpV40",
-          "100000000",
-          "tmpV41",
-          "1")),
+          "tmpV37", "0", "tmpV5", "5", "tmpV7", "1", "tmpV3", "02", "tmpV11", "", "tmpV19", "Y",
+          "tmpV40", "1", "tmpV41", "1")),
   CUSTOMER_TYPE_FUND_SCALE_PERIOD(
       "STATFND0100200181",
       "STATFND0100200181BO",
@@ -160,7 +146,7 @@ public enum KofiaDataset {
       "STATSCU0100000130",
       "STATSCU0100000130BO",
       "주식 > 대차거래내역",
-      CollectionMode.AS_OF_DATE,
+      CollectionMode.AS_OF_RANGE_DATE,
       false,
       List.of("TMPV2", "TMPV1"),
       Map.of("tmpV74", "1,0,,1")),
@@ -237,7 +223,7 @@ public enum KofiaDataset {
 
   public Map<String, Object> requestParameters(LocalDate from, LocalDate to) {
     Map<String, Object> values = new LinkedHashMap<>();
-    values.put("tmpV40", "1000000");
+    values.put("tmpV40", "1");
     values.put("tmpV41", "1");
     values.putAll(defaultParameters);
     String fromValue = from.format(DateTimeFormatter.BASIC_ISO_DATE);

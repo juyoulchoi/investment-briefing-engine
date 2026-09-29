@@ -90,6 +90,11 @@ kofia:
   base-url: ${KOFIA_BASE_URL:https://freesis.kofia.or.kr}
   connect-timeout: ${KOFIA_CONNECT_TIMEOUT:5s}
   read-timeout: ${KOFIA_READ_TIMEOUT:30s}
+  scheduler:
+    enabled: ${KOFIA_SCHEDULER_ENABLED:true}
+    cron: ${KOFIA_SCHEDULER_CRON:0 40 23 * * MON-FRI}
+    zone: ${KOFIA_SCHEDULER_ZONE:Asia/Seoul}
+    overlap-days: ${KOFIA_SCHEDULER_OVERLAP_DAYS:21}
   collection:
     min-request-interval: ${KOFIA_MIN_REQUEST_INTERVAL:250ms}
   circuit-breaker:

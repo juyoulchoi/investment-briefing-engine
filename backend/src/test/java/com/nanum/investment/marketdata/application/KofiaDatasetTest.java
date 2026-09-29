@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nanum.investment.marketdata.domain.KofiaDataset;
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class KofiaDatasetTest {
@@ -44,6 +45,28 @@ class KofiaDatasetTest {
   }
 
   @Test
+  void mapsScheduledAdditionalDatasetsToExpectedFreeSisObjects() {
+    Map<KofiaDataset, String> expected =
+        Map.ofEntries(
+            Map.entry(KofiaDataset.SECURITIES_LENDING_DETAILS, "STATSCU0100000130BO"),
+            Map.entry(KofiaDataset.CMA_DAILY_STATUS, "STATSCU0100000090BO"),
+            Map.entry(KofiaDataset.CMA_BALANCE_TREND, "STATSCU0100000110BO"),
+            Map.entry(KofiaDataset.FUND_FLOW_PERIOD, "STATFND0100100030BO"),
+            Map.entry(KofiaDataset.CUSTOMER_TYPE_FUND_SCALE_PERIOD, "STATFND0100200181BO"),
+            Map.entry(KofiaDataset.ASSET_MANAGER_FUND_FLOW, "STATFND0200100040BO"),
+            Map.entry(KofiaDataset.OTC_INVESTOR_TRADING, "STATBND0100000270BO"),
+            Map.entry(KofiaDataset.FINAL_QUOTED_YIELD, "STATBND0100000010BO"),
+            Map.entry(KofiaDataset.KOSPI_MARKET, "STATSCU0100000020BO"),
+            Map.entry(KofiaDataset.KOSDAQ_MARKET, "STATSCU0100000030BO"));
+
+    expected.forEach(
+        (dataset, objectName) -> {
+          assertThat(dataset.path()).isEqualTo("/meta/getMetaDataList.do");
+          assertThat(dataset.objectName()).isEqualTo(objectName);
+        });
+  }
+
+  @Test
   void buildsDateParametersForEachCollectionMode() {
     LocalDate from = LocalDate.of(2024, 1, 1);
     LocalDate to = LocalDate.of(2024, 3, 31);
@@ -62,6 +85,25 @@ class KofiaDatasetTest {
         .containsEntry("tmpV45", "20240331")
         .containsEntry("tmpV46", "20240331")
         .doesNotContainKey("tmpV34");
+    assertThat(KofiaDataset.SECURITIES_LENDING_DETAILS.requestParameters(to, to))
+        .containsEntry("tmpV1", "D")
+        .containsEntry("tmpV45", "20240331")
+        .containsEntry("tmpV46", "20240331")
+        .containsEntry("tmpV74", "1,0,,1")
+        .containsEntry("OBJ_NM", "STATSCU0100000130BO")
+        .doesNotContainKey("tmpV34");
+  }
+
+  @Test
+  void usesOneForCommonFreeSisControlParameters() {
+    LocalDate date = LocalDate.of(2026, 9, 29);
+
+    assertThat(Arrays.stream(KofiaDataset.values()))
+        .allSatisfy(
+            dataset ->
+                assertThat(dataset.requestParameters(date, date))
+                    .containsEntry("tmpV40", "1")
+                    .containsEntry("tmpV41", "1"));
   }
 
   @Test
