@@ -4,8 +4,10 @@ import com.nanum.investment.marketdata.application.KofiaCatalogService;
 import com.nanum.investment.marketdata.application.KofiaCollectionService;
 import com.nanum.investment.marketdata.application.KofiaCollectionService.CollectionView;
 import com.nanum.investment.marketdata.application.KofiaCollectionService.DatasetView;
+import com.nanum.investment.marketdata.application.KofiaFundFlowService;
 import com.nanum.investment.marketdata.application.KofiaLookupService;
 import com.nanum.investment.marketdata.domain.KofiaDataset;
+import com.nanum.investment.marketdata.domain.KofiaFundFlowVariant;
 import com.nanum.investment.marketdata.infrastructure.KofiaRepository.JobView;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -26,14 +28,17 @@ public class KofiaController {
   private final KofiaCollectionService service;
   private final KofiaCatalogService catalogService;
   private final KofiaLookupService lookupService;
+  private final KofiaFundFlowService fundFlowService;
 
   public KofiaController(
       KofiaCollectionService service,
       KofiaCatalogService catalogService,
-      KofiaLookupService lookupService) {
+      KofiaLookupService lookupService,
+      KofiaFundFlowService fundFlowService) {
     this.service = service;
     this.catalogService = catalogService;
     this.lookupService = lookupService;
+    this.fundFlowService = fundFlowService;
   }
 
   @PostMapping("/catalog/sync")
@@ -65,6 +70,74 @@ public class KofiaController {
   public List<Map<String, Object>> companies(
       @RequestParam String tableName, @RequestParam String companyType) {
     return lookupService.companies(tableName, companyType);
+  }
+
+  @PostMapping("/fund-flows/variants/sync")
+  @io.swagger.v3.oas.annotations.Operation(summary = "기간자금유출입 단계별 수집 조합 동기화")
+  public KofiaFundFlowService.VariantSyncView syncFundFlowVariants() {
+    return fundFlowService.syncVariants();
+  }
+
+  @PostMapping("/fund-flows/variants")
+  @io.swagger.v3.oas.annotations.Operation(summary = "검증된 기간자금유출입 교차 조합 등록")
+  public KofiaFundFlowVariant registerFundFlowVariant(
+      @Valid @RequestBody RegisterFundFlowVariantRequest request) {
+    return fundFlowService.registerValidVariant(
+        request.fundTypeCode(),
+        request.fundKindCode(),
+        request.offeringTypeCode(),
+        request.managerCode(),
+        request.etfIncludeYn());
+  }
+
+  @GetMapping("/fund-flows/variants")
+  @io.swagger.v3.oas.annotations.Operation(summary = "기간자금유출입 수집 조합 조회")
+  public List<Map<String, Object>> fundFlowVariants(
+      @RequestParam(defaultValue = "ALL_ACTIVE") String stage) {
+    return fundFlowService.variants(KofiaFundFlowVariant.Stage.from(stage));
+  }
+
+  @PostMapping("/fund-flows/jobs")
+  @io.swagger.v3.oas.annotations.Operation(summary = "기간자금유출입 단계별 비동기 수집 Job 생성")
+  public ResponseEntity<
+          com.nanum.investment.marketdata.infrastructure.KofiaFundFlowRepository.JobView>
+      startFundFlowJob(@Valid @RequestBody StartFundFlowJobRequest request) {
+    return ResponseEntity.accepted()
+        .body(
+            fundFlowService.startJob(
+                KofiaFundFlowVariant.Stage.from(request.stage()), request.from(), request.to()));
+  }
+
+  @GetMapping("/fund-flows/jobs")
+  @io.swagger.v3.oas.annotations.Operation(summary = "기간자금유출입 수집 Job 목록 조회")
+  public List<com.nanum.investment.marketdata.infrastructure.KofiaFundFlowRepository.JobView>
+      fundFlowJobs(@RequestParam(defaultValue = "20") int limit) {
+    return fundFlowService.jobs(limit);
+  }
+
+  @GetMapping("/fund-flows/jobs/{jobId}")
+  @io.swagger.v3.oas.annotations.Operation(summary = "기간자금유출입 수집 Job 상세 조회")
+  public com.nanum.investment.marketdata.infrastructure.KofiaFundFlowRepository.JobView fundFlowJob(
+      @PathVariable UUID jobId, @RequestParam(defaultValue = "false") boolean includeItems) {
+    return fundFlowService.job(jobId, includeItems);
+  }
+
+  @PostMapping("/fund-flows/jobs/{jobId}/retry-failures")
+  @io.swagger.v3.oas.annotations.Operation(summary = "기간자금유출입 수집 Job 실패 항목 재실행")
+  public ResponseEntity<
+          com.nanum.investment.marketdata.infrastructure.KofiaFundFlowRepository.JobView>
+      retryFundFlowJob(@PathVariable UUID jobId) {
+    return ResponseEntity.accepted().body(fundFlowService.retryFailures(jobId));
+  }
+
+  @GetMapping("/fund-flows/rows")
+  @io.swagger.v3.oas.annotations.Operation(summary = "조건 조합별 기간자금유출입 일별 데이터 조회")
+  public List<Map<String, Object>> fundFlowRows(
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+      @RequestParam(defaultValue = "ALL_ACTIVE") String stage,
+      @RequestParam(defaultValue = "1000") int limit) {
+    return fundFlowService.rows(from, to, KofiaFundFlowVariant.Stage.from(stage), limit);
   }
 
   @GetMapping("/datasets")
@@ -128,4 +201,14 @@ public class KofiaController {
 
   public record StartJobRequest(
       @NotNull LocalDate from, @NotNull LocalDate to, List<String> datasetCodes) {}
+
+  public record StartFundFlowJobRequest(
+      @NotNull LocalDate from, @NotNull LocalDate to, @NotNull String stage) {}
+
+  public record RegisterFundFlowVariantRequest(
+      @NotNull String fundTypeCode,
+      @NotNull String fundKindCode,
+      @NotNull String offeringTypeCode,
+      @NotNull String managerCode,
+      @NotNull String etfIncludeYn) {}
 }

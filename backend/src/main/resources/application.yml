@@ -90,6 +90,11 @@ kofia:
   base-url: ${KOFIA_BASE_URL:https://freesis.kofia.or.kr}
   connect-timeout: ${KOFIA_CONNECT_TIMEOUT:5s}
   read-timeout: ${KOFIA_READ_TIMEOUT:30s}
+  fund-flow:
+    scheduler:
+      enabled: ${KOFIA_FUND_FLOW_SCHEDULER_ENABLED:false}
+      cron: ${KOFIA_FUND_FLOW_SCHEDULER_CRON:0 20 0 * * TUE-SAT}
+      zone: ${KOFIA_FUND_FLOW_SCHEDULER_ZONE:Asia/Seoul}
   scheduler:
     enabled: ${KOFIA_SCHEDULER_ENABLED:true}
     cron: ${KOFIA_SCHEDULER_CRON:0 40 23 * * MON-FRI}

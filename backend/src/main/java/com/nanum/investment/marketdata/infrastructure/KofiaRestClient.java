@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
 import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor;
 import com.nanum.investment.marketdata.domain.KofiaDataset;
+import com.nanum.investment.marketdata.domain.KofiaFundFlowVariant;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -61,29 +62,52 @@ public class KofiaRestClient implements KofiaClient {
       throw new IllegalArgumentException(dataset.name() + " Dataset은 일자별 요청이 필요합니다.");
     Map<String, Object> search = dataset.requestParameters(from, to);
     Map<String, Object> request = Map.of("dmSearch", search);
-    JsonNode response;
-    response =
-        circuitBreaker.execute(
-            "KOFIA",
-            failureThreshold,
-            openDuration,
-            () ->
-                externalCalls.execute(
-                    new ExternalApiCallExecutor.Call(
-                        "kofia." + dataset.name(),
-                        "KOFIA",
-                        dataset.name(),
-                        "POST",
-                        baseUrl + dataset.path(),
-                        request.toString()),
-                    () ->
-                        client
-                            .post()
-                            .uri(dataset.path())
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .body(request)
-                            .retrieve()
-                            .body(JsonNode.class)));
+    JsonNode response = execute(dataset.name(), dataset.path(), request);
+    return parse(dataset, from, to, search, response);
+  }
+
+  @Override
+  public KofiaResponse collectFundFlow(KofiaFundFlowVariant variant, LocalDate from, LocalDate to) {
+    Map<String, Object> search = variant.requestParameters(from, to);
+    Map<String, Object> request = Map.of("dmSearch", search);
+    JsonNode response =
+        execute(
+            "FUND_FLOW_PERIOD." + variant.parameterHash(),
+            KofiaDataset.FUND_FLOW_PERIOD.path(),
+            request);
+    return parse(KofiaDataset.FUND_FLOW_PERIOD, from, to, search, response);
+  }
+
+  private JsonNode execute(String operation, String path, Map<String, Object> request) {
+    return circuitBreaker.execute(
+        "KOFIA",
+        failureThreshold,
+        openDuration,
+        () ->
+            externalCalls.execute(
+                new ExternalApiCallExecutor.Call(
+                    "kofia." + operation,
+                    "KOFIA",
+                    operation,
+                    "POST",
+                    baseUrl + path,
+                    request.toString()),
+                () ->
+                    client
+                        .post()
+                        .uri(path)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(request)
+                        .retrieve()
+                        .body(JsonNode.class)));
+  }
+
+  private KofiaResponse parse(
+      KofiaDataset dataset,
+      LocalDate from,
+      LocalDate to,
+      Map<String, Object> search,
+      JsonNode response) {
     if (response == null || !response.path("ds1").isArray())
       throw new IllegalStateException("KOFIA 응답에 ds1 배열이 없습니다.");
     List<KofiaRow> rows = new ArrayList<>();
