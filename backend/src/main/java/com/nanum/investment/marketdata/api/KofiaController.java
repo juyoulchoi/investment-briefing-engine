@@ -4,6 +4,7 @@ import com.nanum.investment.marketdata.application.KofiaCatalogService;
 import com.nanum.investment.marketdata.application.KofiaCollectionService;
 import com.nanum.investment.marketdata.application.KofiaCollectionService.CollectionView;
 import com.nanum.investment.marketdata.application.KofiaCollectionService.DatasetView;
+import com.nanum.investment.marketdata.application.KofiaLookupService;
 import com.nanum.investment.marketdata.domain.KofiaDataset;
 import com.nanum.investment.marketdata.infrastructure.KofiaRepository.JobView;
 import jakarta.validation.Valid;
@@ -24,10 +25,15 @@ import org.springframework.web.bind.annotation.*;
 public class KofiaController {
   private final KofiaCollectionService service;
   private final KofiaCatalogService catalogService;
+  private final KofiaLookupService lookupService;
 
-  public KofiaController(KofiaCollectionService service, KofiaCatalogService catalogService) {
+  public KofiaController(
+      KofiaCollectionService service,
+      KofiaCatalogService catalogService,
+      KofiaLookupService lookupService) {
     this.service = service;
     this.catalogService = catalogService;
+    this.lookupService = lookupService;
   }
 
   @PostMapping("/catalog/sync")
@@ -40,6 +46,25 @@ public class KofiaController {
   @io.swagger.v3.oas.annotations.Operation(summary = "FreeSIS 서비스 카탈로그 조회")
   public List<Map<String, Object>> catalogServices() {
     return catalogService.services();
+  }
+
+  @PostMapping("/lookups/collect")
+  @io.swagger.v3.oas.annotations.Operation(summary = "FreeSIS 업종 및 회사 검색 기준정보 수집")
+  public KofiaLookupService.CollectionView collectLookups() {
+    return lookupService.collectAll();
+  }
+
+  @GetMapping("/lookups/businesses")
+  @io.swagger.v3.oas.annotations.Operation(summary = "FreeSIS 업종 검색 기준정보 조회")
+  public List<Map<String, Object>> businesses(@RequestParam String marketType) {
+    return lookupService.businesses(marketType);
+  }
+
+  @GetMapping("/lookups/companies")
+  @io.swagger.v3.oas.annotations.Operation(summary = "FreeSIS 운용회사 및 판매회사 기준정보 조회")
+  public List<Map<String, Object>> companies(
+      @RequestParam String tableName, @RequestParam String companyType) {
+    return lookupService.companies(tableName, companyType);
   }
 
   @GetMapping("/datasets")

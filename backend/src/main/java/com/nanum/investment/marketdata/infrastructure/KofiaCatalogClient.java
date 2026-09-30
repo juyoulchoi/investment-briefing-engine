@@ -74,6 +74,33 @@ public class KofiaCatalogClient {
     return response;
   }
 
+  public JsonNode businesses(String marketType) {
+    JsonNode response =
+        post(
+            "/app/businessSearch/statComBusinessSearchBO.do",
+            Map.of("dmBusinessSearch", Map.of("tmpV1", marketType, "tmpV2", "")));
+    validateList(response, "KOFIA 업종검색");
+    return response;
+  }
+
+  public JsonNode companies(String tableName, String companyType) {
+    JsonNode response =
+        post(
+            "/app/companySearch/statComCompanySearchBO.do",
+            Map.of(
+                "dmCompanySearch",
+                Map.of("searchNm", "", "tableNm", tableName, "tmpV18", companyType)));
+    validateList(response, "KOFIA 회사검색");
+    return response;
+  }
+
+  private void validateList(JsonNode response, String name) {
+    if (response == null
+        || !response.path("success").asBoolean()
+        || !response.path("dsList").isArray())
+      throw new IllegalStateException(name + " 응답이 올바르지 않습니다.");
+  }
+
   private JsonNode post(String path, Object body) {
     return client
         .post()

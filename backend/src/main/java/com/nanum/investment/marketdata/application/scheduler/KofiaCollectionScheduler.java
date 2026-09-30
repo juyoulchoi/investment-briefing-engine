@@ -1,6 +1,7 @@
 package com.nanum.investment.marketdata.application.scheduler;
 
 import com.nanum.investment.marketdata.application.KofiaCollectionService;
+import com.nanum.investment.marketdata.application.KofiaLookupService;
 import com.nanum.investment.marketdata.infrastructure.KofiaRepository.JobView;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -38,19 +39,26 @@ public class KofiaCollectionScheduler {
   private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
   private final KofiaCollectionService service;
+  private final KofiaLookupService lookupService;
   private final int overlapDays;
   private final Clock clock;
 
   @Autowired
   public KofiaCollectionScheduler(
       KofiaCollectionService service,
+      KofiaLookupService lookupService,
       @Value("${kofia.scheduler.overlap-days:21}") int overlapDays) {
-    this(service, overlapDays, Clock.system(SEOUL));
+    this(service, lookupService, overlapDays, Clock.system(SEOUL));
   }
 
-  KofiaCollectionScheduler(KofiaCollectionService service, int overlapDays, Clock clock) {
+  KofiaCollectionScheduler(
+      KofiaCollectionService service,
+      KofiaLookupService lookupService,
+      int overlapDays,
+      Clock clock) {
     if (overlapDays < 1) throw new IllegalArgumentException("KOFIA 중첩 수집일은 1일 이상이어야 합니다.");
     this.service = service;
+    this.lookupService = lookupService;
     this.overlapDays = overlapDays;
     this.clock = clock;
   }
@@ -72,6 +80,15 @@ public class KofiaCollectionScheduler {
     } catch (Exception error) {
       log.error(
           "KOFIA 일일 중첩 수집 Job 생성 실패. from={}, to={}, datasets={}", from, to, DAILY_DATASETS, error);
+    }
+    try {
+      var result = lookupService.collectAll();
+      log.info(
+          "KOFIA 업종 및 회사 기준정보 수집 완료. totalRows={}, scopes={}",
+          result.totalRowCount(),
+          result.scopes());
+    } catch (Exception error) {
+      log.error("KOFIA 업종 및 회사 기준정보 수집 실패.", error);
     }
   }
 }

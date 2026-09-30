@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.nanum.investment.marketdata.application.KofiaCollectionService;
+import com.nanum.investment.marketdata.application.KofiaLookupService;
 import com.nanum.investment.marketdata.infrastructure.KofiaRepository.JobView;
 import java.time.Clock;
 import java.time.Instant;
@@ -19,8 +20,10 @@ class KofiaCollectionSchedulerTest {
   @Test
   void startsOverlappingCollectionForScheduledDatasets() {
     KofiaCollectionService service = mock(KofiaCollectionService.class);
+    KofiaLookupService lookupService = mock(KofiaLookupService.class);
     Clock clock = Clock.fixed(Instant.parse("2026-09-25T14:40:00Z"), ZoneId.of("Asia/Seoul"));
-    KofiaCollectionScheduler scheduler = new KofiaCollectionScheduler(service, 21, clock);
+    KofiaCollectionScheduler scheduler =
+        new KofiaCollectionScheduler(service, lookupService, 21, clock);
     JobView job = mock(JobView.class);
     when(job.jobId()).thenReturn(UUID.randomUUID());
     when(service.startJob(
@@ -36,6 +39,7 @@ class KofiaCollectionSchedulerTest {
             java.time.LocalDate.of(2026, 9, 5),
             java.time.LocalDate.of(2026, 9, 25),
             KofiaCollectionScheduler.DAILY_DATASETS);
+    verify(lookupService).collectAll();
 
     assertThat(KofiaCollectionScheduler.DAILY_DATASETS)
         .containsExactly(
