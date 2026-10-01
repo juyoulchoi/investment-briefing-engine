@@ -112,6 +112,7 @@ kofia:
     overlap-days: ${KOFIA_SCHEDULER_OVERLAP_DAYS:21}
   collection:
     min-request-interval: ${KOFIA_MIN_REQUEST_INTERVAL:250ms}
+    executor-pool-size: ${KOFIA_EXECUTOR_POOL_SIZE:2}
   circuit-breaker:
     failure-threshold: ${KOFIA_CIRCUIT_FAILURE_THRESHOLD:5}
     open-duration: ${KOFIA_CIRCUIT_OPEN_DURATION:60s}
