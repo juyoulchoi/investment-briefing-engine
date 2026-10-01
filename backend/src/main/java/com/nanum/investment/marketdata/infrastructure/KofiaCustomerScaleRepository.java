@@ -132,7 +132,7 @@ public class KofiaCustomerScaleRepository {
     if (overlap) throw new IllegalStateException("기간이 겹치는 활성 고객유형별규모 Job이 있습니다.");
     List<KofiaCustomerScaleVariant> variants = variants(stage);
     if (variants.isEmpty()) throw new IllegalStateException("수집할 활성 파라미터 조합이 없습니다: " + stage);
-    List<LocalDate> dates = monthEnds(from, to);
+    List<LocalDate> dates = monthlySnapshotDates(from, to);
     if (dates.isEmpty()) throw new IllegalStateException("수집 기간에 월말 기준일이 없습니다.");
     int total = Math.multiplyExact(variants.size(), dates.size());
     jdbc.sql(
@@ -480,12 +480,12 @@ public class KofiaCustomerScaleRepository {
         rs.getString("PARAM_HASH"));
   }
 
-  private List<LocalDate> monthEnds(LocalDate from, LocalDate to) {
+  static List<LocalDate> monthlySnapshotDates(LocalDate from, LocalDate to) {
     List<LocalDate> dates = new ArrayList<>();
-    for (YearMonth month = YearMonth.from(from);
-        !month.atEndOfMonth().isAfter(to);
-        month = month.plusMonths(1)) {
+    for (YearMonth month = YearMonth.from(from); ; month = month.plusMonths(1)) {
       LocalDate date = month.atEndOfMonth();
+      while (date.getDayOfWeek().getValue() >= 6) date = date.minusDays(1);
+      if (date.isAfter(to)) break;
       if (!date.isBefore(from)) dates.add(date);
     }
     return dates;
