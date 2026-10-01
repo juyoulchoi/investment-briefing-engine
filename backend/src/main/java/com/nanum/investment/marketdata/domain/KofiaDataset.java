@@ -23,9 +23,15 @@ public enum KofiaDataset {
       "STATBND0100000270BO",
       "채권 > 투자자별거래현황 장외",
       CollectionMode.PERIOD_ROWS,
-      false,
+      true,
       List.of("TMPV1", "TMPV2"),
-      Map.of("tmpV67", "1", "tmpV76", "0", "tmpV77", "0", "tmpV92", "0", "tmpV93", "0")),
+      Map.of(
+          "tmpV40", "100000000",
+          "tmpV67", "1",
+          "tmpV76", "00",
+          "tmpV77", "00",
+          "tmpV92", "00",
+          "tmpV93", "00")),
   FUND_FLOW_PERIOD(
       "STATFND0100100030",
       "STATFND0100100030BO",

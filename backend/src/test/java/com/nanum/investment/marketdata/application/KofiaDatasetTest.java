@@ -41,7 +41,8 @@ class KofiaDatasetTest {
         .containsExactlyInAnyOrder(
             KofiaDataset.CREDIT_BALANCE_TREND,
             KofiaDataset.SECURITIES_LENDING_TREND,
-            KofiaDataset.MARKET_FUNDS_TREND);
+            KofiaDataset.MARKET_FUNDS_TREND,
+            KofiaDataset.OTC_INVESTOR_TRADING);
   }
 
   @Test
@@ -93,6 +94,18 @@ class KofiaDatasetTest {
         .containsEntry("tmpV19", "Y")
         .containsEntry("tmpV34", "20240331")
         .containsEntry("OBJ_NM", "STATFND0200100040BO");
+    assertThat(KofiaDataset.OTC_INVESTOR_TRADING.requestParameters(from, to))
+        .containsEntry("tmpV1", "D")
+        .containsEntry("tmpV40", "100000000")
+        .containsEntry("tmpV41", "1")
+        .containsEntry("tmpV45", "20240101")
+        .containsEntry("tmpV46", "20240331")
+        .containsEntry("tmpV67", "1")
+        .containsEntry("tmpV76", "00")
+        .containsEntry("tmpV77", "00")
+        .containsEntry("tmpV92", "00")
+        .containsEntry("tmpV93", "00")
+        .containsEntry("OBJ_NM", "STATBND0100000270BO");
     assertThat(KofiaDataset.FINAL_QUOTED_YIELD.requestParameters(to, to))
         .containsEntry("tmpV45", "20240331")
         .containsEntry("tmpV46", "20240331")
@@ -110,12 +123,17 @@ class KofiaDatasetTest {
   void usesOneForCommonFreeSisControlParameters() {
     LocalDate date = LocalDate.of(2026, 9, 29);
 
-    assertThat(Arrays.stream(KofiaDataset.values()))
+    assertThat(
+            Arrays.stream(KofiaDataset.values())
+                .filter(dataset -> dataset != KofiaDataset.OTC_INVESTOR_TRADING))
         .allSatisfy(
             dataset ->
                 assertThat(dataset.requestParameters(date, date))
                     .containsEntry("tmpV40", "1")
                     .containsEntry("tmpV41", "1"));
+    assertThat(KofiaDataset.OTC_INVESTOR_TRADING.requestParameters(date, date))
+        .containsEntry("tmpV40", "100000000")
+        .containsEntry("tmpV41", "1");
   }
 
   @Test

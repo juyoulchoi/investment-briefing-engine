@@ -2,6 +2,7 @@ package com.nanum.investment.marketdata.infrastructure;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nanum.investment.marketdata.domain.KofiaDataset;
+import com.nanum.investment.marketdata.domain.KofiaOtcBondInvestorTrade;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -76,8 +77,51 @@ public class KofiaRepository {
       if (dataset == KofiaDataset.CREDIT_BALANCE_TREND) saveCreditBalance(row, rowHash);
       if (dataset == KofiaDataset.SECURITIES_LENDING_TREND) saveSecuritiesLending(row, rowHash);
       if (dataset == KofiaDataset.MARKET_FUNDS_TREND) saveMarketFunds(row, rowHash);
+      if (dataset == KofiaDataset.OTC_INVESTOR_TRADING)
+        saveOtcBondInvestorTrades(row, from, to, requestParameters, rowHash);
     }
     return rows.size();
+  }
+
+  private void saveOtcBondInvestorTrades(
+      KofiaClient.KofiaRow row,
+      LocalDate from,
+      LocalDate to,
+      Map<String, Object> requestParameters,
+      String hash) {
+    for (KofiaOtcBondInvestorTrade value :
+        KofiaOtcBondInvestorTrade.from(row.payload(), from, to, requestParameters)) {
+      jdbc.sql(
+              """
+          INSERT INTO "TB_KOFIA_BND_OTC_INV_TRD"(
+            "DATA_PRD_CD","FROM_DT","TO_DT","VALUE_TYP_CD","TRADE_TYP_NM","BOND_TYP_NM",
+            "INVESTOR_TYP_CD","INVESTOR_TYP_NM","REMAIN_FROM_MON","REMAIN_TO_MON",
+            "UNIT_MULTIPLIER","TRD_VALUE","RAW_HASH")
+          VALUES(:period,:from,:to,:valueType,:tradeType,:bondType,:investorType,:investorName,
+            :remainFrom,:remainTo,:unitMultiplier,:value,:hash)
+          ON CONFLICT("DATA_PRD_CD","FROM_DT","TO_DT","VALUE_TYP_CD","TRADE_TYP_NM",
+            "BOND_TYP_NM","INVESTOR_TYP_CD","REMAIN_FROM_MON","REMAIN_TO_MON") DO UPDATE SET
+            "INVESTOR_TYP_NM"=EXCLUDED."INVESTOR_TYP_NM",
+            "UNIT_MULTIPLIER"=EXCLUDED."UNIT_MULTIPLIER","TRD_VALUE"=EXCLUDED."TRD_VALUE",
+            "RAW_HASH"=EXCLUDED."RAW_HASH","DATA_STS"='FRESH',"COLLECT_DTTM"=CURRENT_TIMESTAMP,
+            "UPD_DTTM"=CASE WHEN "TB_KOFIA_BND_OTC_INV_TRD"."RAW_HASH"<>EXCLUDED."RAW_HASH"
+              THEN CURRENT_TIMESTAMP ELSE "TB_KOFIA_BND_OTC_INV_TRD"."UPD_DTTM" END
+          """)
+          .param("period", value.dataPeriodCode())
+          .param("from", value.from())
+          .param("to", value.to())
+          .param("valueType", value.valueTypeCode())
+          .param("tradeType", value.tradeTypeName())
+          .param("bondType", value.bondTypeName())
+          .param("investorType", value.investorTypeCode())
+          .param("investorName", value.investorTypeName())
+          .param("remainFrom", value.remainingFromMonths())
+          .param("remainTo", value.remainingToMonths())
+          .param("unitMultiplier", value.unitMultiplier())
+          .param("value", value.value())
+          .param("hash", hash)
+          .update();
+    }
   }
 
   private void saveSecuritiesLending(KofiaClient.KofiaRow row, String hash) {
@@ -214,6 +258,28 @@ public class KofiaRepository {
           "DATA_STS" data_status,"COLLECT_DTTM" collected_at,"UPD_DTTM" updated_at
         FROM "TB_KOFIA_CRDT_BAL_DAY" WHERE "BASE_DT" BETWEEN :from AND :to
         ORDER BY "BASE_DT" DESC LIMIT :limit
+        """)
+        .param("from", from)
+        .param("to", to)
+        .param("limit", Math.min(Math.max(limit, 1), 10000))
+        .query()
+        .listOfRows();
+  }
+
+  public List<Map<String, Object>> otcBondInvestorTrades(LocalDate from, LocalDate to, int limit) {
+    return jdbc.sql(
+            """
+        SELECT "DATA_PRD_CD" data_period_code,"FROM_DT" from_date,"TO_DT" to_date,
+          "VALUE_TYP_CD" value_type_code,"TRADE_TYP_NM" trade_type_name,
+          "BOND_TYP_NM" bond_type_name,"INVESTOR_TYP_CD" investor_type_code,
+          "INVESTOR_TYP_NM" investor_type_name,"REMAIN_FROM_MON" remaining_from_months,
+          "REMAIN_TO_MON" remaining_to_months,"UNIT_MULTIPLIER" unit_multiplier,
+          "TRD_VALUE" trade_value,"RAW_HASH" raw_hash,"DATA_STS" data_status,
+          "COLLECT_DTTM" collected_at,"UPD_DTTM" updated_at
+        FROM "TB_KOFIA_BND_OTC_INV_TRD"
+        WHERE "TO_DT" BETWEEN :from AND :to
+        ORDER BY "TO_DT" DESC,"TRADE_TYP_NM","BOND_TYP_NM","INVESTOR_TYP_CD"
+        LIMIT :limit
         """)
         .param("from", from)
         .param("to", to)

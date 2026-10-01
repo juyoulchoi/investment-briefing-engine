@@ -316,6 +316,15 @@ public class KofiaController {
     return service.creditBalances(from, to, limit);
   }
 
+  @GetMapping("/otc-bond-investor-trades")
+  @io.swagger.v3.oas.annotations.Operation(summary = "채권 장외 투자자별 기간 집계 거래 현황 조회")
+  public List<Map<String, Object>> otcBondInvestorTrades(
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+      @RequestParam(defaultValue = "1000") int limit) {
+    return service.otcBondInvestorTrades(from, to, limit);
+  }
+
   @GetMapping("/{datasetCode}/rows")
   @io.swagger.v3.oas.annotations.Operation(summary = "KOFIA Dataset 공통 원천행 기간 조회")
   public List<Map<String, Object>> dataRows(

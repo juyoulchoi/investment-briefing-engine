@@ -70,6 +70,11 @@ public class KofiaCollectionService {
     return repository.creditBalances(from, to, limit);
   }
 
+  public List<Map<String, Object>> otcBondInvestorTrades(LocalDate from, LocalDate to, int limit) {
+    validatePeriod(from, to);
+    return repository.otcBondInvestorTrades(from, to, limit);
+  }
+
   public List<Map<String, Object>> dataRows(
       KofiaDataset dataset, LocalDate from, LocalDate to, int limit) {
     validatePeriod(from, to);
