@@ -86,6 +86,13 @@ class KofiaDatasetTest {
         .containsEntry("tmpV38", "1")
         .containsEntry("OBJ_NM", "STATFND0100200180BO")
         .doesNotContainKeys("tmpV30", "tmpV31");
+    assertThat(KofiaDataset.ASSET_MANAGER_FUND_FLOW.requestParameters(to, to))
+        .containsEntry("tmpV3", "")
+        .containsEntry("tmpV5", "")
+        .containsEntry("tmpV7", "")
+        .containsEntry("tmpV19", "Y")
+        .containsEntry("tmpV34", "20240331")
+        .containsEntry("OBJ_NM", "STATFND0200100040BO");
     assertThat(KofiaDataset.FINAL_QUOTED_YIELD.requestParameters(to, to))
         .containsEntry("tmpV45", "20240331")
         .containsEntry("tmpV46", "20240331")

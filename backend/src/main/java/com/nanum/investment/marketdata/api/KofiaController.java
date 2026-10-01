@@ -4,9 +4,11 @@ import com.nanum.investment.marketdata.application.KofiaCatalogService;
 import com.nanum.investment.marketdata.application.KofiaCollectionService;
 import com.nanum.investment.marketdata.application.KofiaCollectionService.CollectionView;
 import com.nanum.investment.marketdata.application.KofiaCollectionService.DatasetView;
+import com.nanum.investment.marketdata.application.KofiaCompanyFundFlowService;
 import com.nanum.investment.marketdata.application.KofiaCustomerScaleService;
 import com.nanum.investment.marketdata.application.KofiaFundFlowService;
 import com.nanum.investment.marketdata.application.KofiaLookupService;
+import com.nanum.investment.marketdata.domain.KofiaCompanyFundFlowVariant;
 import com.nanum.investment.marketdata.domain.KofiaCustomerScaleVariant;
 import com.nanum.investment.marketdata.domain.KofiaDataset;
 import com.nanum.investment.marketdata.domain.KofiaFundFlowVariant;
@@ -32,18 +34,21 @@ public class KofiaController {
   private final KofiaLookupService lookupService;
   private final KofiaFundFlowService fundFlowService;
   private final KofiaCustomerScaleService customerScaleService;
+  private final KofiaCompanyFundFlowService companyFundFlowService;
 
   public KofiaController(
       KofiaCollectionService service,
       KofiaCatalogService catalogService,
       KofiaLookupService lookupService,
       KofiaFundFlowService fundFlowService,
-      KofiaCustomerScaleService customerScaleService) {
+      KofiaCustomerScaleService customerScaleService,
+      KofiaCompanyFundFlowService companyFundFlowService) {
     this.service = service;
     this.catalogService = catalogService;
     this.lookupService = lookupService;
     this.fundFlowService = fundFlowService;
     this.customerScaleService = customerScaleService;
+    this.companyFundFlowService = companyFundFlowService;
   }
 
   @PostMapping("/catalog/sync")
@@ -216,6 +221,77 @@ public class KofiaController {
     return customerScaleService.rows(from, to, KofiaCustomerScaleVariant.Stage.from(stage), limit);
   }
 
+  @PostMapping("/company-fund-flows/variants/sync")
+  @io.swagger.v3.oas.annotations.Operation(summary = "회사별자금유출입 단계별 수집 조합 동기화")
+  public KofiaCompanyFundFlowService.VariantSyncView syncCompanyFundFlowVariants() {
+    return companyFundFlowService.syncVariants();
+  }
+
+  @PostMapping("/company-fund-flows/variants")
+  @io.swagger.v3.oas.annotations.Operation(summary = "검증된 회사별자금유출입 교차 조합 등록")
+  public KofiaCompanyFundFlowVariant registerCompanyFundFlowVariant(
+      @Valid @RequestBody RegisterCompanyFundFlowVariantRequest request) {
+    return companyFundFlowService.registerValidVariant(
+        request.fundTypeCode(),
+        request.fundKindCode(),
+        request.offeringTypeCode(),
+        request.etfIncludeYn());
+  }
+
+  @GetMapping("/company-fund-flows/variants")
+  @io.swagger.v3.oas.annotations.Operation(summary = "회사별자금유출입 수집 조합 조회")
+  public List<Map<String, Object>> companyFundFlowVariants(
+      @RequestParam(defaultValue = "ALL_ACTIVE") String stage) {
+    return companyFundFlowService.variants(KofiaCompanyFundFlowVariant.Stage.from(stage));
+  }
+
+  @PostMapping("/company-fund-flows/jobs")
+  @io.swagger.v3.oas.annotations.Operation(summary = "회사별자금유출입 영업일 비동기 수집 Job 생성")
+  public ResponseEntity<
+          com.nanum.investment.marketdata.infrastructure.KofiaCompanyFundFlowRepository.JobView>
+      startCompanyFundFlowJob(@Valid @RequestBody StartCompanyFundFlowJobRequest request) {
+    return ResponseEntity.accepted()
+        .body(
+            companyFundFlowService.startJob(
+                KofiaCompanyFundFlowVariant.Stage.from(request.stage()),
+                request.from(),
+                request.to()));
+  }
+
+  @GetMapping("/company-fund-flows/jobs")
+  @io.swagger.v3.oas.annotations.Operation(summary = "회사별자금유출입 수집 Job 목록 조회")
+  public List<com.nanum.investment.marketdata.infrastructure.KofiaCompanyFundFlowRepository.JobView>
+      companyFundFlowJobs(@RequestParam(defaultValue = "20") int limit) {
+    return companyFundFlowService.jobs(limit);
+  }
+
+  @GetMapping("/company-fund-flows/jobs/{jobId}")
+  @io.swagger.v3.oas.annotations.Operation(summary = "회사별자금유출입 수집 Job 상세 조회")
+  public com.nanum.investment.marketdata.infrastructure.KofiaCompanyFundFlowRepository.JobView
+      companyFundFlowJob(
+          @PathVariable UUID jobId, @RequestParam(defaultValue = "false") boolean includeItems) {
+    return companyFundFlowService.job(jobId, includeItems);
+  }
+
+  @PostMapping("/company-fund-flows/jobs/{jobId}/retry-failures")
+  @io.swagger.v3.oas.annotations.Operation(summary = "회사별자금유출입 수집 Job 실패 항목 재실행")
+  public ResponseEntity<
+          com.nanum.investment.marketdata.infrastructure.KofiaCompanyFundFlowRepository.JobView>
+      retryCompanyFundFlowJob(@PathVariable UUID jobId) {
+    return ResponseEntity.accepted().body(companyFundFlowService.retryFailures(jobId));
+  }
+
+  @GetMapping("/company-fund-flows/rows")
+  @io.swagger.v3.oas.annotations.Operation(summary = "조건 조합별 회사별자금유출입 영업일 데이터 조회")
+  public List<Map<String, Object>> companyFundFlowRows(
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+      @RequestParam(defaultValue = "ALL_ACTIVE") String stage,
+      @RequestParam(defaultValue = "1000") int limit) {
+    return companyFundFlowService.rows(
+        from, to, KofiaCompanyFundFlowVariant.Stage.from(stage), limit);
+  }
+
   @GetMapping("/datasets")
   @io.swagger.v3.oas.annotations.Operation(summary = "KOFIA Dataset Registry 조회")
   public List<DatasetView> datasets() {
@@ -297,4 +373,13 @@ public class KofiaController {
       @NotNull String offeringTypeCode,
       @NotNull String sellerCode,
       @NotNull String metricTypeCode) {}
+
+  public record StartCompanyFundFlowJobRequest(
+      @NotNull LocalDate from, @NotNull LocalDate to, @NotNull String stage) {}
+
+  public record RegisterCompanyFundFlowVariantRequest(
+      @NotNull String fundTypeCode,
+      @NotNull String fundKindCode,
+      String offeringTypeCode,
+      @NotNull String etfIncludeYn) {}
 }

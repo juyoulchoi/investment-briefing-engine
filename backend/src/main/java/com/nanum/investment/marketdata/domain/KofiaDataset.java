@@ -61,7 +61,7 @@ public enum KofiaDataset {
       CollectionMode.AS_OF_DATE,
       false,
       List.of("TMPV98", "TMPV1"),
-      Map.of("tmpV3", "*", "tmpV5", "*", "tmpV7", "1", "tmpV19", "Y")),
+      Map.of("tmpV3", "", "tmpV5", "", "tmpV7", "", "tmpV19", "Y")),
   REAL_ESTATE_FUND_COMPANY_SCALE(
       "STATFND0200100130",
       "STATFND0200100130BO",
