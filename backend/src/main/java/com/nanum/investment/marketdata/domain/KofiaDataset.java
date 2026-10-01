@@ -14,10 +14,10 @@ public enum KofiaDataset {
       "STATBND0100000010",
       "STATBND0100000010BO",
       "채권 > 최종호가수익률",
-      CollectionMode.AS_OF_RANGE_DATE,
-      false,
+      CollectionMode.AS_OF_START_DATE,
+      true,
       List.of("TMPV1", "TMPV2"),
-      Map.of()),
+      Map.of("tmpV40", "", "tmpV41", "")),
   OTC_INVESTOR_TRADING(
       "STATBND0100000270",
       "STATBND0100000270BO",
@@ -105,17 +105,17 @@ public enum KofiaDataset {
       "STATSCU0100000020BO",
       "주식 > 유가증권시장",
       CollectionMode.DATE_RANGE,
-      false,
+      true,
       List.of(),
-      Map.of()),
+      Map.of("tmpV40", "100000000", "tmpV41", "10000")),
   KOSDAQ_MARKET(
       "STATSCU0100000030",
       "STATSCU0100000030BO",
       "주식 > 코스닥시장",
       CollectionMode.DATE_RANGE,
-      false,
+      true,
       List.of(),
-      Map.of()),
+      Map.of("tmpV40", "100000000", "tmpV41", "10000")),
   MARKET_FUNDS_TREND(
       "STATSCU0100000060",
       "STATSCU0100000060BO",
@@ -170,6 +170,7 @@ public enum KofiaDataset {
     MONTH_RANGE,
     PERIOD_ROWS,
     AS_OF_DATE,
+    AS_OF_START_DATE,
     AS_OF_RANGE_DATE
   }
 
@@ -224,6 +225,7 @@ public enum KofiaDataset {
 
   public boolean requiresSingleDateRequest() {
     return collectionMode == CollectionMode.AS_OF_DATE
+        || collectionMode == CollectionMode.AS_OF_START_DATE
         || collectionMode == CollectionMode.AS_OF_RANGE_DATE;
   }
 
@@ -239,6 +241,11 @@ public enum KofiaDataset {
         values.put("tmpV1", "D");
         values.put("tmpV45", fromValue);
         values.put("tmpV46", toValue);
+      }
+      case AS_OF_START_DATE -> {
+        values.put("tmpV1", "D");
+        values.put("tmpV45", fromValue);
+        values.put("tmpV46", "");
       }
       case MONTH_RANGE -> {
         values.put("tmpV30", fromValue);

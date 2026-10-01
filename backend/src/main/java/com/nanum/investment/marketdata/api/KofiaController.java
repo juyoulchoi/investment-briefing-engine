@@ -325,6 +325,25 @@ public class KofiaController {
     return service.otcBondInvestorTrades(from, to, limit);
   }
 
+  @GetMapping("/final-quoted-yields")
+  @io.swagger.v3.oas.annotations.Operation(summary = "최종호가수익률 기준일 스냅샷 조회")
+  public List<Map<String, Object>> finalQuotedYields(
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+      @RequestParam(defaultValue = "1000") int limit) {
+    return service.finalQuotedYields(from, to, limit);
+  }
+
+  @GetMapping("/equity-market-statistics")
+  @io.swagger.v3.oas.annotations.Operation(summary = "KOSPI 및 KOSDAQ 일별 시장 통계 조회")
+  public List<Map<String, Object>> equityMarketStatistics(
+      @RequestParam String marketCode,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+      @RequestParam(defaultValue = "1000") int limit) {
+    return service.equityMarketStatistics(marketCode, from, to, limit);
+  }
+
   @GetMapping("/{datasetCode}/rows")
   @io.swagger.v3.oas.annotations.Operation(summary = "KOFIA Dataset 공통 원천행 기간 조회")
   public List<Map<String, Object>> dataRows(

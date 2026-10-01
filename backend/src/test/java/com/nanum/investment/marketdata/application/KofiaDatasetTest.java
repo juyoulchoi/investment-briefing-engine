@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nanum.investment.marketdata.domain.KofiaDataset;
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -42,7 +43,10 @@ class KofiaDatasetTest {
             KofiaDataset.CREDIT_BALANCE_TREND,
             KofiaDataset.SECURITIES_LENDING_TREND,
             KofiaDataset.MARKET_FUNDS_TREND,
-            KofiaDataset.OTC_INVESTOR_TRADING);
+            KofiaDataset.OTC_INVESTOR_TRADING,
+            KofiaDataset.FINAL_QUOTED_YIELD,
+            KofiaDataset.KOSPI_MARKET,
+            KofiaDataset.KOSDAQ_MARKET);
   }
 
   @Test
@@ -107,9 +111,27 @@ class KofiaDatasetTest {
         .containsEntry("tmpV93", "00")
         .containsEntry("OBJ_NM", "STATBND0100000270BO");
     assertThat(KofiaDataset.FINAL_QUOTED_YIELD.requestParameters(to, to))
+        .containsEntry("tmpV1", "D")
         .containsEntry("tmpV45", "20240331")
-        .containsEntry("tmpV46", "20240331")
+        .containsEntry("tmpV46", "")
+        .containsEntry("tmpV40", "")
+        .containsEntry("tmpV41", "")
+        .containsEntry("OBJ_NM", "STATBND0100000010BO")
         .doesNotContainKey("tmpV34");
+    assertThat(KofiaDataset.KOSPI_MARKET.requestParameters(from, to))
+        .containsEntry("tmpV1", "D")
+        .containsEntry("tmpV40", "100000000")
+        .containsEntry("tmpV41", "10000")
+        .containsEntry("tmpV45", "20240101")
+        .containsEntry("tmpV46", "20240331")
+        .containsEntry("OBJ_NM", "STATSCU0100000020BO");
+    assertThat(KofiaDataset.KOSDAQ_MARKET.requestParameters(from, to))
+        .containsEntry("tmpV1", "D")
+        .containsEntry("tmpV40", "100000000")
+        .containsEntry("tmpV41", "10000")
+        .containsEntry("tmpV45", "20240101")
+        .containsEntry("tmpV46", "20240331")
+        .containsEntry("OBJ_NM", "STATSCU0100000030BO");
     assertThat(KofiaDataset.SECURITIES_LENDING_DETAILS.requestParameters(to, to))
         .containsEntry("tmpV1", "D")
         .containsEntry("tmpV45", "20240331")
@@ -125,7 +147,14 @@ class KofiaDatasetTest {
 
     assertThat(
             Arrays.stream(KofiaDataset.values())
-                .filter(dataset -> dataset != KofiaDataset.OTC_INVESTOR_TRADING))
+                .filter(
+                    dataset ->
+                        !List.of(
+                                KofiaDataset.OTC_INVESTOR_TRADING,
+                                KofiaDataset.FINAL_QUOTED_YIELD,
+                                KofiaDataset.KOSPI_MARKET,
+                                KofiaDataset.KOSDAQ_MARKET)
+                            .contains(dataset)))
         .allSatisfy(
             dataset ->
                 assertThat(dataset.requestParameters(date, date))

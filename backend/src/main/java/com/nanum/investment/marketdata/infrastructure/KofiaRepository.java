@@ -2,6 +2,8 @@ package com.nanum.investment.marketdata.infrastructure;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nanum.investment.marketdata.domain.KofiaDataset;
+import com.nanum.investment.marketdata.domain.KofiaEquityMarketStatistic;
+import com.nanum.investment.marketdata.domain.KofiaFinalQuotedYield;
 import com.nanum.investment.marketdata.domain.KofiaOtcBondInvestorTrade;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -79,8 +81,82 @@ public class KofiaRepository {
       if (dataset == KofiaDataset.MARKET_FUNDS_TREND) saveMarketFunds(row, rowHash);
       if (dataset == KofiaDataset.OTC_INVESTOR_TRADING)
         saveOtcBondInvestorTrades(row, from, to, requestParameters, rowHash);
+      if (dataset == KofiaDataset.FINAL_QUOTED_YIELD) saveFinalQuotedYield(row, rowHash);
+      if (dataset == KofiaDataset.KOSPI_MARKET || dataset == KofiaDataset.KOSDAQ_MARKET)
+        saveEquityMarketStatistic(dataset, row, requestParameters, rowHash);
     }
     return rows.size();
+  }
+
+  private void saveFinalQuotedYield(KofiaClient.KofiaRow row, String hash) {
+    KofiaFinalQuotedYield value = KofiaFinalQuotedYield.from(row.baseDate(), row.payload());
+    jdbc.sql(
+            """
+        INSERT INTO "TB_KOFIA_FINAL_QUOTE_YLD"(
+          "BASE_DT","INSTRUMENT_NM","REMAIN_TERM_NM","MORNING_YLD_RT","AFTERNOON_YLD_RT",
+          "DAY_CHG_PT","PREV_YLD_RT","YEAR_HIGH_YLD_RT","YEAR_LOW_YLD_RT","RAW_HASH")
+        VALUES(:day,:instrument,:remaining,:morning,:afternoon,:change,:previous,:yearHigh,
+          :yearLow,:hash)
+        ON CONFLICT("BASE_DT","INSTRUMENT_NM","REMAIN_TERM_NM") DO UPDATE SET
+          "MORNING_YLD_RT"=EXCLUDED."MORNING_YLD_RT",
+          "AFTERNOON_YLD_RT"=EXCLUDED."AFTERNOON_YLD_RT",
+          "DAY_CHG_PT"=EXCLUDED."DAY_CHG_PT","PREV_YLD_RT"=EXCLUDED."PREV_YLD_RT",
+          "YEAR_HIGH_YLD_RT"=EXCLUDED."YEAR_HIGH_YLD_RT",
+          "YEAR_LOW_YLD_RT"=EXCLUDED."YEAR_LOW_YLD_RT","RAW_HASH"=EXCLUDED."RAW_HASH",
+          "DATA_STS"='FRESH',"COLLECT_DTTM"=CURRENT_TIMESTAMP,
+          "UPD_DTTM"=CASE WHEN "TB_KOFIA_FINAL_QUOTE_YLD"."RAW_HASH"<>EXCLUDED."RAW_HASH"
+            THEN CURRENT_TIMESTAMP ELSE "TB_KOFIA_FINAL_QUOTE_YLD"."UPD_DTTM" END
+        """)
+        .param("day", value.baseDate())
+        .param("instrument", value.instrumentName())
+        .param("remaining", value.remainingTermName())
+        .param("morning", value.morningYieldRate())
+        .param("afternoon", value.afternoonYieldRate())
+        .param("change", value.dayChangePoint())
+        .param("previous", value.previousYieldRate())
+        .param("yearHigh", value.yearHighYieldRate())
+        .param("yearLow", value.yearLowYieldRate())
+        .param("hash", hash)
+        .update();
+  }
+
+  private void saveEquityMarketStatistic(
+      KofiaDataset dataset,
+      KofiaClient.KofiaRow row,
+      Map<String, Object> requestParameters,
+      String hash) {
+    KofiaEquityMarketStatistic value =
+        KofiaEquityMarketStatistic.from(dataset, row.payload(), requestParameters);
+    jdbc.sql(
+            """
+        INSERT INTO "TB_KOFIA_EQUITY_MKT_DAY"(
+          "MKT_CD","BASE_DT","INDEX_VAL","TRD_QTY","TRD_AMT","MKT_CAP","FOREIGN_MKT_CAP",
+          "FOREIGN_MKT_CAP_RT","QTY_UNIT_MULTIPLIER","AMT_UNIT_MULTIPLIER","RAW_HASH")
+        VALUES(:market,:day,:indexValue,:quantity,:amount,:marketCap,:foreignMarketCap,
+          :foreignRate,:quantityUnit,:amountUnit,:hash)
+        ON CONFLICT("MKT_CD","BASE_DT") DO UPDATE SET
+          "INDEX_VAL"=EXCLUDED."INDEX_VAL","TRD_QTY"=EXCLUDED."TRD_QTY",
+          "TRD_AMT"=EXCLUDED."TRD_AMT","MKT_CAP"=EXCLUDED."MKT_CAP",
+          "FOREIGN_MKT_CAP"=EXCLUDED."FOREIGN_MKT_CAP",
+          "FOREIGN_MKT_CAP_RT"=EXCLUDED."FOREIGN_MKT_CAP_RT",
+          "QTY_UNIT_MULTIPLIER"=EXCLUDED."QTY_UNIT_MULTIPLIER",
+          "AMT_UNIT_MULTIPLIER"=EXCLUDED."AMT_UNIT_MULTIPLIER",
+          "RAW_HASH"=EXCLUDED."RAW_HASH","DATA_STS"='FRESH',"COLLECT_DTTM"=CURRENT_TIMESTAMP,
+          "UPD_DTTM"=CASE WHEN "TB_KOFIA_EQUITY_MKT_DAY"."RAW_HASH"<>EXCLUDED."RAW_HASH"
+            THEN CURRENT_TIMESTAMP ELSE "TB_KOFIA_EQUITY_MKT_DAY"."UPD_DTTM" END
+        """)
+        .param("market", value.marketCode())
+        .param("day", row.baseDate())
+        .param("indexValue", value.indexValue())
+        .param("quantity", value.tradingQuantity())
+        .param("amount", value.tradingAmount())
+        .param("marketCap", value.marketCapitalization())
+        .param("foreignMarketCap", value.foreignMarketCapitalization())
+        .param("foreignRate", value.foreignMarketCapitalizationRate())
+        .param("quantityUnit", value.quantityUnitMultiplier())
+        .param("amountUnit", value.amountUnitMultiplier())
+        .param("hash", hash)
+        .update();
   }
 
   private void saveOtcBondInvestorTrades(
@@ -281,6 +357,48 @@ public class KofiaRepository {
         ORDER BY "TO_DT" DESC,"TRADE_TYP_NM","BOND_TYP_NM","INVESTOR_TYP_CD"
         LIMIT :limit
         """)
+        .param("from", from)
+        .param("to", to)
+        .param("limit", Math.min(Math.max(limit, 1), 10000))
+        .query()
+        .listOfRows();
+  }
+
+  public List<Map<String, Object>> finalQuotedYields(LocalDate from, LocalDate to, int limit) {
+    return jdbc.sql(
+            """
+        SELECT "BASE_DT" base_date,"INSTRUMENT_NM" instrument_name,
+          "REMAIN_TERM_NM" remaining_term_name,"MORNING_YLD_RT" morning_yield_rate,
+          "AFTERNOON_YLD_RT" afternoon_yield_rate,"DAY_CHG_PT" day_change_point,
+          "PREV_YLD_RT" previous_yield_rate,"YEAR_HIGH_YLD_RT" year_high_yield_rate,
+          "YEAR_LOW_YLD_RT" year_low_yield_rate,"RAW_HASH" raw_hash,"DATA_STS" data_status,
+          "COLLECT_DTTM" collected_at,"UPD_DTTM" updated_at
+        FROM "TB_KOFIA_FINAL_QUOTE_YLD" WHERE "BASE_DT" BETWEEN :from AND :to
+        ORDER BY "BASE_DT" DESC,"INSTRUMENT_NM","REMAIN_TERM_NM" LIMIT :limit
+        """)
+        .param("from", from)
+        .param("to", to)
+        .param("limit", Math.min(Math.max(limit, 1), 10000))
+        .query()
+        .listOfRows();
+  }
+
+  public List<Map<String, Object>> equityMarketStatistics(
+      String marketCode, LocalDate from, LocalDate to, int limit) {
+    return jdbc.sql(
+            """
+        SELECT "MKT_CD" market_code,"BASE_DT" base_date,"INDEX_VAL" index_value,
+          "TRD_QTY" trading_quantity,"TRD_AMT" trading_amount,"MKT_CAP" market_capitalization,
+          "FOREIGN_MKT_CAP" foreign_market_capitalization,
+          "FOREIGN_MKT_CAP_RT" foreign_market_capitalization_rate,
+          "QTY_UNIT_MULTIPLIER" quantity_unit_multiplier,
+          "AMT_UNIT_MULTIPLIER" amount_unit_multiplier,"RAW_HASH" raw_hash,
+          "DATA_STS" data_status,"COLLECT_DTTM" collected_at,"UPD_DTTM" updated_at
+        FROM "TB_KOFIA_EQUITY_MKT_DAY"
+        WHERE "MKT_CD"=:market AND "BASE_DT" BETWEEN :from AND :to
+        ORDER BY "BASE_DT" DESC LIMIT :limit
+        """)
+        .param("market", marketCode)
         .param("from", from)
         .param("to", to)
         .param("limit", Math.min(Math.max(limit, 1), 10000))

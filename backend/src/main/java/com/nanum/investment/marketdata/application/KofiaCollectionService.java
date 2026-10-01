@@ -13,6 +13,7 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -73,6 +74,20 @@ public class KofiaCollectionService {
   public List<Map<String, Object>> otcBondInvestorTrades(LocalDate from, LocalDate to, int limit) {
     validatePeriod(from, to);
     return repository.otcBondInvestorTrades(from, to, limit);
+  }
+
+  public List<Map<String, Object>> finalQuotedYields(LocalDate from, LocalDate to, int limit) {
+    validatePeriod(from, to);
+    return repository.finalQuotedYields(from, to, limit);
+  }
+
+  public List<Map<String, Object>> equityMarketStatistics(
+      String marketCode, LocalDate from, LocalDate to, int limit) {
+    validatePeriod(from, to);
+    String normalizedMarket = marketCode == null ? "" : marketCode.trim().toUpperCase(Locale.ROOT);
+    if (!List.of("KOSPI", "KOSDAQ").contains(normalizedMarket))
+      throw invalid("marketCode는 KOSPI 또는 KOSDAQ이어야 합니다.");
+    return repository.equityMarketStatistics(normalizedMarket, from, to, limit);
   }
 
   public List<Map<String, Object>> dataRows(
