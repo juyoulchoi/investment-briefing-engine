@@ -1,6 +1,7 @@
 package com.nanum.investment.marketdata.infrastructure;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.nanum.investment.marketdata.domain.KofiaCustomerScaleVariant;
 import com.nanum.investment.marketdata.domain.KofiaDataset;
 import com.nanum.investment.marketdata.domain.KofiaFundFlowVariant;
 import java.time.LocalDate;
@@ -11,6 +12,8 @@ public interface KofiaClient {
   KofiaResponse collect(KofiaDataset dataset, LocalDate from, LocalDate to);
 
   KofiaResponse collectFundFlow(KofiaFundFlowVariant variant, LocalDate from, LocalDate to);
+
+  KofiaResponse collectCustomerScale(KofiaCustomerScaleVariant variant, LocalDate baseDate);
 
   record KofiaResponse(
       JsonNode rawResponse, Map<String, Object> requestParameters, List<KofiaRow> rows) {}

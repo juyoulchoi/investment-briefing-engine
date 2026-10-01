@@ -37,15 +37,15 @@ public enum KofiaDataset {
           "tmpV37", "0", "tmpV5", "5", "tmpV7", "1", "tmpV3", "02", "tmpV11", "", "tmpV19", "Y",
           "tmpV40", "1", "tmpV41", "1")),
   CUSTOMER_TYPE_FUND_SCALE_PERIOD(
-      "STATFND0100200181",
-      "STATFND0100200181BO",
-      "펀드 > 기간고객유형별규모",
-      CollectionMode.MONTH_RANGE,
+      "STATFND0100200180",
+      "STATFND0100200180BO",
+      "펀드 > 고객유형별규모",
+      CollectionMode.AS_OF_DATE,
       false,
-      List.of(),
+      List.of("TMPV1"),
       Map.of(
-          "tmpV38", "1", "tmpV35", "8", "tmpV4", "*", "tmpV5", "*", "tmpV7", "1", "tmpV3", "*",
-          "tmpV13", "*")),
+          "tmpV38", "1", "tmpV4", "", "tmpV5", "", "tmpV7", "1", "tmpV13", "", "tmpV40", "1",
+          "tmpV41", "1")),
   FUND_COMPANY_SCALE(
       "STATFND0200100010",
       "STATFND0200100010BO",

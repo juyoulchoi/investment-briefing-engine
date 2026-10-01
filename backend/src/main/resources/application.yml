@@ -95,6 +95,11 @@ kofia:
       enabled: ${KOFIA_FUND_FLOW_SCHEDULER_ENABLED:false}
       cron: ${KOFIA_FUND_FLOW_SCHEDULER_CRON:0 20 0 * * TUE-SAT}
       zone: ${KOFIA_FUND_FLOW_SCHEDULER_ZONE:Asia/Seoul}
+  customer-scale:
+    scheduler:
+      enabled: ${KOFIA_CUSTOMER_SCALE_SCHEDULER_ENABLED:false}
+      cron: ${KOFIA_CUSTOMER_SCALE_SCHEDULER_CRON:0 40 0 10 * *}
+      zone: ${KOFIA_CUSTOMER_SCALE_SCHEDULER_ZONE:Asia/Seoul}
   scheduler:
     enabled: ${KOFIA_SCHEDULER_ENABLED:true}
     cron: ${KOFIA_SCHEDULER_CRON:0 40 23 * * MON-FRI}

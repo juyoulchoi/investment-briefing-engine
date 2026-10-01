@@ -52,7 +52,7 @@ class KofiaDatasetTest {
             Map.entry(KofiaDataset.CMA_DAILY_STATUS, "STATSCU0100000090BO"),
             Map.entry(KofiaDataset.CMA_BALANCE_TREND, "STATSCU0100000110BO"),
             Map.entry(KofiaDataset.FUND_FLOW_PERIOD, "STATFND0100100030BO"),
-            Map.entry(KofiaDataset.CUSTOMER_TYPE_FUND_SCALE_PERIOD, "STATFND0100200181BO"),
+            Map.entry(KofiaDataset.CUSTOMER_TYPE_FUND_SCALE_PERIOD, "STATFND0100200180BO"),
             Map.entry(KofiaDataset.ASSET_MANAGER_FUND_FLOW, "STATFND0200100040BO"),
             Map.entry(KofiaDataset.OTC_INVESTOR_TRADING, "STATBND0100000270BO"),
             Map.entry(KofiaDataset.FINAL_QUOTED_YIELD, "STATBND0100000010BO"),
@@ -81,6 +81,11 @@ class KofiaDatasetTest {
     assertThat(KofiaDataset.CMA_DAILY_STATUS.requestParameters(to, to))
         .containsEntry("tmpV34", "20240331")
         .doesNotContainKeys("tmpV45", "tmpV46");
+    assertThat(KofiaDataset.CUSTOMER_TYPE_FUND_SCALE_PERIOD.requestParameters(to, to))
+        .containsEntry("tmpV34", "20240331")
+        .containsEntry("tmpV38", "1")
+        .containsEntry("OBJ_NM", "STATFND0100200180BO")
+        .doesNotContainKeys("tmpV30", "tmpV31");
     assertThat(KofiaDataset.FINAL_QUOTED_YIELD.requestParameters(to, to))
         .containsEntry("tmpV45", "20240331")
         .containsEntry("tmpV46", "20240331")

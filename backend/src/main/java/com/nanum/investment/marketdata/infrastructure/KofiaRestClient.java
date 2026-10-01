@@ -3,6 +3,7 @@ package com.nanum.investment.marketdata.infrastructure;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
 import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor;
+import com.nanum.investment.marketdata.domain.KofiaCustomerScaleVariant;
 import com.nanum.investment.marketdata.domain.KofiaDataset;
 import com.nanum.investment.marketdata.domain.KofiaFundFlowVariant;
 import java.net.http.HttpClient;
@@ -76,6 +77,19 @@ public class KofiaRestClient implements KofiaClient {
             KofiaDataset.FUND_FLOW_PERIOD.path(),
             request);
     return parse(KofiaDataset.FUND_FLOW_PERIOD, from, to, search, response);
+  }
+
+  @Override
+  public KofiaResponse collectCustomerScale(KofiaCustomerScaleVariant variant, LocalDate baseDate) {
+    Map<String, Object> search = variant.requestParameters(baseDate);
+    Map<String, Object> request = Map.of("dmSearch", search);
+    JsonNode response =
+        execute(
+            "CUSTOMER_TYPE_FUND_SCALE_PERIOD." + variant.parameterHash(),
+            KofiaDataset.CUSTOMER_TYPE_FUND_SCALE_PERIOD.path(),
+            request);
+    return parse(
+        KofiaDataset.CUSTOMER_TYPE_FUND_SCALE_PERIOD, baseDate, baseDate, search, response);
   }
 
   private JsonNode execute(String operation, String path, Map<String, Object> request) {
