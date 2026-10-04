@@ -233,13 +233,17 @@ export default function VolumeConsolidationPage() {
   const pageRows = shown.slice((page - 1) * 50, page * 50);
 
   return (
-    <div className="volume-screen">
-      <section className="panel">
-        <h2>에너지 응축 후보 · 수집 후 자동 검색</h2>
-        <p>
-          월~토 오전 8시 20분 시세 수집이 끝나면 거래량·횡보 조건을 계산하고
-          결과를 저장합니다. 매집 확정이나 매수 지시를 뜻하지 않습니다.
-        </p>
+    <div className="page ref-page volume-screen">
+      <section className="card table ref-table">
+        <header className="head">
+          <div>
+            <h2>에너지 응축 후보 · 수집 후 자동 검색</h2>
+            <p>
+              월~토 오전 8시 20분 시세 수집이 끝나면 거래량·횡보 조건을 계산하고
+              결과를 저장합니다. 매집 확정이나 매수 지시를 뜻하지 않습니다.
+            </p>
+          </div>
+        </header>
         {runsError && (
           <p role="alert" className="form-error">
             {runsError}
@@ -301,7 +305,7 @@ export default function VolumeConsolidationPage() {
           </div>
         )}
       </section>
-      <section className="panel">
+      <section className="card volume-panel">
         <h2>거래량 증가·횡보 후보</h2>
         <p>
           최근 15거래일 가격 횡보와 거래 증가를 검색합니다. 순위는 조건 부합
@@ -360,7 +364,7 @@ export default function VolumeConsolidationPage() {
       </section>
       {screen && (
         <>
-          <section className="panel">
+          <section className="card volume-panel">
             <p>
               <strong>{savedLabel}</strong>
             </p>
@@ -427,40 +431,65 @@ export default function VolumeConsolidationPage() {
               </p>
             </details>
           </section>
-          <section className="panel">
-            <div className="volume-controls">
-              <label>
-                결과{" "}
-                <select
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                >
-                  <option value="matches">조건 통과</option>
-                  <option value="excluded">제외 종목</option>
-                  <option value="all">전체</option>
-                </select>
-              </label>
-              <label>
-                시장{" "}
-                <select
-                  value={market}
-                  onChange={(e) => setMarket(e.target.value)}
-                >
-                  <option value="">전체</option>
-                  <option>KOSPI</option>
-                  <option>KOSDAQ</option>
-                </select>
-              </label>
-              <label>
-                종목 검색{" "}
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="종목명 또는 코드"
-                />
-              </label>
-              <span>{shown.length}종목</span>
-            </div>
+          <section className="card table ref-table volume-results">
+            <header className="head list-tools">
+              <h3>
+                종목 검색 결과{" "}
+                <small>
+                  {num(shown.length, 0)}건 / 전체 {num(screen.universeCount, 0)}
+                  종목
+                </small>
+              </h3>
+              <div className="list-actions volume-controls">
+                <label>
+                  결과{" "}
+                  <select
+                    className="ref-search"
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                  >
+                    <option value="matches">조건 통과</option>
+                    <option value="excluded">제외 종목</option>
+                    <option value="all">전체</option>
+                  </select>
+                </label>
+                <label>
+                  시장{" "}
+                  <select
+                    className="ref-search"
+                    value={market}
+                    onChange={(e) => setMarket(e.target.value)}
+                  >
+                    <option value="">전체</option>
+                    <option>KOSPI</option>
+                    <option>KOSDAQ</option>
+                  </select>
+                </label>
+                <label>
+                  종목 검색{" "}
+                  <input
+                    className="ref-search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="종목명 또는 코드"
+                  />
+                </label>
+              </div>
+            </header>
+            {screen.matchCount === 0 && screen.universeCount > 0 && (
+              <p className="volume-empty-notice" role="status">
+                {num(screen.universeCount, 0)}종목을 조회했으며 현재 조건을 모두
+                통과한 종목은 없습니다.
+                {filter !== "all" && (
+                  <button
+                    className="edit-button"
+                    onClick={() => setFilter("all")}
+                  >
+                    전체 종목과 제외 사유 보기
+                  </button>
+                )}
+              </p>
+            )}
             <div className="tablewrap">
               <table>
                 <thead>
@@ -479,11 +508,13 @@ export default function VolumeConsolidationPage() {
                   {pageRows.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="data-state">
-                        {screen.dateCoverageStatus === "DATE_GAPS_UNVERIFIED"
-                          ? "저장일 기준 잠정 계산에서 통과 종목이 없습니다. 날짜 공백 확인 전에는 실제 최근 3주 결과로 확정할 수 없습니다."
-                          : screen.availableDays < 75
-                            ? "계산에 필요한 거래일이 부족합니다."
-                            : "해당 조건의 종목이 없습니다."}
+                        {filter !== "matches" || market || query
+                          ? "선택한 시장·종목 검색 조건에 해당하는 결과가 없습니다."
+                          : screen.dateCoverageStatus === "DATE_GAPS_UNVERIFIED"
+                            ? "저장일 기준 잠정 계산에서 통과 종목이 없습니다. 날짜 공백 확인 전에는 실제 최근 3주 결과로 확정할 수 없습니다."
+                            : screen.availableDays < 75
+                              ? "계산에 필요한 거래일이 부족합니다."
+                              : "해당 조건의 종목이 없습니다."}
                       </td>
                     </tr>
                   ) : (
@@ -540,23 +571,30 @@ export default function VolumeConsolidationPage() {
                 </tbody>
               </table>
             </div>
-            <div className="volume-controls volume-pagination">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                이전
-              </button>
+            <footer>
               <span>
-                {page} / {pages}
+                총 {num(shown.length, 0)}건 ·{" "}
+                {shown.length ? (page - 1) * 50 + 1 : 0}–
+                {Math.min(page * 50, shown.length)}건 표시
               </span>
-              <button
-                disabled={page >= pages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                다음
-              </button>
-            </div>
+              <div className="volume-pagination">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  이전
+                </button>
+                <span>
+                  {page} / {pages}
+                </span>
+                <button
+                  disabled={page >= pages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  다음
+                </button>
+              </div>
+            </footer>
           </section>
           {selected && (
             <section className="panel" aria-label="선택 종목 상세">
