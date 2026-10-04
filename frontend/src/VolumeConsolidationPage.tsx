@@ -91,6 +91,10 @@ const runStatus: Record<string, string> = {
   SKIPPED: "검색 생략",
 };
 const endpoint = "/api/v1/krx/screens/volume-consolidation";
+const todayInSeoul = () =>
+  new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(
+    new Date(),
+  );
 const num = (n: number | null | undefined, digits = 2) =>
   n == null
     ? "확인 불가"
@@ -112,7 +116,7 @@ async function request<T>(url: string, signal?: AbortSignal): Promise<T> {
 }
 
 export default function VolumeConsolidationPage() {
-  const [baseDate, setBaseDate] = useState("");
+  const [baseDate, setBaseDate] = useState(todayInSeoul);
   const [screen, setScreen] = useState<Screen | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -132,6 +136,7 @@ export default function VolumeConsolidationPage() {
   const activeTracking = useRef<AbortController | null>(null);
 
   const load = async (date: string, saved?: SearchRun) => {
+    const queryDate = date === todayInSeoul() ? "" : date;
     active.current?.abort();
     activeTracking.current?.abort();
     const controller = new AbortController();
@@ -153,7 +158,7 @@ export default function VolumeConsolidationPage() {
         await request<Screen>(
           saved
             ? `${endpoint}/runs/${saved.runId}/result`
-            : `${endpoint}${date ? `?baseDate=${date}` : ""}`,
+            : `${endpoint}${queryDate ? `?baseDate=${queryDate}` : ""}`,
           controller.signal,
         ),
       );
@@ -165,7 +170,7 @@ export default function VolumeConsolidationPage() {
     }
   };
   useEffect(() => {
-    void load("");
+    void load(todayInSeoul());
     const historyController = new AbortController();
     request<SearchRun[]>(`${endpoint}/runs`, historyController.signal)
       .then(setRuns)
@@ -322,6 +327,7 @@ export default function VolumeConsolidationPage() {
             조회 기준일{" "}
             <input
               type="date"
+              max={todayInSeoul()}
               value={baseDate}
               onChange={(e) => setBaseDate(e.target.value)}
             />
@@ -329,7 +335,10 @@ export default function VolumeConsolidationPage() {
           <button className="primary" disabled={loading}>
             {loading ? "계산 중…" : "후보 검색"}
           </button>
-          <span>날짜를 비우면 한국 시간 어제까지 조회합니다.</span>
+          <span>
+            오늘 또는 빈 날짜는 어제까지 저장된 최신 시세로 조회합니다. 실제
+            시세 기준일은 결과에 표시됩니다.
+          </span>
         </form>
         <details>
           <summary>검색 기준과 판정 방법</summary>
