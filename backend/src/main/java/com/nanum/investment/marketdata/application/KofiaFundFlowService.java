@@ -30,6 +30,7 @@ public class KofiaFundFlowService {
   public static final LocalDate DEFAULT_BACKFILL_FROM = LocalDate.of(2024, 1, 2);
   private static final long MAX_RANGE_DAYS = 36525;
   private static final List<String> OFFERING_TYPES = List.of("1", "2");
+  private static final List<String> ETF_OPTIONS = List.of("Y", "N");
 
   private final KofiaClient client;
   private final KofiaFundFlowRepository repository;
@@ -55,20 +56,28 @@ public class KofiaFundFlowService {
 
     List<VariantSeed> seeds = new ArrayList<>();
     for (String offering : OFFERING_TYPES)
-      seeds.add(seed(Stage.AGGREGATE, "*", "*", offering, "*", null, "Y"));
+      for (String etf : ETF_OPTIONS)
+        seeds.add(seed(Stage.AGGREGATE, "*", "*", offering, "*", null, etf));
     for (CodeValue fundType : fundTypes)
       for (String offering : OFFERING_TYPES)
-        seeds.add(seed(Stage.FUND_TYPE, fundType.code(), "*", offering, "*", null, "Y"));
+        for (String etf : ETF_OPTIONS)
+          seeds.add(seed(Stage.FUND_TYPE, fundType.code(), "*", offering, "*", null, etf));
     for (CodeValue fundKind : fundKinds)
       for (String offering : OFFERING_TYPES)
-        seeds.add(seed(Stage.FUND_KIND, "*", fundKind.code(), offering, "*", null, "Y"));
+        for (String etf : ETF_OPTIONS)
+          seeds.add(seed(Stage.FUND_KIND, "*", fundKind.code(), offering, "*", null, etf));
     for (CodeValue manager : managers)
       for (String offering : OFFERING_TYPES)
-        seeds.add(seed(Stage.MANAGER, "*", "*", offering, manager.code(), manager.name(), "Y"));
+        for (String etf : ETF_OPTIONS)
+          seeds.add(seed(Stage.MANAGER, "*", "*", offering, manager.code(), manager.name(), etf));
 
     repository.syncGeneratedVariants(seeds);
     return new VariantSyncView(
-        seeds.size(), 2, fundTypes.size() * 2, fundKinds.size() * 2, managers.size() * 2);
+        seeds.size(),
+        OFFERING_TYPES.size() * ETF_OPTIONS.size(),
+        fundTypes.size() * OFFERING_TYPES.size() * ETF_OPTIONS.size(),
+        fundKinds.size() * OFFERING_TYPES.size() * ETF_OPTIONS.size(),
+        managers.size() * OFFERING_TYPES.size() * ETF_OPTIONS.size());
   }
 
   @Transactional

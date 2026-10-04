@@ -17,7 +17,7 @@ import org.mockito.ArgumentCaptor;
 
 class KofiaFundFlowServiceTest {
   @Test
-  void createsAggregateTypeKindAndManagerVariantsWithoutEtfDuplication() {
+  void createsAggregateTypeKindAndManagerVariantsForBothEtfOptions() {
     KofiaFundFlowRepository repository = mock(KofiaFundFlowRepository.class);
     KofiaClient client = mock(KofiaClient.class);
     KofiaFundFlowJobRunner runner = mock(KofiaFundFlowJobRunner.class);
@@ -52,21 +52,21 @@ class KofiaFundFlowServiceTest {
                 new CodeValue("V", "8")));
     when(repository.activeManagers())
         .thenReturn(List.of(new CodeValue("A001", "A"), new CodeValue("A002", "B")));
-    when(repository.syncGeneratedVariants(anyList())).thenReturn(50);
+    when(repository.syncGeneratedVariants(anyList())).thenReturn(100);
 
     var result = service.syncVariants();
 
-    assertThat(result.totalCount()).isEqualTo(50);
-    assertThat(result.aggregateCount()).isEqualTo(2);
-    assertThat(result.fundTypeCount()).isEqualTo(28);
-    assertThat(result.fundKindCount()).isEqualTo(16);
-    assertThat(result.managerCount()).isEqualTo(4);
+    assertThat(result.totalCount()).isEqualTo(100);
+    assertThat(result.aggregateCount()).isEqualTo(4);
+    assertThat(result.fundTypeCount()).isEqualTo(56);
+    assertThat(result.fundKindCount()).isEqualTo(32);
+    assertThat(result.managerCount()).isEqualTo(8);
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<VariantSeed>> captor = ArgumentCaptor.forClass(List.class);
     verify(repository).syncGeneratedVariants(captor.capture());
-    assertThat(captor.getValue()).hasSize(50);
+    assertThat(captor.getValue()).hasSize(100);
     assertThat(captor.getValue()).extracting(VariantSeed::stage).contains(Stage.AGGREGATE);
-    assertThat(captor.getValue()).extracting(VariantSeed::etfIncludeYn).containsOnly("Y");
+    assertThat(captor.getValue()).extracting(VariantSeed::etfIncludeYn).containsOnly("Y", "N");
     assertThat(captor.getValue()).extracting(VariantSeed::parameterHash).doesNotHaveDuplicates();
   }
 }
