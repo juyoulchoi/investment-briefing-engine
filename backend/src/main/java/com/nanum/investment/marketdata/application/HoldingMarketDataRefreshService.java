@@ -21,22 +21,26 @@ public class HoldingMarketDataRefreshService {
   private final OverseasStockService overseas;
   private final YahooIndexService indices;
   private final JdbcClient jdbc;
+  private final VolumeConsolidationRunService volumeScreens;
 
   public HoldingMarketDataRefreshService(
       KrxMarketDataService krx,
       OverseasStockService overseas,
       YahooIndexService indices,
-      JdbcClient jdbc) {
+      JdbcClient jdbc,
+      VolumeConsolidationRunService volumeScreens) {
     this.krx = krx;
     this.overseas = overseas;
     this.indices = indices;
     this.jdbc = jdbc;
+    this.volumeScreens = volumeScreens;
   }
 
   public HoldingMarketDataRefreshResult refresh() {
     List<String> failures = new ArrayList<>();
     Map<String, Integer> krxCounts = new LinkedHashMap<>();
     LocalDate krxDate = refreshKrx(krxCounts, failures);
+    volumeScreens.afterCollection(krxDate);
     List<String> symbols = overseasSymbols(), successes = new ArrayList<>();
     for (String symbol : symbols)
       try {

@@ -21,7 +21,7 @@ class KofiaCollectionSchedulerTest {
   void startsOverlappingCollectionForScheduledDatasets() {
     KofiaCollectionService service = mock(KofiaCollectionService.class);
     KofiaLookupService lookupService = mock(KofiaLookupService.class);
-    Clock clock = Clock.fixed(Instant.parse("2026-09-25T14:40:00Z"), ZoneId.of("Asia/Seoul"));
+    Clock clock = Clock.fixed(Instant.parse("2026-09-25T23:20:00Z"), ZoneId.of("Asia/Seoul"));
     KofiaCollectionScheduler scheduler =
         new KofiaCollectionScheduler(service, lookupService, 21, clock);
     JobView job = mock(JobView.class);
@@ -49,9 +49,6 @@ class KofiaCollectionSchedulerTest {
             "SECURITIES_LENDING_DETAILS",
             "CMA_DAILY_STATUS",
             "CMA_BALANCE_TREND",
-            "FUND_FLOW_PERIOD",
-            "CUSTOMER_TYPE_FUND_SCALE_PERIOD",
-            "ASSET_MANAGER_FUND_FLOW",
             "OTC_INVESTOR_TRADING",
             "FINAL_QUOTED_YIELD",
             "KOSPI_MARKET",
@@ -59,13 +56,13 @@ class KofiaCollectionSchedulerTest {
   }
 
   @Test
-  void usesConfiguredWeekdayLateNightSchedule() throws Exception {
+  void usesConfiguredMondayThroughSaturdayMorningSchedule() throws Exception {
     Scheduled scheduled =
         KofiaCollectionScheduler.class
             .getMethod("collectDailyMarketData")
             .getAnnotation(Scheduled.class);
 
-    assertThat(scheduled.cron()).isEqualTo("${kofia.scheduler.cron:0 40 23 * * MON-FRI}");
+    assertThat(scheduled.cron()).isEqualTo("${kofia.scheduler.cron:0 20 8 * * MON-SAT}");
     assertThat(scheduled.zone()).isEqualTo("${kofia.scheduler.zone:Asia/Seoul}");
   }
 }

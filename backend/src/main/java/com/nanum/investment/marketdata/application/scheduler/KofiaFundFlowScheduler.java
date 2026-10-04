@@ -2,9 +2,11 @@ package com.nanum.investment.marketdata.application.scheduler;
 
 import com.nanum.investment.marketdata.application.KofiaFundFlowService;
 import com.nanum.investment.marketdata.domain.KofiaFundFlowVariant.Stage;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -15,16 +17,23 @@ import org.springframework.stereotype.Component;
 public class KofiaFundFlowScheduler {
   private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
   private final KofiaFundFlowService service;
+  private final Clock clock;
 
+  @Autowired
   public KofiaFundFlowScheduler(KofiaFundFlowService service) {
+    this(service, Clock.system(SEOUL));
+  }
+
+  KofiaFundFlowScheduler(KofiaFundFlowService service, Clock clock) {
     this.service = service;
+    this.clock = clock;
   }
 
   @Scheduled(
-      cron = "${kofia.fund-flow.scheduler.cron:0 20 0 * * TUE-SAT}",
+      cron = "${kofia.fund-flow.scheduler.cron:0 20 8 * * MON-SAT}",
       zone = "${kofia.fund-flow.scheduler.zone:Asia/Seoul}")
   public void collectActiveVariants() {
-    LocalDate to = LocalDate.now(SEOUL);
+    LocalDate to = LocalDate.now(clock).minusDays(1);
     LocalDate from = to.minusDays(20);
     try {
       var job = service.startJob(Stage.ALL_ACTIVE, from, to);

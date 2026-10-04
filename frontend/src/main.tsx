@@ -12,6 +12,7 @@ import OperationsAdmin from "./OperationsAdmin";
 import MarketAnalysisAdmin from "./MarketAnalysisAdmin";
 import BondYieldPage from "./BondYieldPage";
 import ExchangeRateChartPage from "./ExchangeRateChartPage";
+import VolumeConsolidationPage from "./VolumeConsolidationPage";
 type Page =
   | "dashboard"
   | "briefing"
@@ -22,6 +23,7 @@ type Page =
   | "operations"
   | "marketadmin"
   | "bondyields"
+  | "volumescreen"
   | "exchangerates";
 const nav: [Page, string, string][] = [
   ["dashboard", "대시보드", "⌂"],
@@ -32,6 +34,7 @@ const nav: [Page, string, string][] = [
   ["reference", "기준정보 관리", "⚙"],
   ["operations", "투자 설정 관리", "⌘"],
   ["marketadmin", "시장 분석 관리", "◉"],
+  ["volumescreen", "거래량·횡보 검색", "⌕"],
   ["bondyields", "FRED 채권금리", "％"],
   ["exchangerates", "환율 차트", "↗"],
 ];
@@ -293,7 +296,9 @@ function App() {
             <h1>{nav.find((x) => x[0] === page)?.[1]}</h1>
           </div>
           <div>
-            <span className="latest">● 데이터 최신</span>
+            <span className="latest">
+              {page === "volumescreen" ? "● 조회 범위·공백 확인" : "● 데이터 최신"}
+            </span>
             <button
               className="primary"
               disabled={refreshing}
@@ -313,6 +318,7 @@ function App() {
         {page === "marketadmin" && <MarketAnalysisAdmin notify={notify} />}{" "}
         {page === "bondyields" && <BondYieldPage notify={notify} />}
         {page === "exchangerates" && <ExchangeRateChartPage />}
+        {page === "volumescreen" && <VolumeConsolidationPage />}
       </main>
       <nav className="mobile" aria-label="모바일 전체 메뉴">
         {nav.map((x) => (

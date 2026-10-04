@@ -29,9 +29,6 @@ public class KofiaCollectionScheduler {
           "SECURITIES_LENDING_DETAILS",
           "CMA_DAILY_STATUS",
           "CMA_BALANCE_TREND",
-          "FUND_FLOW_PERIOD",
-          "CUSTOMER_TYPE_FUND_SCALE_PERIOD",
-          "ASSET_MANAGER_FUND_FLOW",
           "OTC_INVESTOR_TRADING",
           "FINAL_QUOTED_YIELD",
           "KOSPI_MARKET",
@@ -64,10 +61,10 @@ public class KofiaCollectionScheduler {
   }
 
   @Scheduled(
-      cron = "${kofia.scheduler.cron:0 40 23 * * MON-FRI}",
+      cron = "${kofia.scheduler.cron:0 20 8 * * MON-SAT}",
       zone = "${kofia.scheduler.zone:Asia/Seoul}")
   public void collectDailyMarketData() {
-    LocalDate to = LocalDate.now(clock);
+    LocalDate to = LocalDate.now(clock).minusDays(1);
     LocalDate from = to.minusDays(overlapDays - 1L);
     try {
       JobView job = service.startJob(from, to, DAILY_DATASETS);
