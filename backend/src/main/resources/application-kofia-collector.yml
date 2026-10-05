@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: investment-kofia-collector
+  flyway:
+    locations: classpath:db/collector
+    baseline-on-migrate: false
+    table: flyway_collector_history
+  jpa:
+    hibernate:
+      ddl-auto: none
+kofia:
+  recovery:
+    enabled: ${KOFIA_RECOVERY_ENABLED:false}
+  scheduler:
+    enabled: ${KOFIA_SCHEDULER_ENABLED:false}
+  fund-flow:
+    scheduler:
+      enabled: ${KOFIA_FUND_FLOW_SCHEDULER_ENABLED:false}
+  customer-scale:
+    scheduler:
+      enabled: ${KOFIA_CUSTOMER_SCALE_SCHEDULER_ENABLED:false}
+  company-fund-flow:
+    scheduler:
+      enabled: ${KOFIA_COMPANY_FUND_FLOW_SCHEDULER_ENABLED:false}

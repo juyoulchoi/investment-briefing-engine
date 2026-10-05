@@ -7,6 +7,10 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 @Slf4j
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+    name = "kofia.recovery.enabled",
+    havingValue = "true",
+    matchIfMissing = true)
 @Component
 public class KofiaCompanyFundFlowRecovery {
   private final KofiaCompanyFundFlowRepository repository;

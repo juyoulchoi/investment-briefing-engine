@@ -43,6 +43,19 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+springBoot {
+    mainClass = 'com.nanum.investment.InvestmentBriefingApplication'
+}
+
+tasks.register('collectorBootJar', org.springframework.boot.gradle.tasks.bundling.BootJar) {
+    group = 'build'
+    description = 'Build the isolated KOFIA collector without investment application startup.'
+    archiveClassifier = 'collector'
+    targetJavaVersion = JavaVersion.VERSION_21
+    mainClass = 'com.nanum.collector.KofiaCollectorApplication'
+    classpath = sourceSets.main.runtimeClasspath
+}
+
 spotless {
     java {
         target 'backend/src/**/*.java', 'src/**/*.java'
