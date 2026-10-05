@@ -1,0 +1,20 @@
+name: investment-frontend-next
+
+services:
+  frontend-next:
+    build:
+      context: ./frontend-next
+    image: investment-frontend-next
+    container_name: investment-frontend-next
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://investment-backend:8080
+    ports:
+      - "127.0.0.1:4175:3000"
+    networks:
+      - investment-existing
+
+networks:
+  investment-existing:
+    external: true
+    name: investment_default
