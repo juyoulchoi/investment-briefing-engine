@@ -6,7 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1/collection-reprocessing")
+@RequestMapping("/api/v1/collection-reprocessing/{provider}/{jobId}")
 public class CollectionJobReprocessingController {
   private final CollectionJobReprocessingService service;
 
@@ -14,13 +14,13 @@ public class CollectionJobReprocessingController {
     this.service = service;
   }
 
-  @PostMapping("/{provider}/{jobId}")
+  @PostMapping
   public ResponseEntity<CollectionJobReprocessingService.ReprocessingView> retry(
       @PathVariable String provider, @PathVariable UUID jobId) {
     return ResponseEntity.accepted().body(service.retry(provider, jobId));
   }
 
-  @PostMapping("/{provider}/{jobId}/permanent-failure")
+  @PostMapping("/permanent-failure")
   public ResponseEntity<Void> permanentFailure(
       @PathVariable String provider,
       @PathVariable UUID jobId,
