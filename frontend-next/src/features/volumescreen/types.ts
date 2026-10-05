@@ -1,0 +1,82 @@
+export type Metrics = {
+  returnPct: number;
+  closeRangePct: number;
+  volumeMultiple: number;
+  volumeIncreasePct: number;
+  spikeDays: number;
+  sustainedDays: number;
+  maxDailyVolumeMultiple: number;
+  averageValue: number;
+  boxHigh: number;
+  boxLow: number;
+  close: number;
+  movingAverage20: number;
+  aboveMovingAverage20: boolean;
+  return60Pct: number;
+  drawdown60Pct: number;
+};
+export type Candidate = {
+  market: string;
+  stockCode: string;
+  stockName: string;
+  baseDate: string;
+  masterDate: string | null;
+  quantitativeMatch: boolean;
+  verificationStatus: string;
+  exclusionReasons: string[];
+  checksRequired: string[];
+  metrics: Metrics | null;
+  foreignNetAmount: number | null;
+  institutionNetAmount: number | null;
+  flowStatus: string;
+  disclosureStatus: string;
+};
+export type Screen = {
+  requestedDate: string;
+  baseDate: string | null;
+  observationFrom: string | null;
+  baselineFrom: string | null;
+  baselineTo: string | null;
+  availableDays: number;
+  dateCoverageStatus: string;
+  unverifiedWeekdays: string[];
+  rules: { version: string };
+  coverage: {
+    market: string;
+    latestDate: string | null;
+    masterDate: string | null;
+    latestStockCount: number;
+  }[];
+  universeCount: number;
+  matchCount: number;
+  exclusionCounts: Record<string, number>;
+  warnings: string[];
+  rows: Candidate[];
+};
+export type Tracking = {
+  stockCode: string;
+  selectionDate: string;
+  evaluatedThrough: string;
+  boxHigh: number;
+  boxLow: number;
+  state: string;
+  events: {
+    date: string;
+    type: string;
+    close: number;
+    volumeMultiple: number;
+  }[];
+  warnings: string[];
+};
+export type SearchRun = {
+  runId: string;
+  triggerCode: string;
+  collectionBaseDate: string | null;
+  baseDate: string | null;
+  status: string;
+  matchCount: number | null;
+  startedAt: string;
+  finishedAt: string | null;
+  failureReason: string | null;
+  hasResult: boolean;
+};
