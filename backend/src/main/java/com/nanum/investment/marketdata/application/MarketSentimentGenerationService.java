@@ -7,14 +7,12 @@ import com.nanum.investment.marketdata.domain.MarketSentimentGenerationResult;
 import java.math.*;
 import java.time.*;
 import java.util.List;
-import org.slf4j.*;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class MarketSentimentGenerationService {
-  private static final Logger log = LoggerFactory.getLogger(MarketSentimentGenerationService.class);
   private static final BigDecimal FIFTY = new BigDecimal("50"), HUNDRED = new BigDecimal("100");
   private final JdbcClient jdbc;
   private final MarketSentimentCalculator calculator;

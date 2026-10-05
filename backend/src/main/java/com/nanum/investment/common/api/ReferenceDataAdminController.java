@@ -227,10 +227,6 @@ public class ReferenceDataAdminController {
         x.getUseYn());
   }
 
-  private String nvl(String v, String d) {
-    return v == null ? d : v;
-  }
-
   private <T> ApiResponse<T> ok(T d, HttpServletRequest r) {
     return ApiResponse.success(d, TraceIdUtils.resolve(r));
   }

@@ -13,7 +13,6 @@ import com.nanum.investment.briefing.domain.TbInvBrf;
 import com.nanum.investment.briefing.infrastructure.repository.TbBrfDtlRepository;
 import com.nanum.investment.briefing.infrastructure.repository.TbInvBrfRepository;
 import java.time.*;
-import java.util.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

@@ -3,7 +3,6 @@ package com.nanum.investment.marketdata.application;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nanum.investment.common.infrastructure.external.CircuitBreakerSupport;
-import com.nanum.investment.common.infrastructure.external.CollectionResult;
 import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor;
 import com.nanum.investment.common.infrastructure.external.ExternalApiCallExecutor.Call;
 import com.nanum.investment.common.infrastructure.external.ExternalRestClientFactory;

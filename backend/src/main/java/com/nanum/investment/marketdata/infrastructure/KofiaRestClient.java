@@ -65,7 +65,7 @@ public class KofiaRestClient implements KofiaClient {
     Map<String, Object> search = dataset.requestParameters(from, to);
     Map<String, Object> request = Map.of("dmSearch", search);
     JsonNode response = execute(dataset.name(), dataset.path(), request);
-    return parse(dataset, from, to, search, response);
+    return parse(dataset, to, search, response);
   }
 
   @Override
@@ -77,7 +77,7 @@ public class KofiaRestClient implements KofiaClient {
             "FUND_FLOW_PERIOD." + variant.parameterHash(),
             KofiaDataset.FUND_FLOW_PERIOD.path(),
             request);
-    return parse(KofiaDataset.FUND_FLOW_PERIOD, from, to, search, response);
+    return parse(KofiaDataset.FUND_FLOW_PERIOD, to, search, response);
   }
 
   @Override
@@ -90,7 +90,7 @@ public class KofiaRestClient implements KofiaClient {
             KofiaDataset.CUSTOMER_TYPE_FUND_SCALE_PERIOD.path(),
             request);
     return parse(
-        KofiaDataset.CUSTOMER_TYPE_FUND_SCALE_PERIOD, baseDate, baseDate, search, response);
+        KofiaDataset.CUSTOMER_TYPE_FUND_SCALE_PERIOD, baseDate, search, response);
   }
 
   @Override
@@ -103,7 +103,7 @@ public class KofiaRestClient implements KofiaClient {
             "ASSET_MANAGER_FUND_FLOW." + variant.parameterHash(),
             KofiaDataset.ASSET_MANAGER_FUND_FLOW.path(),
             request);
-    return parse(KofiaDataset.ASSET_MANAGER_FUND_FLOW, baseDate, baseDate, search, response);
+    return parse(KofiaDataset.ASSET_MANAGER_FUND_FLOW, baseDate, search, response);
   }
 
   private JsonNode execute(String operation, String path, Map<String, Object> request) {
@@ -132,7 +132,6 @@ public class KofiaRestClient implements KofiaClient {
 
   private KofiaResponse parse(
       KofiaDataset dataset,
-      LocalDate from,
       LocalDate to,
       Map<String, Object> search,
       JsonNode response) {

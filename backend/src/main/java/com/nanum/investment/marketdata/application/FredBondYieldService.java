@@ -1,20 +1,17 @@
 package com.nanum.investment.marketdata.application;
 
 import com.nanum.investment.common.application.CommonCodeLookupService;
-import com.nanum.investment.common.infrastructure.external.CollectionResult;
 import com.nanum.investment.marketdata.infrastructure.BondYieldCollector;
 import com.nanum.investment.marketdata.infrastructure.FredBondYieldCollector;
 import java.math.*;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.*;
-import org.slf4j.*;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 
 @Service
 public class FredBondYieldService {
-  private static final Logger log = LoggerFactory.getLogger(FredBondYieldService.class);
   private static final String SERIES_GROUP = "BOND_YIELD_SERIES";
   private final FredBondYieldCollector collector;
   private final JdbcClient jdbc;

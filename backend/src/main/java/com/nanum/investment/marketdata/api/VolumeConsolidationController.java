@@ -52,8 +52,7 @@ public class VolumeConsolidationController {
     MethodArgumentTypeMismatchException.class,
     MissingServletRequestParameterException.class
   })
-  public ResponseEntity<ApiResponse<Void>> invalidParameters(
-      Exception exception, HttpServletRequest request) {
+  public ResponseEntity<ApiResponse<Void>> invalidParameters(HttpServletRequest request) {
     return ResponseEntity.badRequest()
         .body(
             ApiResponse.failure(

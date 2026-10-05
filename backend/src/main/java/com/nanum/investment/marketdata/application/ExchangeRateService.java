@@ -1,18 +1,15 @@
 package com.nanum.investment.marketdata.application;
 
-import com.nanum.investment.common.infrastructure.external.CollectionResult;
 import com.nanum.investment.marketdata.infrastructure.ExchangeRateCollector;
 import com.nanum.investment.marketdata.infrastructure.YahooExchangeRateCollector;
 import java.time.LocalDate;
 import java.util.*;
-import org.slf4j.*;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ExchangeRateService {
-  private static final Logger log = LoggerFactory.getLogger(ExchangeRateService.class);
   private static final String BASE = "USD", QUOTE = "KRW";
   private final YahooExchangeRateCollector collector;
   private final JdbcClient jdbc;

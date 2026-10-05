@@ -14,14 +14,12 @@ import java.math.*;
 import java.time.*;
 import java.util.*;
 import java.util.stream.*;
-import org.slf4j.*;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class DailyBuyPlanService {
-  private static final Logger log = LoggerFactory.getLogger(DailyBuyPlanService.class);
   private final JdbcClient jdbc;
   private final AdditionalBuyCalculator additional;
   private final RebuyCalculator rebuy;

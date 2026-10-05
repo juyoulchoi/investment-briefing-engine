@@ -1,7 +1,6 @@
 package com.nanum.investment.briefing.api;
 
 import com.nanum.investment.briefing.application.BriefingDisplayTextService;
-import com.nanum.investment.briefing.domain.ActionSignal;
 import com.nanum.investment.common.application.CommonCodeLookupService;
 import com.nanum.investment.common.response.ApiResponse;
 import com.nanum.investment.common.web.TraceIdUtils;

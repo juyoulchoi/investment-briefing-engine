@@ -116,7 +116,7 @@ public class CircuitBreakerSupport {
         .listOfRows();
   }
 
-  public boolean isOpen(String key, Duration ignored) {
+  public boolean isOpen(String key) {
     if (jdbc == null) {
       MemoryState value = memory.get(key);
       return value != null && "OPEN".equals(value.state);

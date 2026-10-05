@@ -6,7 +6,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.nanum.investment.common.exception.GlobalExceptionHandler;
 import com.nanum.investment.marketdata.application.VolumeConsolidationService;
-import com.nanum.investment.marketdata.domain.VolumeConsolidation.*;
 import com.nanum.investment.marketdata.infrastructure.VolumeConsolidationRepository;
 import java.time.LocalDate;
 import java.util.List;

@@ -61,7 +61,7 @@ class ExternalResilienceTest {
                   () -> {
                     throw new IllegalStateException("down");
                   }));
-    assertThat(circuit.isOpen("YAHOO", Duration.ofMinutes(1))).isTrue();
+    assertThat(circuit.isOpen("YAHOO")).isTrue();
     assertThatThrownBy(() -> circuit.execute("YAHOO", 3, Duration.ofMinutes(1), () -> "never"))
         .isInstanceOf(CircuitBreakerSupport.CircuitOpenException.class);
   }
@@ -80,7 +80,7 @@ class ExternalResilienceTest {
                 }));
 
     assertThat(circuit.execute("KRX", 1, Duration.ZERO, () -> "recovered")).isEqualTo("recovered");
-    assertThat(circuit.isOpen("KRX", Duration.ZERO)).isFalse();
+    assertThat(circuit.isOpen("KRX")).isFalse();
   }
 
   @Test

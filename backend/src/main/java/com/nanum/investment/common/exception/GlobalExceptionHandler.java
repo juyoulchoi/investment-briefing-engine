@@ -41,8 +41,7 @@ public class GlobalExceptionHandler {
   }
 
   @ExceptionHandler(NoResourceFoundException.class)
-  ResponseEntity<ApiResponse<Void>> noResource(
-      NoResourceFoundException ex, HttpServletRequest req) {
+  ResponseEntity<ApiResponse<Void>> noResource(HttpServletRequest req) {
     ErrorCode c = ErrorCode.RESOURCE_NOT_FOUND;
     return ResponseEntity.status(c.getHttpStatus())
         .body(

@@ -7,14 +7,12 @@ import java.math.*;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import org.slf4j.*;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class MarketSnapshotGenerationService {
-  private static final Logger log = LoggerFactory.getLogger(MarketSnapshotGenerationService.class);
   private final MarketDataConsistencyService validation;
   private final JdbcClient jdbc;
 

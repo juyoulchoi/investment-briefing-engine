@@ -7,15 +7,12 @@ import com.nanum.investment.marketdata.domain.MarketSnapshot;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
-import org.slf4j.*;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AutomaticInvestmentDecisionService {
-  private static final Logger log =
-      LoggerFactory.getLogger(AutomaticInvestmentDecisionService.class);
   private final JdbcClient jdbc;
   private final PortfolioDecisionService decisions;
   private final DecisionHistoryService history;
