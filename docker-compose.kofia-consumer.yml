@@ -1,0 +1,18 @@
+# Apply after docker-compose.yml in either V1 or V2; retain its own project name and DB.
+services:
+  backend:
+    environment:
+      KOFIA_CONSUMER_ENABLED: "true"
+      KOFIA_CONSUMER_BASE_URL: http://kofia-collector:8080
+      KOFIA_SCHEDULER_ENABLED: "false"
+      KOFIA_FUND_FLOW_SCHEDULER_ENABLED: "false"
+      KOFIA_CUSTOMER_SCALE_SCHEDULER_ENABLED: "false"
+      KOFIA_COMPANY_FUND_FLOW_SCHEDULER_ENABLED: "false"
+      KOFIA_RECOVERY_ENABLED: "false"
+    networks:
+      source-read:
+
+networks:
+  source-read:
+    external: true
+    name: investment-source-read

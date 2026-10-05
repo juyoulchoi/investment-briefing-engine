@@ -73,6 +73,13 @@ services:
       FRED_READ_TIMEOUT: ${FRED_READ_TIMEOUT:-30s}
       FRED_MIN_REQUEST_INTERVAL: ${FRED_MIN_REQUEST_INTERVAL:-250ms}
       KOFIA_BASE_URL: ${KOFIA_BASE_URL:-https://freesis.kofia.or.kr}
+      KOFIA_CONSUMER_ENABLED: "true"
+      KOFIA_CONSUMER_BASE_URL: http://kofia-collector:8080
+      KOFIA_SCHEDULER_ENABLED: "false"
+      KOFIA_FUND_FLOW_SCHEDULER_ENABLED: "false"
+      KOFIA_CUSTOMER_SCALE_SCHEDULER_ENABLED: "false"
+      KOFIA_COMPANY_FUND_FLOW_SCHEDULER_ENABLED: "false"
+      KOFIA_RECOVERY_ENABLED: "false"
       KOFIA_CONNECT_TIMEOUT: ${KOFIA_CONNECT_TIMEOUT:-5s}
       KOFIA_READ_TIMEOUT: ${KOFIA_READ_TIMEOUT:-30s}
       KOFIA_MIN_REQUEST_INTERVAL: ${KOFIA_MIN_REQUEST_INTERVAL:-250ms}
@@ -94,6 +101,7 @@ services:
         condition: service_healthy
     networks:
       - investment-v2
+      - source-read
 
   frontend:
     build:
@@ -110,6 +118,9 @@ services:
       - investment-v2
 
 networks:
+  source-read:
+    external: true
+    name: investment-source-read
   investment-v2:
     name: investment-v2-network
 
