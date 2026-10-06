@@ -90,8 +90,7 @@ curl.exe -s http://localhost:8082/api/v1/kofia/datasets
 ```
 
 Main과 V2의 배포는 각각 자신의 경로에서 실행한다. 공통 서비스가 먼저 있어야
-외부 네트워크가 존재한다. `docker-compose.kofia-consumer.yml`은 어댑터가 설치된
-기존 Compose와 결합하기 위한 호환용 설정이며 기본 Compose에는 이미 반영되어 있다.
+외부 네트워크가 존재한다. KOFIA 소비자 설정은 Main과 V2 기본 Compose에 통합되어 별도 override 파일이 필요하지 않다.
 실제 수집 관리자 API는 호스트 loopback에만 공개한다. 인터넷에 직접 노출하지 않는다.
 
 ## 장애와 복구

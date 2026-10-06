@@ -1,8 +1,7 @@
 # FINBRIEF Next.js frontend
 
-기존 `frontend`(React/Vite)와 병행하는 Next.js App Router 앱입니다.
-기존 화면 컴포넌트와 스타일을 이 폴더로 복사하여 독립적으로 개발합니다.
-원본 변경은 자동으로 반영되지 않으므로 이후 수정은 두 앱의 반영 범위를 확인합니다.
+V2의 화면을 제공하는 Next.js App Router 앱입니다.
+기존 React/Vite `frontend` 폴더는 제거되었으며 이 폴더에서 화면을 개발합니다.
 
 ## 로컬 실행
 
@@ -27,20 +26,20 @@ npm run test:proxy
 npm start
 ```
 
-## Docker 병행 실행
+## Docker 실행
 
-기존 V1 백엔드와 `investment_default` 네트워크가 실행 중이어야 합니다.
+V2 백엔드와 `investment-v2-network` 네트워크가 실행 중이어야 합니다.
 저장소 루트에서:
 
 ```powershell
-docker compose -f docker-compose.frontend-next.yml build frontend-next
-docker compose -f docker-compose.frontend-next.yml up -d frontend-next
+docker compose -f ../investment-briefing-engine-v2/docker-compose.yml build frontend
+docker compose -f ../investment-briefing-engine-v2/docker-compose.yml up -d --no-deps frontend
 ```
 
 접속: http://localhost:4175/dashboard
-기존 V1 4173, V2 4174와 별개이며 기존 서비스를 재생성하지 않습니다.
-Docker에서는 서버 전용 `BACKEND_URL=http://investment-backend:8080`을 사용합니다.
-중지할 때는 이 Compose 파일의 `stop frontend-next`를 사용합니다.
+Compose 그룹은 `investment-v2`, 컨테이너명은 `investment-v2-frontend`이며 이미지명은 `investment-frontend`입니다.
+Docker에서는 서버 전용 `BACKEND_URL=http://investment-v2-backend:8080`을 사용합니다.
+중지할 때는 이 Compose 파일의 `stop frontend`를 사용합니다.
 
 ## 화면과 데이터 경로
 
