@@ -105,15 +105,16 @@ services:
 
   frontend:
     build:
-      context: frontend
-      dockerfile: Dockerfile
-    image: investment-v2-frontend
+      context: ../investment-briefing-engine/frontend-next
+    image: investment-frontend
     container_name: investment-v2-frontend
     restart: unless-stopped
+    environment:
+      BACKEND_URL: http://investment-v2-backend:8080
     depends_on:
       - backend
     ports:
-      - "4174:80"
+      - "127.0.0.1:4175:3000"
     networks:
       - investment-v2
 
