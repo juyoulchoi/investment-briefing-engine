@@ -8,13 +8,13 @@ services:
     container_name: investment-frontend-next
     restart: unless-stopped
     environment:
-      BACKEND_URL: http://investment-backend:8080
+      BACKEND_URL: http://investment-v2-backend:8080
     ports:
       - "127.0.0.1:4175:3000"
     networks:
-      - investment-existing
+      - investment-v2
 
 networks:
-  investment-existing:
+  investment-v2:
     external: true
-    name: investment_default
+    name: investment-v2-network

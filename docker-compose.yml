@@ -113,20 +113,6 @@ services:
       - investment-existing
       - source-read
 
-  frontend:
-    build:
-      context: frontend
-      dockerfile: Dockerfile
-    image: investment-frontend
-    container_name: investment-frontend
-    restart: unless-stopped
-    depends_on:
-      - backend
-    ports:
-      - "4173:80"
-    networks:
-      - investment-existing
-
 networks:
   source-read:
     external: true
