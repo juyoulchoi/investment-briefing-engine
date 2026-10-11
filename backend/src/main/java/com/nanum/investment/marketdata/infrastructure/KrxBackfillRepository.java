@@ -76,15 +76,39 @@ public class KrxBackfillRepository {
   }
 
   public BackfillJobView find(UUID id) {
+    return find(id, false);
+  }
+
+  public BackfillJobView find(UUID id, boolean includeDays) {
     BackfillJobView header =
         jdbc.sql("SELECT * FROM tb_krx_bf_job WHERE id=:id")
             .param("id", id)
             .query((rs, row) -> mapJob(rs, List.of()))
             .optional()
             .orElseThrow(() -> new NoSuchElementException("KRX 백필 Job을 찾을 수 없습니다: " + id));
-    List<BackfillDayView> days =
-        jdbc.sql("SELECT * FROM tb_krx_bf_day WHERE backfill_job_id=:id ORDER BY base_date")
+    List<BackfillDayView> days = includeDays ? findDays(id, 0, 1000, null).days() : List.of();
+    return withDays(header, days);
+  }
+
+  public BackfillDayPage findDays(UUID id, int page, int size, String status) {
+    int resolvedPage = Math.max(0, page);
+    int resolvedSize = Math.max(1, Math.min(size, 200));
+    String resolvedStatus =
+        status == null || status.isBlank() ? null : status.toUpperCase(Locale.ROOT);
+    long total =
+        jdbc.sql(
+                "SELECT count(*) FROM tb_krx_bf_day WHERE backfill_job_id=:id AND (:status IS NULL OR status=:status)")
             .param("id", id)
+            .param("status", resolvedStatus)
+            .query(Long.class)
+            .single();
+    List<BackfillDayView> days =
+        jdbc.sql(
+                "SELECT * FROM tb_krx_bf_day WHERE backfill_job_id=:id AND (:status IS NULL OR status=:status) ORDER BY base_date LIMIT :size OFFSET :offset")
+            .param("id", id)
+            .param("status", resolvedStatus)
+            .param("size", resolvedSize)
+            .param("offset", (long) resolvedPage * resolvedSize)
             .query(
                 (rs, row) ->
                     new BackfillDayView(
@@ -93,12 +117,18 @@ public class KrxBackfillRepository {
                         rs.getString("status"),
                         rs.getString("skip_reason"),
                         rs.getObject("collection_job_id", UUID.class),
+                        rs.getObject("original_collection_job_id", UUID.class),
                         split(rs.getString("retry_dataset_codes")),
                         rs.getInt("attempt_count"),
                         rs.getString("error_message"),
                         time(rs.getTimestamp("started_at")),
                         time(rs.getTimestamp("completed_at"))))
             .list();
+    return new BackfillDayPage(
+        days, resolvedPage, resolvedSize, total, (int) Math.ceil(total / (double) resolvedSize));
+  }
+
+  private BackfillJobView withDays(BackfillJobView header, List<BackfillDayView> days) {
     return new BackfillJobView(
         header.jobId(),
         header.from(),
@@ -158,6 +188,7 @@ public class KrxBackfillRepository {
                     rs.getString("status"),
                     rs.getString("skip_reason"),
                     rs.getObject("collection_job_id", UUID.class),
+                    rs.getObject("original_collection_job_id", UUID.class),
                     split(rs.getString("retry_dataset_codes")),
                     rs.getInt("attempt_count"),
                     rs.getString("error_message"),
@@ -169,7 +200,9 @@ public class KrxBackfillRepository {
   public void markDayRunning(long dayId, UUID collectionJobId) {
     jdbc.sql(
             """
-            UPDATE tb_krx_bf_day SET status='RUNNING',collection_job_id=:collectionJobId,
+            UPDATE tb_krx_bf_day SET status='RUNNING',
+              original_collection_job_id=COALESCE(original_collection_job_id,collection_job_id),
+              collection_job_id=:collectionJobId,
               attempt_count=attempt_count+1,error_message=NULL,started_at=CURRENT_TIMESTAMP,
               completed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=:id
             """)
@@ -187,6 +220,18 @@ public class KrxBackfillRepository {
         .param("id", dayId)
         .param("status", success ? "SUCCESS" : "FAILED")
         .param("error", trim(error))
+        .update();
+  }
+
+  public void finishDaySkipped(long dayId, String reason) {
+    jdbc.sql(
+            """
+            UPDATE tb_krx_bf_day SET status='SKIPPED',skip_reason=:reason,error_message=NULL,
+              retry_dataset_codes=NULL,completed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP
+            WHERE id=:id
+            """)
+        .param("id", dayId)
+        .param("reason", reason)
         .update();
   }
 
@@ -343,6 +388,40 @@ public class KrxBackfillRepository {
     return failures.size();
   }
 
+  @Transactional
+  public int resetFailure(
+      UUID id,
+      LocalDate baseDate,
+      String datasetCode,
+      KrxCollectionJobRepository dailyJobs) {
+    List<Map<String, Object>> failures =
+        jdbc.sql(
+                "SELECT id,collection_job_id FROM tb_krx_bf_day WHERE backfill_job_id=:id AND base_date=:date AND status='FAILED'")
+            .param("id", id)
+            .param("date", baseDate)
+            .query()
+            .listOfRows();
+    if (failures.isEmpty()) return 0;
+    Map<String, Object> failure = failures.getFirst();
+    UUID collectionJobId = (UUID) failure.get("collection_job_id");
+    if (collectionJobId == null
+        || !dailyJobs.failedDatasets(collectionJobId).contains(datasetCode)) return 0;
+    jdbc.sql(
+            """
+            UPDATE tb_krx_bf_day SET status='PENDING',retry_dataset_codes=:dataset,
+              error_message=NULL,completed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=:dayId
+            """)
+        .param("dayId", ((Number) failure.get("id")).longValue())
+        .param("dataset", datasetCode)
+        .update();
+    jdbc.sql(
+            "UPDATE tb_krx_bf_job SET status='QUEUED',completed_at=NULL,error_message=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=:id")
+        .param("id", id)
+        .update();
+    updateProgress(id, null);
+    return 1;
+  }
+
   private BackfillJobView mapJob(java.sql.ResultSet rs, List<BackfillDayView> days)
       throws java.sql.SQLException {
     return new BackfillJobView(
@@ -413,9 +492,13 @@ public class KrxBackfillRepository {
       String status,
       String skipReason,
       UUID collectionJobId,
+      UUID originalCollectionJobId,
       List<String> retryDatasets,
       int attemptCount,
       String error,
       LocalDateTime startedAt,
       LocalDateTime completedAt) {}
+
+  public record BackfillDayPage(
+      List<BackfillDayView> days, int page, int size, long totalElements, int totalPages) {}
 }

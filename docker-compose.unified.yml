@@ -1,0 +1,35 @@
+name: investment-unified
+services:
+  v1:
+    image: investment-unified-v1:local
+    container_name: investment-backend
+    restart: unless-stopped
+    env_file: [backups/unified-db/runtime/v1.env]
+    ports: ["8081:8080"]
+    networks: [main, source]
+  v2:
+    image: investment-unified-v2:local
+    container_name: investment-v2-backend
+    restart: unless-stopped
+    env_file: [backups/unified-db/runtime/v2.env]
+    ports: ["8082:8080"]
+    networks: [v2, source]
+  collector:
+    image: investment-unified-collector:local
+    container_name: investment-kofia-collector
+    restart: unless-stopped
+    env_file: [backups/unified-db/runtime/collector.env]
+    ports: ["127.0.0.1:8083:8080"]
+    networks:
+      source:
+        aliases: [kofia-collector]
+networks:
+  main:
+    external: true
+    name: investment_default
+  v2:
+    external: true
+    name: investment-v2-network
+  source:
+    external: true
+    name: investment-source-read

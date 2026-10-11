@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import com.nanum.investment.marketdata.infrastructure.ExchangeRateSource;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,14 +20,16 @@ import org.springframework.web.bind.annotation.RestController;
 @io.swagger.v3.oas.annotations.tags.Tag(name = "대시보드", description = "투자 대시보드 API")
 public class DashboardController {
   private final JdbcClient jdbc;
+  private final ExchangeRateSource exchangeSource;
   private final CommonCodeLookupService commonCodes;
   private final BriefingDisplayTextService displayText;
 
   public DashboardController(
       JdbcClient jdbc,
       CommonCodeLookupService commonCodes,
-      BriefingDisplayTextService displayText) {
+      BriefingDisplayTextService displayText, ExchangeRateSource exchangeSource) {
     this.jdbc = jdbc;
+    this.exchangeSource = exchangeSource;
     this.commonCodes = commonCodes;
     this.displayText = displayText;
   }
@@ -134,13 +137,7 @@ public class DashboardController {
     return jdbc.sql(
             """
                 WITH exchange_rate AS (
-                     SELECT COALESCE((
-                              SELECT "EXCH_RT"
-                                FROM "TB_EXCH_DAY"
-                               WHERE "BASE_CURR_CD"='USD' AND "QUOTE_CURR_CD"='KRW'
-                               ORDER BY "BASE_DT" DESC
-                               LIMIT 1
-                            ), 1) AS usd_krw
+                     SELECT CAST(:sourceRate AS numeric) AS usd_krw
                 )
                 SELECT a."ACCT_TP",
                        COALESCE(sum(CASE WHEN a."ACCT_TP"='OVERSEAS' THEN h."ORG_EVL_AMT"*x.usd_krw ELSE h."EVL_AMT" END),0)+a."CASH_AMT" AS total_asset,
@@ -171,6 +168,7 @@ public class DashboardController {
                  GROUP BY a."ACCT_ID",a."ACCT_TP",a."DISP_SEQ",a."CASH_AMT",a."RSV_CASH_AMT",x.usd_krw
                  ORDER BY a."DISP_SEQ"
                 """)
+        .param("sourceRate", exchangeSource.latestRate())
         .query(
             (rs, rowNum) ->
                 new AccountSummary(

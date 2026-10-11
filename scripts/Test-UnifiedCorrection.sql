@@ -1,0 +1,18 @@
+\set ON_ERROR_STOP on
+BEGIN;
+SET LOCAL ROLE unified_collector;
+DO $$ DECLARE d date; code text; BEGIN
+ SELECT "TRADE_DT","IND_CD" INTO d,code FROM source."TB_IDX_DAY" ORDER BY "TRADE_DT" DESC LIMIT 1;
+ UPDATE source."TB_IDX_DAY" SET "CLS_VAL"="CLS_VAL"+0.01 WHERE "TRADE_DT"=d AND "IND_CD"=code;
+END $$;
+RESET ROLE;
+DO $$ DECLARE id bigint; BEGIN
+ SELECT max("CORR_ID") INTO id FROM source."TB_DATA_CORR_HIS" WHERE "SOURCE_ORIGIN"='UNIFIED';
+ IF (SELECT count(*) FROM v1."TB_RECALC_QUEUE" WHERE "CORR_ID"=id)<>4 THEN
+  RAISE EXCEPTION 'V1 correction notifications missing';
+ END IF;
+ IF (SELECT count(*) FROM v2."TB_RECALC_QUEUE" WHERE "CORR_ID"=id)<>4 THEN
+  RAISE EXCEPTION 'V2 correction notifications missing';
+ END IF;
+END $$;
+ROLLBACK;

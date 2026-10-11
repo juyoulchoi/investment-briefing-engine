@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import com.nanum.investment.marketdata.infrastructure.ExchangeRateSource;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -14,12 +15,14 @@ public class PortfolioWeightRefreshService {
   private final TbHoldRepository holdings;
   private final PortfolioWeightService weights;
   private final JdbcClient jdbc;
+  private final ExchangeRateSource exchangeSource;
 
   public PortfolioWeightRefreshService(
-      TbHoldRepository holdings, PortfolioWeightService weights, JdbcClient jdbc) {
+      TbHoldRepository holdings, PortfolioWeightService weights, JdbcClient jdbc, ExchangeRateSource exchangeSource) {
     this.holdings = holdings;
     this.weights = weights;
     this.jdbc = jdbc;
+    this.exchangeSource = exchangeSource;
   }
 
   public void refreshAccount(TbAcct account) {
@@ -66,7 +69,7 @@ public class PortfolioWeightRefreshService {
   }
 
   private BigDecimal usdKrw() {
-    return jdbc.sql(
+    return exchangeSource.sql(
             "SELECT COALESCE((SELECT \"EXCH_RT\" FROM \"TB_EXCH_DAY\" WHERE \"BASE_CURR_CD\"='USD' AND \"QUOTE_CURR_CD\"='KRW' ORDER BY \"BASE_DT\" DESC LIMIT 1),1)")
         .query(BigDecimal.class)
         .single();

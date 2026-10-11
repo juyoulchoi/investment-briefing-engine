@@ -1,6 +1,7 @@
 package com.nanum.investment.marketdata.application;
 
 import com.nanum.investment.marketdata.infrastructure.ExchangeRateCollector;
+import com.nanum.investment.marketdata.infrastructure.ExchangeRateSource;
 import com.nanum.investment.marketdata.infrastructure.YahooExchangeRateCollector;
 import java.time.LocalDate;
 import java.util.*;
@@ -13,14 +14,22 @@ public class ExchangeRateService {
   private static final String BASE = "USD", QUOTE = "KRW";
   private final YahooExchangeRateCollector collector;
   private final JdbcClient jdbc;
+  private final ExchangeRateSource source;
 
-  public ExchangeRateService(YahooExchangeRateCollector collector, JdbcClient jdbc) {
+  public ExchangeRateService(YahooExchangeRateCollector collector, JdbcClient jdbc, ExchangeRateSource source) {
     this.collector = collector;
     this.jdbc = jdbc;
+    this.source = source;
   }
 
   @Transactional
   public CollectionResult collect(LocalDate from, LocalDate to) {
+    if (source.shared()) {
+      // Consumer refreshes verify the source, rather than invoking Yahoo or writing a replica.
+      List<Map<String, Object>> rows = history(BASE, QUOTE, from, to);
+      if (rows.isEmpty()) throw new IllegalStateException("공통 환율 원천 데이터가 없습니다.");
+      return new CollectionResult(BASE, QUOTE, from, to, 0);
+    }
     List<ExchangeRateCollector.Quote> values = collector.collectRange(BASE, QUOTE, from, to);
     values.forEach(this::save);
     recalculate();
@@ -31,7 +40,7 @@ public class ExchangeRateService {
       String requestedBase, String requestedQuote, LocalDate from, LocalDate to) {
     if (from == null || to == null || from.isAfter(to))
       throw new IllegalArgumentException("유효하지 않은 조회 기간입니다.");
-    return jdbc.sql(
+    return source.sql(
             """
    SELECT "BASE_DT" base_date,"BASE_CURR_CD" base_currency,"QUOTE_CURR_CD" quote_currency,
     "EXCH_RT" exchange_rate,"PREV_EXCH_RT" previous_exchange_rate,"CHG_AMT" change_amount,

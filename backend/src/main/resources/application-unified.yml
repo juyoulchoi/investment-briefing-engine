@@ -1,0 +1,12 @@
+# Opt-in only after the isolated candidate and application contracts pass.
+# JDBC currentSchema must match this model schema, portfolio,source in that order.
+unified:
+  database:
+    enabled: true
+    model: ${UNIFIED_DATABASE_MODEL}
+spring:
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: none

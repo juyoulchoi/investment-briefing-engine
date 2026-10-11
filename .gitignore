@@ -29,6 +29,8 @@ bin/
 # Local test artifacts
 decision-response.json
 /backups/kofia-source/
+/backups/exchange-source/
+/backups/unified-db/
 
 # OS files
 .DS_Store

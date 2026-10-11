@@ -8,16 +8,19 @@ import java.security.*;
 import java.time.*;
 import java.util.*;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import com.nanum.investment.marketdata.infrastructure.ExchangeRateSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class BriefingRawDataService {
   private final JdbcClient jdbc;
+  private final ExchangeRateSource exchangeSource;
   private final ObjectMapper json;
 
-  public BriefingRawDataService(JdbcClient jdbc, ObjectMapper json) {
+  public BriefingRawDataService(JdbcClient jdbc, ObjectMapper json, ExchangeRateSource exchangeSource) {
     this.jdbc = jdbc;
+    this.exchangeSource = exchangeSource;
     this.json = json;
   }
 
@@ -172,7 +175,7 @@ public class BriefingRawDataService {
   }
 
   private List<Map<String, Object>> rows(String sql, LocalDate date, Long id) {
-    var query = jdbc.sql(sql).param("day", date);
+    var query = (sql.contains("TB_EXCH_DAY") ? exchangeSource.sql(sql) : jdbc.sql(sql)).param("day", date);
     if (id != null) query = query.param("id", id);
     return query.query().listOfRows();
   }

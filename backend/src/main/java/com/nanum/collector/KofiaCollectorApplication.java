@@ -34,7 +34,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         @ComponentScan.Filter(
             type = FilterType.REGEX,
             pattern = {
-              "^(?!com\\.nanum\\.investment\\.marketdata\\..*\\.Kofia|com\\.nanum\\.investment\\.common\\.infrastructure\\.external\\.|com\\.nanum\\.collector\\.Collector).*",
+              "^(?!com\\.nanum\\.investment\\.marketdata\\..*\\.(Kofia|ExchangeRate|YahooExchangeRate|YahooRequestRateLimiter)|com\\.nanum\\.investment\\.common\\.infrastructure\\.external\\.|com\\.nanum\\.collector\\.Collector).*",
               ".*KofiaConsumer.*"
             }))
 public class KofiaCollectorApplication {

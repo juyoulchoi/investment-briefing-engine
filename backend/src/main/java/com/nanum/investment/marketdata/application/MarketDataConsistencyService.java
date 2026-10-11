@@ -7,6 +7,7 @@ import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import com.nanum.investment.marketdata.infrastructure.ExchangeRateSource;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -15,9 +16,11 @@ public class MarketDataConsistencyService {
       List.of("KOSPI_STOCK_DAILY", "KOSDAQ_STOCK_DAILY", "ETF_DAILY");
   private static final List<String> BOND_CODES = List.of("DGS2", "DGS10", "DGS30", "DFII10");
   private final JdbcClient jdbc;
+  private final ExchangeRateSource exchangeSource;
 
-  public MarketDataConsistencyService(JdbcClient jdbc) {
+  public MarketDataConsistencyService(JdbcClient jdbc, ExchangeRateSource exchangeSource) {
     this.jdbc = jdbc;
+    this.exchangeSource = exchangeSource;
   }
 
   public MarketDataValidationResult validate(LocalDate baseDate) {
@@ -212,7 +215,7 @@ public class MarketDataConsistencyService {
   private MarketDataValidationResult.ComponentResult validateExchange(LocalDate baseDate) {
     List<String> errors = new ArrayList<>(), warnings = new ArrayList<>();
     LatestRow row =
-        jdbc.sql(
+        exchangeSource.sql(
                 """
    SELECT 'USD/KRW',"BASE_DT","EXCH_RT","CHG_RT","DATA_STS" FROM "TB_EXCH_DAY" WHERE "BASE_CURR_CD"='USD' AND "QUOTE_CURR_CD"='KRW' AND "BASE_DT"<=:day ORDER BY "BASE_DT" DESC LIMIT 1
    """)

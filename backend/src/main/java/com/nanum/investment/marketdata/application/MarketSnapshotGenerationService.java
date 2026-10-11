@@ -8,6 +8,7 @@ import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import com.nanum.investment.marketdata.infrastructure.ExchangeRateSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,10 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class MarketSnapshotGenerationService {
   private final MarketDataConsistencyService validation;
   private final JdbcClient jdbc;
+  private final ExchangeRateSource exchangeSource;
 
-  public MarketSnapshotGenerationService(MarketDataConsistencyService validation, JdbcClient jdbc) {
+  public MarketSnapshotGenerationService(MarketDataConsistencyService validation, JdbcClient jdbc, ExchangeRateSource exchangeSource) {
     this.validation = validation;
     this.jdbc = jdbc;
+    this.exchangeSource = exchangeSource;
   }
 
   @Transactional
@@ -136,7 +139,7 @@ public class MarketSnapshotGenerationService {
   }
 
   private Fx latestFx(LocalDate baseDate) {
-    return jdbc.sql(
+    return exchangeSource.sql(
             "SELECT \"BASE_DT\",\"EXCH_RT\",\"CHG_RT\" FROM \"TB_EXCH_DAY\" WHERE \"BASE_CURR_CD\"='USD' AND \"QUOTE_CURR_CD\"='KRW' AND \"BASE_DT\"<=:day ORDER BY \"BASE_DT\" DESC LIMIT 1")
         .param("day", baseDate)
         .query(
