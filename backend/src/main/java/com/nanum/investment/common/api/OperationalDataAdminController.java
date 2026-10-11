@@ -138,7 +138,25 @@ public class OperationalDataAdminController {
       @NotNull RegularBuyStatus buyStatus,
       @Size(max = 500) String pauseReason,
       @Pattern(regexp = "[YN]") String userPauseYn,
-      @Pattern(regexp = "[YN]") String autoCalculateYn) {}
+      @Pattern(regexp = "[YN]") String autoCalculateYn) {
+    @AssertTrue(message = "매주 매수를 적용하려면 현재 매수요일을 선택해 주세요.")
+    public boolean isWeeklyScheduleSelected() {
+      return scheduleCleared()
+          || !"WEEKLY".equals(appliedCycle)
+          || (appliedWeekDays != null && !appliedWeekDays.isBlank());
+    }
+
+    @AssertTrue(message = "매월 매수를 적용하려면 현재 매수일을 선택해 주세요.")
+    public boolean isMonthlyScheduleSelected() {
+      return scheduleCleared()
+          || !"MONTHLY".equals(appliedCycle)
+          || (appliedMonthDays != null && !appliedMonthDays.isBlank());
+    }
+
+    private boolean scheduleCleared() {
+      return buyStatus == RegularBuyStatus.STOPPED || "Y".equals(userPauseYn);
+    }
+  }
 
   public record RegularBuyRow(
       String regularBuyKey,

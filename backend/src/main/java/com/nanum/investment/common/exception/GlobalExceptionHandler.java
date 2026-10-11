@@ -37,7 +37,11 @@ public class GlobalExceptionHandler {
     return ResponseEntity.badRequest()
         .body(
             ApiResponse.failure(
-                new ErrorResponse(c.getCode(), c.getMessage(), errors), TraceIdUtils.resolve(req)));
+                new ErrorResponse(
+                    c.getCode(),
+                    errors.isEmpty() ? c.getMessage() : errors.getFirst().message(),
+                    errors),
+                TraceIdUtils.resolve(req)));
   }
 
   @ExceptionHandler(NoResourceFoundException.class)
