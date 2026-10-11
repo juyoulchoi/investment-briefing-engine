@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import com.nanum.investment.marketdata.infrastructure.ExchangeRateSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ public class MarketDirectionV2FallbackService {
           new FactorDefinition("PRICE_TREND", 15));
 
   private final JdbcClient jdbc;
+  private final ExchangeRateSource exchangeSource;
   private final ObjectMapper json;
   private final FxDollarFactorCalculator fxDollarFactorCalculator;
   private final UsRateFactorCalculator usRateFactorCalculator;
@@ -39,8 +41,9 @@ public class MarketDirectionV2FallbackService {
       UsRateFactorCalculator usRateFactorCalculator,
       SemiconductorFactorCalculator semiconductorFactorCalculator,
       MarketInternalFactorCalculator marketInternalFactorCalculator,
-      SectorPriceTrendFactorCalculator sectorPriceTrendFactorCalculator) {
+      SectorPriceTrendFactorCalculator sectorPriceTrendFactorCalculator, ExchangeRateSource exchangeSource) {
     this.jdbc = jdbc;
+    this.exchangeSource = exchangeSource;
     this.json = json;
     this.fxDollarFactorCalculator = fxDollarFactorCalculator;
     this.usRateFactorCalculator = usRateFactorCalculator;
@@ -270,7 +273,7 @@ public class MarketDirectionV2FallbackService {
             + "\" WHERE \""
             + dateColumn
             + "\"<:day";
-    return jdbc.sql(sql).param("day", date).query(Integer.class).single();
+    return (sql.contains("TB_EXCH_DAY") ? exchangeSource.sql(sql) : jdbc.sql(sql)).param("day", date).query(Integer.class).single();
   }
 
   private String toJson(Object value) {

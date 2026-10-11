@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import com.nanum.investment.marketdata.infrastructure.ExchangeRateSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ public class HistoricalMarketRecalculationService {
   private static final List<String> REQUIRED_KRX =
       List.of("KOSPI_INDEX_DAILY", "KOSPI_STOCK_DAILY", "KOSDAQ_STOCK_DAILY", "ETF_DAILY");
   private final JdbcClient jdbc;
+  private final ExchangeRateSource exchangeSource;
   private final ObjectMapper objectMapper;
   private final MarketScoreCalculator scoreCalculator;
   private final MarketRegimeClassifier regimeClassifier;
@@ -33,8 +35,9 @@ public class HistoricalMarketRecalculationService {
       JdbcClient jdbc,
       ObjectMapper objectMapper,
       MarketScoreCalculator scoreCalculator,
-      MarketRegimeClassifier regimeClassifier) {
+      MarketRegimeClassifier regimeClassifier, ExchangeRateSource exchangeSource) {
     this.jdbc = jdbc;
+    this.exchangeSource = exchangeSource;
     this.objectMapper = objectMapper;
     this.scoreCalculator = scoreCalculator;
     this.regimeClassifier = regimeClassifier;
@@ -213,7 +216,7 @@ public class HistoricalMarketRecalculationService {
   }
 
   private DatedValue dated(String sql, LocalDate day) {
-    return jdbc.sql(sql)
+    return (sql.contains("TB_EXCH_DAY") ? exchangeSource.sql(sql) : jdbc.sql(sql))
         .param("day", day)
         .query(
             (rs, n) -> new DatedValue(rs.getObject(1, LocalDate.class), rs.getBigDecimal(2), null))

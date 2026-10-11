@@ -14,11 +14,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import com.nanum.investment.marketdata.infrastructure.ExchangeRateSource;
 
 @ExtendWith(MockitoExtension.class)
 class PortfolioWeightRefreshServiceTest {
   @Mock private TbHoldRepository holdings;
   @Mock private JdbcClient jdbc;
+  @Mock private ExchangeRateSource exchangeSource;
 
   @Test
   void refreshesEveryActiveHoldingInTheAccountAndClearsExcludedHolding() {
@@ -33,7 +35,7 @@ class PortfolioWeightRefreshServiceTest {
     when(holdings.findAllByAccount_AccountIdAndDeleteYn(1L, "N"))
         .thenReturn(List.of(under, over, excluded));
 
-    new PortfolioWeightRefreshService(holdings, new PortfolioWeightService(), jdbc)
+    new PortfolioWeightRefreshService(holdings, new PortfolioWeightService(), jdbc, exchangeSource)
         .refreshAccount(account);
 
     assertThat(under.getCurrentWeight()).isEqualByComparingTo("44.4444");
@@ -59,7 +61,7 @@ class PortfolioWeightRefreshServiceTest {
     TbHold holding = holding(account, "250", null, "Y");
     when(holdings.findAllByAccount_AccountIdAndDeleteYn(2L, "N")).thenReturn(List.of(holding));
 
-    new PortfolioWeightRefreshService(holdings, new PortfolioWeightService(), jdbc)
+    new PortfolioWeightRefreshService(holdings, new PortfolioWeightService(), jdbc, exchangeSource)
         .refreshAccount(account);
 
     assertThat(holding.getCurrentWeight()).isEqualByComparingTo("100.0000");

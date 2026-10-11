@@ -12,6 +12,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import com.nanum.investment.marketdata.infrastructure.ExchangeRateSource;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -22,16 +23,18 @@ public class FxDollarFactorCalculator {
   private static final int MAX_STALE_CALENDAR_DAYS = 7;
 
   private final JdbcClient jdbc;
+  private final ExchangeRateSource exchangeSource;
   private final ObjectMapper json;
 
-  public FxDollarFactorCalculator(JdbcClient jdbc, ObjectMapper json) {
+  public FxDollarFactorCalculator(JdbcClient jdbc, ObjectMapper json, ExchangeRateSource exchangeSource) {
     this.jdbc = jdbc;
+    this.exchangeSource = exchangeSource;
     this.json = json;
   }
 
   public Result calculate(LocalDate baseDate) {
     ExchangeObservation current =
-        jdbc.sql(
+        exchangeSource.sql(
                 """
                 SELECT "BASE_DT", "EXCH_RT"
                 FROM "TB_EXCH_DAY"
@@ -54,7 +57,7 @@ public class FxDollarFactorCalculator {
     }
 
     List<ExchangeObservation> history =
-        jdbc.sql(
+        exchangeSource.sql(
                 """
                 SELECT "BASE_DT", "EXCH_RT"
                 FROM "TB_EXCH_DAY"

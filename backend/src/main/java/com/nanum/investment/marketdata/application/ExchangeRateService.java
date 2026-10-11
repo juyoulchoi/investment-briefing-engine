@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.util.*;
 import org.slf4j.*;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import com.nanum.investment.marketdata.infrastructure.ExchangeRateSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,14 +17,20 @@ public class ExchangeRateService {
   private static final String BASE = "USD", QUOTE = "KRW";
   private final YahooExchangeRateCollector collector;
   private final JdbcClient jdbc;
+  private final ExchangeRateSource exchangeSource;
 
-  public ExchangeRateService(YahooExchangeRateCollector collector, JdbcClient jdbc) {
+  public ExchangeRateService(YahooExchangeRateCollector collector, JdbcClient jdbc, ExchangeRateSource exchangeSource) {
     this.collector = collector;
     this.jdbc = jdbc;
+    this.exchangeSource = exchangeSource;
   }
 
   @Transactional
   public CollectionResult collect(LocalDate from, LocalDate to) {
+    if (exchangeSource.shared()) {
+      if (history(BASE, QUOTE, from, to).isEmpty()) throw new IllegalStateException("怨듯넻 ?섏쑉 ?먯쿇 ?곗씠?곌? ?놁뒿?덈떎.");
+      return new CollectionResult(BASE, QUOTE, from, to, 0);
+    }
     List<ExchangeRateCollector.Quote> values = collector.collectRange(BASE, QUOTE, from, to);
     values.forEach(this::save);
     recalculate();
@@ -34,7 +41,7 @@ public class ExchangeRateService {
       String requestedBase, String requestedQuote, LocalDate from, LocalDate to) {
     if (from == null || to == null || from.isAfter(to))
       throw new IllegalArgumentException("유효하지 않은 조회 기간입니다.");
-    return jdbc.sql(
+    return exchangeSource.sql(
             """
    SELECT "BASE_DT" base_date,"BASE_CURR_CD" base_currency,"QUOTE_CURR_CD" quote_currency,
     "EXCH_RT" exchange_rate,"PREV_EXCH_RT" previous_exchange_rate,"CHG_AMT" change_amount,

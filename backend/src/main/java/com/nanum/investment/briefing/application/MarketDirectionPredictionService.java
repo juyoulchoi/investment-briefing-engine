@@ -7,18 +7,21 @@ import com.nanum.investment.briefing.dto.request.MarketScenarioProbabilityDto;
 import java.time.LocalDate;
 import java.util.*;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import com.nanum.investment.marketdata.infrastructure.ExchangeRateSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class MarketDirectionPredictionService {
   private final JdbcClient jdbc;
+  private final ExchangeRateSource exchangeSource;
   private final ObjectMapper json;
   private final MarketDirectionV2FallbackService v2Fallback;
 
   public MarketDirectionPredictionService(
-      JdbcClient jdbc, ObjectMapper json, MarketDirectionV2FallbackService v2Fallback) {
+      JdbcClient jdbc, ObjectMapper json, MarketDirectionV2FallbackService v2Fallback, ExchangeRateSource exchangeSource) {
     this.jdbc = jdbc;
+    this.exchangeSource = exchangeSource;
     this.json = json;
     this.v2Fallback = v2Fallback;
   }
@@ -30,11 +33,12 @@ public class MarketDirectionPredictionService {
                 """
         SELECT round("MKT_SCR")::int, round("RISK_SCR")::int, "MKT_REGIME",
                (SELECT max("BASE_DT") FROM "TB_MKT_SNAP" WHERE "BASE_DT"<=:day),
-               (SELECT max("BASE_DT") FROM "TB_EXCH_DAY" WHERE "BASE_DT"<=:day),
+               CAST(:exchangeDate AS date),
                (SELECT max("BASE_DT") FROM "TB_FRED_BOND_DAY" WHERE "BASE_DT"<=:day)
         FROM "TB_INV_DEC" WHERE "BASE_DT"=:day AND "LATEST_YN"='Y'
         ORDER BY "CALC_SEQ" DESC LIMIT 1
         """)
+            .param("exchangeDate", exchangeSource.latestDate(date))
             .param("day", date)
             .query(
                 (rs, n) ->
