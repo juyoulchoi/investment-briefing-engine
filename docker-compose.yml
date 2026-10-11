@@ -1,127 +1,49 @@
 name: investment
-
 services:
   postgres:
     image: postgres:16
-    container_name: investment-postgres
+    container_name: investment-source-postgres
     restart: unless-stopped
-    environment:
-      POSTGRES_DB: investment
-      POSTGRES_USER: investment
-      POSTGRES_PASSWORD: investment
-    ports:
-      - "5432:5432"
-    volumes:
-      - investment-postgres-data:/var/lib/postgresql/data
+    env_file: [backups/unified-db/runtime/postgres.env]
+    volumes: [investment-data:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U investment -d investment"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U source_owner -d investment_unified_live"]
+      interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 10s
+      retries: 10
     networks:
-      investment-existing:
-        aliases:
-          - postgres
-
+      default:
+        aliases: [source-postgres]
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    image: investment-backend
+    image: investment-backend:single
     container_name: investment-backend
     restart: unless-stopped
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/investment
-      SPRING_DATASOURCE_USERNAME: investment
-      SPRING_DATASOURCE_PASSWORD: investment
-      KRX_AUTH_KEY: ${KRX_AUTH_KEY:-}
-      KRX_BASE_URL: ${KRX_BASE_URL:-https://data-dbg.krx.co.kr}
-      KRX_CONNECT_TIMEOUT: ${KRX_CONNECT_TIMEOUT:-5s}
-      KRX_READ_TIMEOUT: ${KRX_READ_TIMEOUT:-30s}
-      KRX_CIRCUIT_FAILURE_THRESHOLD: ${KRX_CIRCUIT_FAILURE_THRESHOLD:-5}
-      KRX_CIRCUIT_OPEN_DURATION: ${KRX_CIRCUIT_OPEN_DURATION:-60s}
-      KRX_EOD_PUBLICATION_ZONE: ${KRX_EOD_PUBLICATION_ZONE:-Asia/Seoul}
-      KRX_EOD_PUBLICATION_TIME: ${KRX_EOD_PUBLICATION_TIME:-18:00}
-      KRX_MIN_REQUEST_INTERVAL: ${KRX_MIN_REQUEST_INTERVAL:-250ms}
-      YAHOO_FINANCE_BASE_URL: ${YAHOO_FINANCE_BASE_URL:-https://query2.finance.yahoo.com/v8/finance/chart}
-      YAHOO_CONNECT_TIMEOUT: ${YAHOO_CONNECT_TIMEOUT:-5s}
-      YAHOO_READ_TIMEOUT: ${YAHOO_READ_TIMEOUT:-30s}
-      YAHOO_INDEX_CONNECT_TIMEOUT: ${YAHOO_INDEX_CONNECT_TIMEOUT:-5s}
-      YAHOO_INDEX_READ_TIMEOUT: ${YAHOO_INDEX_READ_TIMEOUT:-30s}
-      YAHOO_EXCHANGE_CONNECT_TIMEOUT: ${YAHOO_EXCHANGE_CONNECT_TIMEOUT:-5s}
-      YAHOO_EXCHANGE_READ_TIMEOUT: ${YAHOO_EXCHANGE_READ_TIMEOUT:-30s}
-      YAHOO_STOCK_CONNECT_TIMEOUT: ${YAHOO_STOCK_CONNECT_TIMEOUT:-5s}
-      YAHOO_STOCK_READ_TIMEOUT: ${YAHOO_STOCK_READ_TIMEOUT:-30s}
-      YAHOO_MIN_REQUEST_INTERVAL: ${YAHOO_MIN_REQUEST_INTERVAL:-250ms}
-      YAHOO_CIRCUIT_FAILURE_THRESHOLD: ${YAHOO_CIRCUIT_FAILURE_THRESHOLD:-5}
-      YAHOO_CIRCUIT_OPEN_DURATION: ${YAHOO_CIRCUIT_OPEN_DURATION:-60s}
-      KRX_RETRY_MAX_ATTEMPTS: ${KRX_RETRY_MAX_ATTEMPTS:-4}
-      KRX_RETRY_BACKOFF: ${KRX_RETRY_BACKOFF:-1s,3s,10s}
-      KRX_RETRY_HTTP_STATUSES: ${KRX_RETRY_HTTP_STATUSES:-408,429,500,502,503,504}
-      YAHOO_RETRY_MAX_ATTEMPTS: ${YAHOO_RETRY_MAX_ATTEMPTS:-4}
-      YAHOO_RETRY_BACKOFF: ${YAHOO_RETRY_BACKOFF:-1s,3s,10s}
-      YAHOO_RETRY_HTTP_STATUSES: ${YAHOO_RETRY_HTTP_STATUSES:-408,429,500,502,503,504}
-      FRED_RETRY_MAX_ATTEMPTS: ${FRED_RETRY_MAX_ATTEMPTS:-4}
-      FRED_RETRY_BACKOFF: ${FRED_RETRY_BACKOFF:-1s,3s,10s}
-      FRED_RETRY_HTTP_STATUSES: ${FRED_RETRY_HTTP_STATUSES:-408,429,500,502,503,504}
-      KOFIA_RETRY_MAX_ATTEMPTS: ${KOFIA_RETRY_MAX_ATTEMPTS:-4}
-      KOFIA_RETRY_BACKOFF: ${KOFIA_RETRY_BACKOFF:-1s,3s,10s}
-      KOFIA_RETRY_HTTP_STATUSES: ${KOFIA_RETRY_HTTP_STATUSES:-408,429,500,502,503,504}
-      FRED_API_KEY: ${FRED_API_KEY:-}
-      FRED_BASE_URL: ${FRED_BASE_URL:-https://api.stlouisfed.org/fred}
-      FRED_CONNECT_TIMEOUT: ${FRED_CONNECT_TIMEOUT:-5s}
-      FRED_READ_TIMEOUT: ${FRED_READ_TIMEOUT:-30s}
-      FRED_MIN_REQUEST_INTERVAL: ${FRED_MIN_REQUEST_INTERVAL:-250ms}
-      KOFIA_BASE_URL: ${KOFIA_BASE_URL:-https://freesis.kofia.or.kr}
-      KOFIA_CONSUMER_ENABLED: "true"
-      KOFIA_CONSUMER_BASE_URL: http://kofia-collector:8080
-      KOFIA_RECOVERY_ENABLED: "false"
-      KOFIA_CONNECT_TIMEOUT: ${KOFIA_CONNECT_TIMEOUT:-5s}
-      KOFIA_READ_TIMEOUT: ${KOFIA_READ_TIMEOUT:-30s}
-      KOFIA_FUND_FLOW_SCHEDULER_ENABLED: "false"
-      KOFIA_FUND_FLOW_SCHEDULER_CRON: "${KOFIA_FUND_FLOW_SCHEDULER_CRON:-0 20 8 * * MON-SAT}"
-      KOFIA_FUND_FLOW_SCHEDULER_ZONE: ${KOFIA_FUND_FLOW_SCHEDULER_ZONE:-Asia/Seoul}
-      KOFIA_CUSTOMER_SCALE_SCHEDULER_ENABLED: "false"
-      KOFIA_CUSTOMER_SCALE_SCHEDULER_CRON: "${KOFIA_CUSTOMER_SCALE_SCHEDULER_CRON:-0 20 8 * * MON-SAT}"
-      KOFIA_CUSTOMER_SCALE_SCHEDULER_ZONE: ${KOFIA_CUSTOMER_SCALE_SCHEDULER_ZONE:-Asia/Seoul}
-      KOFIA_COMPANY_FUND_FLOW_SCHEDULER_ENABLED: "false"
-      KOFIA_COMPANY_FUND_FLOW_SCHEDULER_CRON: "${KOFIA_COMPANY_FUND_FLOW_SCHEDULER_CRON:-0 20 8 * * MON-SAT}"
-      KOFIA_COMPANY_FUND_FLOW_SCHEDULER_ZONE: ${KOFIA_COMPANY_FUND_FLOW_SCHEDULER_ZONE:-Asia/Seoul}
-      KOFIA_MIN_REQUEST_INTERVAL: ${KOFIA_MIN_REQUEST_INTERVAL:-250ms}
-      KOFIA_EXECUTOR_POOL_SIZE: ${KOFIA_EXECUTOR_POOL_SIZE:-2}
-      KOFIA_CIRCUIT_FAILURE_THRESHOLD: ${KOFIA_CIRCUIT_FAILURE_THRESHOLD:-5}
-      KOFIA_CIRCUIT_OPEN_DURATION: ${KOFIA_CIRCUIT_OPEN_DURATION:-60s}
-      KOFIA_SCHEDULER_ENABLED: "false"
-      SPRING_TASK_SCHEDULING_POOL_SIZE: ${SPRING_TASK_SCHEDULING_POOL_SIZE:-5}
-      KOFIA_SCHEDULER_CRON: "${KOFIA_SCHEDULER_CRON:-0 20 8 * * MON-SAT}"
-      KOFIA_SCHEDULER_ZONE: ${KOFIA_SCHEDULER_ZONE:-Asia/Seoul}
-      KOFIA_SCHEDULER_OVERLAP_DAYS: ${KOFIA_SCHEDULER_OVERLAP_DAYS:-21}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-sol}
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
-      INVESTMENT_BRIEFING_SCHEDULER_CRON: "${INVESTMENT_BRIEFING_SCHEDULER_CRON:-0 20 8 * * MON-FRI}"
-      INVESTMENT_BRIEFING_WEEKLY_DECISION_SCHEDULER_CRON: "${INVESTMENT_BRIEFING_WEEKLY_DECISION_SCHEDULER_CRON:-0 20 8 * * SAT}"
-      INVESTMENT_BRIEFING_WEEKLY_SCHEDULER_CRON: "${INVESTMENT_BRIEFING_WEEKLY_SCHEDULER_CRON:-0 20 8 * * SUN}"
-      INVESTMENT_BRIEFING_SCHEDULER_ZONE: "${INVESTMENT_BRIEFING_SCHEDULER_ZONE:-Asia/Seoul}"
-    ports:
-      - "8081:8080"
+    env_file: [backups/unified-db/runtime/backend.env]
+    ports: ["8081:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/api/v1/kofia/datasets || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    volumes: [./docs/krx/investor-flow:/data/investor-flow:ro]
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - investment-existing
-      - source-read
-
-networks:
-  source-read:
-    external: true
-    name: investment-source-read
-  investment-existing:
-    external: true
-    name: investment_default
-
+  frontend:
+    image: investment-frontend
+    container_name: investment-frontend
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://investment-backend:8080
+    ports: ["127.0.0.1:4175:3000"]
+    depends_on:
+      backend:
+        condition: service_healthy
 volumes:
-  investment-postgres-data:
+  investment-data:
     external: true
-    name: backend_investment-postgres-data
+    name: investment-source-postgres-data
